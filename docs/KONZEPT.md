@@ -88,6 +88,7 @@ flowchart LR
 | D11 | Installer | offizielles netinst-ISO + Preseed, kein eigenes Distro-Build | geringer Pflegeaufwand |
 | D12 | Swap | `atomic`-Recipe legt kleine Swap-Partition an, zusätzlich zram | zram hat höhere Priorität, beides stört sich nicht |
 | D13 | Docker-Abhängigkeit | `RequiresMountsFor=/srv/data` am Docker-Dienst | verhindert, dass Container bei fehlender HDD ihre Configs auf die SSD schreiben |
+| D15 | Shares/Stacks | Ansible ist Wahrheit: Samba-Shares und Compose-Dateien werden bei jedem Lauf aus `config.yml` und Vorlagen gerendert, Cockpit-Plugin und Dockge nur als Komfort | Reproduzierbarkeit (Entscheidung E1/E2, siehe `PLAN.md`); ersetzt die Aussagen in D3/D4 und 7.3 zu Cockpit-gepflegter `smb.conf` |
 | D14 | Scrutiny | übernimmt die SMART-Überwachung | `smartd` auf dem Host entfällt |
 
 ## 5. Repo-Struktur

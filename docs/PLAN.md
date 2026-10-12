@@ -2,17 +2,17 @@
 
 Basis: [KONZEPT.md](KONZEPT.md) mit den Änderungen aus [ANALYSE.md](ANALYSE.md). Der Plan ist risikobasiert: Unbekanntes wird zuerst in der VM geklärt, bevor darauf gebaut wird.
 
-## Offene Entscheidungen (bitte vor M1 treffen)
+## Entscheidungen
 
-| # | Frage | Empfehlung |
-|---|---|---|
-| E1 | Samba-Shares deklarativ (Ansible) oder Cockpit-gepflegt? | Deklarativ, Cockpit-Plugin optional |
-| E2 | Compose-Dateien: Ansible oder Dockge als Wahrheit? | Ansible, Dockge für Start/Stop/Logs |
-| E3 | App-Configs auf SSD oder HDD? | SSD (`/srv/appdata`), per restic gesichert |
-| E4 | Installer: ISO bauen oder Boot-Parameter + Preseed-URL (GitHub-Tag)? | Zuerst Preseed-URL, ISO später |
-| E5 | Sprache von Skripten/Ausgaben | Deutsch (konsistent zu Doku), Struktur i18n-fähig halten |
+| # | Frage | Entscheidung | Folge |
+|---|---|---|---|
+| E1 | Samba-Shares | Ansible (deklarativ, `include`-Datei bei jedem Lauf gerendert) | Cockpit-Plugin `file-sharing` nur optional, `shares` in `config.yml` bleibt dauerhaft Wahrheit |
+| E2 | Compose-Dateien | Ansible ist Wahrheit | Dockge nur für Start/Stop/Logs/Update, Änderungen per Variablen/Repo; Dockge optional |
+| E3 | App-Configs | HDD (`/srv/data/configs`, wie im Konzept) | Gegen die Empfehlung (SSD) entschieden; Risiken siehe unten |
+| E4 | Installer | Eigenes ISO | `build-iso.sh` mit Fixes aus ANALYSE 2.4 (`md5sum.txt`, SHA256, Parameter), Preseed-URL bleibt Dev-Modus |
+| E5 | Sprache | Deutsch | Skriptausgaben, Doku, Kommentare deutsch |
 
-Der Plan unten setzt die Empfehlungen voraus. Ändert sich eine Entscheidung, betrifft das nur die genannten Meilensteine.
+**Zu E3 (Risiken bewusst akzeptiert):** Langsamere Random-I/O für SQLite-Datenbanken, HDD kann nicht schlafen, Plattenausfall nimmt Daten und Configs mit. Gegenmaßnahmen: restic-Backup der Configs auf ein anderes Medium (M6) wird vor die Umstellung gezogen und ist Abnahmebedingung für M8; `chattr +i` auf dem leeren Mountpoint plus `RequiresMountsFor` verhindert Schreiben auf die SSD bei fehlender HDD.
 
 ## Entwicklungsumgebung
 
@@ -33,7 +33,7 @@ Der Plan unten setzt die Empfehlungen voraus. Ändert sich eine Entscheidung, be
 
 ### M0.5 – Spikes (Wegwerfcode in der VM, Ergebnis als Notiz in `docs/spikes.md`)
 - [ ] S1: Cockpit + 45Drives-Plugins auf Debian 13 installierbar? Wenn nein: Entscheidung E1 entfällt, Plugin raus.
-- [ ] S2: Preseed-Verhalten: Welche Fragen erscheinen bei `priority=critical` vs. `high`? Bleibt die Partitionierungs-Bestätigung manuell? Läuft `select-disk.sh` (busybox, `blkid`, `wget`)?
+- [ ] S2: Preseed- und ISO-Verhalten (inkl. Bootmenü-Pfade im Debian-13-ISO): Welche Fragen erscheinen bei `priority=critical` vs. `high`? Bleibt die Partitionierungs-Bestätigung manuell? Läuft `select-disk.sh` (busybox, `blkid`, `wget`)?
 - [ ] S3: `rotational`-Wert in der QEMU-VM, Verhalten mit `rotation_rate=1`.
 - [ ] S4: Hotio-Images: `curl` im Container für Healthchecks vorhanden? Image-Verfügbarkeit von `ghcr.io/d-a-w-n/*`.
 
@@ -42,21 +42,21 @@ Der Plan unten setzt die Empfehlungen voraus. Ändert sich eine Entscheidung, be
 ### M1 – Ansible-Kern
 - [ ] `site.yml` (UID/GID, Assert doppelter Ports)
 - [ ] `base`: Pakete, Hostname, Zeitzone, zram, unattended-upgrades (+ Reboot-Entscheidung), **SSH-Schlüssel/Härtung**
-- [ ] `datastructure`: Mountpoint-`assert`, `chattr +i` auf leerem Mountpoint, Ordner aus `data_dirs`, `appdata` (E3)
+- [ ] `datastructure`: Mountpoint-`assert`, `chattr +i` auf leerem Mountpoint, Ordner aus `data_dirs`, `configs/` auf der HDD (E3)
 - [ ] `docker`: Repo, `daemon.json`, `RequiresMountsFor`, Admin in Gruppe `docker`
 - [ ] CI-Job `idempotence` (Container, zweiter Lauf `changed=0`)
 
 **Abnahme:** Zweiter Lauf `changed=0`. Ohne Datenplatte startet Docker nicht, SSH bleibt erreichbar (Testmatrix 7).
 
 ### M2 – Cockpit und Samba
-- [ ] `cockpit` (+ Plugins, falls S1 positiv)
-- [ ] `samba`: deklarative Shares per Include, Benutzer-Passwort, optional `wsdd`
+- [ ] `cockpit` (Plugins nur optional, falls S1 positiv; `file-sharing` ist nicht tragend)
+- [ ] `samba`: Shares aus `config.yml` per Include-Datei (E1), Benutzer-Passwort, optional `wsdd`
 - [ ] Zugriff aus VM-Host (`smbclient`) und Windows
 
 **Abnahme:** Share von Windows beschreibbar, Dateien gehören dem Admin-Benutzer.
 
 ### M3 – Stacks
-- [ ] Vorlagen mit festgepinnten Image-Tags, Ports ans LAN gebunden (konfigurierbar)
+- [ ] Vorlagen (Ansible ist Wahrheit, E2) mit festgepinnten Image-Tags, Ports ans LAN gebunden (konfigurierbar)
 - [ ] Rolle `stacks` inkl. Scrutiny-Geräteliste (Test mit USB-Stick im System)
 - [ ] Hardlink-Test (KONZEPT 8)
 
@@ -71,19 +71,19 @@ Der Plan unten setzt die Empfehlungen voraus. Ändert sich eine Entscheidung, be
 
 ### M5 – Installer
 - [ ] `select-disk.sh`, `preseed.cfg.in` (parametrisiert: Locale, Keymap, Zeitzone, Hostname)
-- [ ] Boot per Preseed-URL (GitHub-Tag), Dev-Modus für VM
+- [ ] `build-iso.sh` (E4): SHA256-Prüfung des Eingabe-ISOs, `md5sum.txt` neu erzeugen, Bootmenü UEFI und BIOS; Dev-Modus per Preseed-URL für schnelle VM-Tests
 - [ ] Testmatrix 1–5 (UEFI und BIOS)
 
 **Abnahme:** Datenplatte wird in keinem Szenario angefasst.
 
-### M6 – Backup (restic)
+### M6 – Backup (restic), wegen E3 vorrangig
 - [ ] Rolle `backup`, Fehlerbenachrichtigung (`OnFailure=`)
 - [ ] Restore-Test in der VM
 
 **Abnahme:** Configs aus dem Repository zurückgespielt, Stacks laufen mit alten Einstellungen.
 
 ### M7 – Optional
-- [ ] ISO-Build per GitHub Actions bei Tag (inkl. `md5sum.txt`, SHA256-Prüfung)
+- [ ] ISO-Build per GitHub Actions bei Tag, ISO als Release-Asset
 - [ ] Rollen `firewall`, `desktop`, Monitoring/ntfy
 - [ ] Renovate-PRs für Image-Updates
 

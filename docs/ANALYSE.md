@@ -27,7 +27,7 @@ Ich empfehle die erste Variante; dann ist Dockge ein Komfort-Frontend und die Be
 ### 🟠 1.3 Config-Ordner auf der HDD
 `configs/` (SQLite-Datenbanken von Sonarr/Radarr/Emby, InfluxDB) liegt auf der rotierenden, einzelnen Platte. Nachteile: langsame Random-I/O (Emby-Bibliothek, Sonarr-UI), HDD kann nie schlafen, und ein Plattenausfall nimmt Daten *und* Einstellungen mit. Der Vorteil „Container schreiben bei fehlender HDD nicht auf die SSD“ lässt sich anders lösen (siehe 3.1).
 
-**Empfehlung:** App-Configs auf die SSD (z. B. `/srv/appdata`), nur Medien/Downloads auf die HDD, Configs per restic sichern. Die SSD hat laut Konzept 100 GB, das reicht. Bewusste Entscheidung nötig; falls Configs bei der HDD bleiben, Begründung in D-Liste ergänzen.
+**Empfehlung (entschieden: HDD bleibt, siehe PLAN E3):** App-Configs auf die SSD (z. B. `/srv/appdata`), nur Medien/Downloads auf die HDD, Configs per restic sichern. Die SSD hat laut Konzept 100 GB, das reicht. Bewusste Entscheidung nötig; falls Configs bei der HDD bleiben, Begründung in D-Liste ergänzen.
 
 ## 2. Technische Risiken
 
