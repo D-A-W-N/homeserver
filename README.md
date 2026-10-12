@@ -13,3 +13,8 @@ Schlankes, reproduzierbares Heimserver-System auf Debian 13: Docker-Container, S
 ## Lizenz
 
 [MIT](LICENSE)
+
+## Entwicklung und Tests
+
+VM-Tests mit QEMU (Testmatrix aus dem Konzept): `dev/vm-test.sh --help`.
+Ablauf: `dev/vm-test.sh fetch`, dann `dev/vm-test.sh install 1` (Szenario 1: UEFI, SSD + HDD).
