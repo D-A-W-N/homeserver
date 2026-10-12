@@ -19,6 +19,8 @@ Befehle:
   fetch                 Aktuelles Debian-netinst-ISO laden und per SHA256 prüfen
   install  <Szenario>   VM neu anlegen und vom ISO booten (löscht die alten Testplatten)
   boot     <Szenario>   Installierte VM ohne ISO starten (SSH: localhost:2222)
+  vt       <Nr> [Szenario]  Konsole <Nr> im laufenden Installer/VM einblenden (statt Strg+Alt+F<Nr>,
+                        das der Host oft abfängt). Zurück zum Installer: vt 1 (grafisch: vt 5)
   clean                 Alle Testplatten und VM-Daten löschen
 
 Szenarien (Nummern der Testmatrix):
@@ -39,10 +41,14 @@ Hinweise für den Installer-Test:
   - Preseed per Dev-Modus: im Bootmenü 'e' bzw. Tab drücken und anhängen:
       auto=true priority=critical url=http://10.0.2.2:8000/preseed.cfg
     (10.0.2.2 ist der Host aus Sicht der VM; Preseed-Server: installer/serve-preseed.sh)
-  - Platten-Merkmale im Installer prüfen (Spike S3): Strg+Alt+F2, dann
+  - Platten-Merkmale im Installer prüfen (Spike S3): in einem zweiten Terminal
+      dev/vm-test.sh vt 2      (dann im VM-Fenster Enter drücken)
       grep . /sys/block/*/queue/rotational
 USAGE
 }
+
+# kurzer Pfad, weil Unix-Sockets maximal 107 Zeichen erlauben
+monitor_sock() { echo "/tmp/hs-vm-$1.sock"; }
 
 die() { echo "Fehler: $*" >&2; exit 1; }
 
@@ -85,6 +91,19 @@ main() {
   case "$cmd" in
     -h|--help|help) usage; exit 0 ;;
     fetch) fetch; exit 0 ;;
+    vt)
+      local n=${1:?Konsolennummer fehlt} sock
+      sock=$(monitor_sock "${2:-1}")
+      [ -S "$sock" ] || die "Keine laufende VM für Szenario ${2:-1} (Monitor-Socket $sock fehlt)"
+      python3 - "$sock" "$n" <<'PY'
+import socket, sys, time
+s = socket.socket(socket.AF_UNIX)
+s.connect(sys.argv[1])
+time.sleep(0.3)
+s.send(f"sendkey ctrl-alt-f{sys.argv[2]}\n".encode())
+time.sleep(0.3)
+PY
+      exit 0 ;;
     clean) rm -rf "${VM_DIR:?}"/*.qcow2 "$VM_DIR"/*.img "$VM_DIR"/OVMF_VARS*.fd; echo "Testplatten gelöscht (ISO bleibt)."; exit 0 ;;
     install|boot) ;;
     *) usage; exit 1 ;;
@@ -166,6 +185,7 @@ main() {
   if [ "$cmd" = install ]; then
     args+=(-drive "if=none,id=cd,media=cdrom,readonly=on,file=$iso" -device ide-cd,drive=cd,bus=ahci.2 -boot order=dc)
   fi
+  args+=(-monitor "unix:$(monitor_sock "$scenario"),server,nowait")
   [ "$headless" = 1 ] && args+=(-display none -serial mon:stdio)
   # zusätzliche QEMU-Optionen, z. B. QEMU_EXTRA="-monitor unix:/tmp/mon.sock,server,nowait"
   # shellcheck disable=SC2206
