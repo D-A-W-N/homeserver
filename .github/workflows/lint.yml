@@ -19,7 +19,7 @@ jobs:
           pip install -r requirements-dev.txt
       - name: shellcheck
         run: |
-          files=$(git ls-files 'bin/*' 'installer/*.sh')
+          files=$(git ls-files 'bin/*' 'installer/*.sh' 'dev/*.sh')
           if [ -n "$files" ]; then shellcheck $files; fi
       - name: yamllint
         run: yamllint ansible config.example.yml .github
