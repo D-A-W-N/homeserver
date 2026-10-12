@@ -1,0 +1,38 @@
+name: lint
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Werkzeuge installieren
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          pip install -r requirements-dev.txt
+      - name: shellcheck
+        run: |
+          files=$(git ls-files 'bin/*' 'installer/*.sh')
+          if [ -n "$files" ]; then shellcheck $files; fi
+      - name: yamllint
+        run: yamllint ansible config.example.yml .github
+      - name: ansible-lint
+        run: cd ansible && ansible-lint
+      - name: Syntaxprüfung
+        run: cd ansible && ansible-playbook -i localhost, site.yml --syntax-check -e @../config.example.yml
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
