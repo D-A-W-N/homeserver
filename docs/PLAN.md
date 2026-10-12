@@ -25,9 +25,9 @@ Basis: [KONZEPT.md](KONZEPT.md) mit den Änderungen aus [ANALYSE.md](ANALYSE.md)
 ### M0 – Repo-Grundlage ✅ (Teil davon bereits erledigt)
 - [x] Repo `D-A-W-N/homeserver` (öffentlich), Konzept, Analyse, Plan
 - [x] `LICENSE` (MIT), `.gitignore`, `README.md`
-- [ ] `config.example.yml`, `ansible/group_vars/all.yml`, `.yamllint`, `.ansible-lint`
-- [ ] CI `lint.yml` mit gepinnten Versionen, `gitleaks`
-- [ ] Dependabot/Renovate für GitHub Actions und (später) Compose-Images
+- [x] `config.example.yml`, `ansible/group_vars/all.yml`, `.yamllint`, `.ansible-lint`
+- [x] CI `lint.yml` mit gepinnten Versionen, `gitleaks`
+- [x] Dependabot für GitHub Actions (Compose-Images später)
 
 **Abnahme:** CI grün auf leerem Gerüst.
 
