@@ -51,6 +51,7 @@ Stand: 2026-10-17 · Status: Planung (Neustart, ersetzt das alte Konzept)
 | D16 | App-Configs | **SSD** (`/srv/appdata`), Sicherung per restic | Schnelle SQLite-Zugriffe, die HDD darf schlafen, Configs überleben einen HDD-Ausfall. |
 | D17 | HTTPS im LAN | Lokale Domain `nas.home.arpa`, Caddy mit eigener CA (`tls internal`) | Keine eigene Domain nötig. Das Stammzertifikat wird einmal pro Gerät installiert. |
 | D18 | Zielhardware | AMD A4-5000, 15 GiB RAM, SSD + 3,6-TB-HDD, UEFI | Kein Transcoding: Emby nur mit Direct Play, Monitoring bewusst leichtgewichtig. |
+| D19 | SMB1 für PS2/OPL | **Zweite Samba-Instanz** `smbd-legacy`: nur SMB1, eigener Port (1445), eigene Benutzerdatenbank mit Benutzer `ps2`, nur der PS2-Ordner, Firewall optional auf die IP der Konsole beschränkt. Freigaben über `config.yml`, nicht über Cockpit | SMB1 gilt in Samba global; die Hauptinstanz bleibt so bei SMB3. Das schwache NTLMv1 trifft nur ein eigenes Konto ohne Login (Spike S5). |
 
 ## 3. Architektur
 
@@ -88,6 +89,7 @@ flowchart LR
 |---|---|---|
 | Cockpit + file-sharing, navigator, identities | System, Platten, Updates, Samba, Dateien, Benutzer | Host, `:9090` |
 | Samba (+ `wsdd2`) | Freigaben, NAS taucht in der Windows-Netzwerkumgebung auf | Host, `:445` |
+| Samba-Legacy *(optional)* | SMB1-Freigabe für PS2/OPL (D19) | Host, `:1445` |
 | Docker CE + Compose | Container-Laufzeit | Host |
 | Caddy | Reverse Proxy, HTTPS | Container, `:80/:443` |
 | Dockge | Stacks verwalten | Container |
@@ -135,6 +137,15 @@ apps:
   wireguard: false
   uptime_kuma: false
   emby: true
+
+# SMB1-Freigaben für PS2/OPL (D19), Pfade relativ zu /srv/data
+samba_legacy:
+  enabled: true
+  port: 1445
+  allowed_clients: []         # z. B. [192.168.1.50] = nur die PS2
+  shares:
+    - name: PS2SMB
+      path: games/ps2
 ```
 
 ## 5. Datenlayout
@@ -147,6 +158,7 @@ Ausgerichtet an den TRaSH Guides. **Ein** Dateisystem für Downloads und Medien,
 │   ├── incomplete/
 │   └── complete/{tv,movies,music}/
 ├── media/{tv,movies,music,books}/
+├── games/ps2/              OPL-Struktur (CD, DVD, VMC, CFG, ART, …), Gruppe ps2share, nur per SMB1-Instanz
 └── shares/                 freie Samba-Freigaben (Dokumente, Fotos, …)
 
 /srv/appdata/               SSD: Configs und Datenbanken aller Container
@@ -167,7 +179,8 @@ Grundsatz: **Nichts ist aus dem Internet erreichbar.** Zugriff gibt es nur aus d
 
 | Bereich | Maßnahme |
 |---|---|
-| Firewall | nftables, Default **drop** eingehend. Erlaubt aus LAN und VPN: 22, 53, 80, 443, 445, 9090 (+ 3702/5357 für wsdd) |
+| Firewall | nftables, Default **drop** eingehend. Erlaubt aus LAN und VPN: 22, 53, 80, 443, 445, 9090 (+ 3702/5357 für wsdd). Port 1445 (SMB1) nur aus dem LAN, nie per VPN, auf Wunsch nur von der PS2-IP |
+| SMB1 | Nur in der getrennten Legacy-Instanz (D19), nur der PS2-Ordner, eigenes Konto `ps2` ohne Shell und mit eigenem Passwort |
 | Docker vs. Firewall | Container-Ports nur an `127.0.0.1`, Zugriff ausschließlich über Caddy. Ausnahmen sind nur DNS (AdGuard) und eventuell die Emby-Discovery im LAN |
 | Docker-Socket | Homepage, Dozzle und Beszel nur über **socket-proxy (read-only)**. Dockge braucht den vollen Socket, ist root-gleich und deshalb nur hinter Caddy aus dem LAN erreichbar |
 | SSH | nur Schlüssel (`ssh_authorized_keys` in der Config), kein Root-Login, Passwort-Login nach der Einrichtung aus |
@@ -287,8 +300,9 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 ### M3 – Speicher und Samba
 - [ ] Rolle `storage` (Mount, Ordner, `chattr +i`, `RequiresMountsFor`)
 - [ ] Rollen `cockpit` und `samba` (Registry-Modus, wsdd2, Start-Shares)
+- [ ] Legacy-Instanz für PS2 (D19, Spike S5), Ordnerstruktur für OPL
 
-**Abnahme:** Freigabe in Cockpit anlegen → sofort von Windows/macOS/Linux erreichbar; ohne Datenplatte bleibt Docker aus, Cockpit und SSH funktionieren.
+**Abnahme:** Freigabe in Cockpit anlegen → sofort von Windows/macOS/Linux erreichbar; ohne Datenplatte bleibt Docker aus, Cockpit und SSH funktionieren. PS2 mit OPL listet und startet ein Spiel über die SMB1-Freigabe, während die Hauptinstanz SMB1 weiterhin ablehnt.
 
 ### M4 – Plattform-Stacks
 - [ ] proxy, dns, dashboard, monitoring
@@ -344,6 +358,7 @@ M0 → M1 ─┬→ M2 → M3 → M4 → M5 → M6 ─┬→ M8 → M9
 | 7 | – | Neustart ohne Datenplatte | Docker aus, Cockpit und SSH an, nichts landet auf der SSD |
 | 8 | – | HDD mit `AUNDATA` | wird nur eingehängt, nicht formatiert |
 | 9 | – | Port-Scan von außen | nur die freigegebenen Ports offen |
+| 10 | – | SMB1 an Port 445 und SMB2/3 an Port 1445 | beides abgelehnt; SMB1 an 1445 mit `ps2` erlaubt |
 
 ## 11. Offene Fragen
 
@@ -364,4 +379,6 @@ Entschieden am 2026-10-17: Media-Server, Ort der Configs, lokale Domain und Hard
 | Port 53 belegt | AdGuard startet nicht | Spike S3, Host-Resolver anpassen |
 | Schwache CPU (A4-5000) | Emby ruckelt bei Transcoding | Direct Play, Clients mit passenden Codecs, kein Transcoding einplanen |
 | Einzelne HDD ohne Redundanz | Datenverlust bei Plattenausfall | Scrutiny-Warnung, Backup der Configs, wichtige Freigaben zusätzlich sichern |
+| OPL kann keinen anderen SMB-Port als 445 | PS2-Freigabe nicht erreichbar | Test mit echter PS2; Fallback: zweite IP am Host, Legacy-Instanz dort auf 445 (S5) |
+| SMB1/NTLMv1 ist unsicher | Passwort von `ps2` ist mitlesbar | eigenes Wegwerf-Passwort, Konto ohne Shell, nur ein Ordner, Port nur im LAN |
 | Caddy-CA auf jedem Gerät nötig | Zertifikatswarnungen | Download-Link und Anleitung je Betriebssystem auf der Startseite |

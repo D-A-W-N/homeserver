@@ -59,6 +59,83 @@ Die folgende Konfiguration ist in der VM getestet: `sudo testparm -s` fehlerfrei
 - Start-Freigaben legt Ansible nur an, wenn sie in `net conf listshares` fehlen.
 - Backup: `net conf list > /etc/aunserver/samba-registry.conf` vor jedem restic-Lauf, Wiederherstellen mit `net conf import`.
 
+## S5 – SMB1-Freigabe für PS2/OPL neben SMB3
+
+**Datum:** 2026-10-17 · **Ergebnis:** ✅ machbar als zweite Samba-Instanz; Test mit echter PS2 steht aus
+
+**Problem:** Open PS2 Loader (OPL) kann nur SMB1 mit NTLMv1. `server min protocol` gilt in Samba global, eine SMB1-Freigabe in der Hauptinstanz würde SMB1 für alle Freigaben öffnen.
+
+**Lösung:** zweite `smbd`-Instanz `smbd-legacy` mit eigener Konfiguration, eigenen State-/Lock-/Private-Verzeichnissen (also eigener Benutzerdatenbank) und eigenem Port.
+
+Getestet (smbclient in der VM):
+
+| Test | Ergebnis |
+|---|---|
+| PS2-Freigabe per SMB1, Benutzer `ps2` | ✅ lesen, schreiben, Ordner anlegen |
+| PS2-Instanz per SMB2/3 | ✅ abgelehnt |
+| Hauptinstanz per SMB1 | ✅ abgelehnt |
+| Benutzer `ps2` an der Hauptinstanz | ✅ `LOGON_FAILURE` (getrennte Benutzerdatenbanken) |
+| Hauptinstanz per SMB3 | ✅ unverändert |
+
+**Fallstrick:** Mit `force user = <admin>` scheitert jedes Schreiben (`check_parent_access_fsp … ACCESS_DENIED`), weil Samba die Ordnerrechte mit dem Token von `ps2` prüft. `force group` allein hilft nicht. Was funktioniert: **ohne `force user`**, `ps2` ist Mitglied einer Gruppe, die den Ordner besitzt (setgid, `0775`), plus `force group`. Dateien gehören dann `ps2:<gruppe>`, `0664`, und der Admin (ebenfalls in der Gruppe) kann sie bearbeiten. Im Spike war die Gruppe die des Admins; die Rolle nutzt eine eigene Gruppe `ps2share`.
+
+Getestete Konfiguration (Pfad in der Rolle: `/srv/data/games/ps2`):
+
+```ini
+# /etc/samba-legacy/smb.conf
+[global]
+   server role = standalone server
+   smb ports = 1445
+   server min protocol = NT1
+   server max protocol = NT1
+   ntlm auth = ntlmv1-permitted
+   lanman auth = no
+   disable netbios = yes
+   map to guest = never
+   load printers = no
+   map archive = no
+   pid directory = /run/samba-legacy
+   lock directory = /var/lib/samba-legacy/lock
+   state directory = /var/lib/samba-legacy
+   cache directory = /var/cache/samba-legacy
+   private dir = /var/lib/samba-legacy/private
+   ncalrpc dir = /run/samba-legacy/ncalrpc
+   log file = /var/log/samba/legacy.log
+
+[PS2SMB]
+   path = /srv/spike-ps2
+   read only = no
+   valid users = ps2
+   force group = testuser
+   create mask = 0664
+   directory mask = 0775
+```
+
+```ini
+# /etc/systemd/system/smbd-legacy.service
+[Unit]
+Description=Samba SMB1 nur für PS2/OPL
+After=network.target
+[Service]
+Type=notify
+RuntimeDirectory=samba-legacy
+ExecStart=/usr/sbin/smbd --foreground --no-process-group -s /etc/samba-legacy/smb.conf
+ExecReload=/bin/kill -HUP $MAINPID
+[Install]
+WantedBy=multi-user.target
+```
+
+Benutzer: `useradd -r -M -s /usr/sbin/nologin ps2`, Passwort mit `smbpasswd -c /etc/samba-legacy/smb.conf -a ps2`.
+
+### Offen
+
+- [ ] **Test mit echter PS2 und OPL:** In OPL unter Netzwerk-Einstellungen den SMB-Port auf `1445` stellen, Freigabe `PS2SMB`, Benutzer `ps2`. smbclient hat sich per NTLMv2 angemeldet. Ob OPLs NTLMv1 durchgeht, zeigt erst die Konsole.
+- [ ] Falls OPL nur Port 445 kann: der Host bekommt eine **zweite IP-Adresse**. Die Hauptinstanz bindet an die erste (`interfaces`, `bind interfaces only = yes`), die PS2-Instanz an die zweite, beide auf Port 445.
+
+### Nebenbefund für S2
+
+Auf der VM läuft `cupsd` (Druckdienst). Der Preseed muss die Paketauswahl so eng fassen, dass kein Druck- oder Desktop-Zubehör mitkommt.
+
 ## S2 – Preseed und Installer
 
 *noch offen*
