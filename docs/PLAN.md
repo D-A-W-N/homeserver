@@ -270,7 +270,7 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 **Abnahme:** CI grün, VM startet mit netinst.
 
 ### M1 – Spikes (Wegwerfcode, Ergebnisse in `docs/spikes.md`)
-- [ ] **S1** Cockpit-Plugins (file-sharing, navigator, identities) auf Debian 13 installierbar? Samba-Registry-Import funktioniert? *Größtes Risiko für Ziel 3.*
+- [x] **S1** Cockpit-Plugins (file-sharing, navigator, identities) auf Debian 13 installierbar? Samba-Registry funktioniert? → Ja, Pakete von GitHub-Releases (gepinnt), NFS/rpcbind maskieren; Details in [spikes.md](spikes.md). Bestätigung per Klick in der Weboberfläche steht noch aus.
 - [ ] **S2** Preseed: Welche Fragen erscheinen? Bleibt die Partitionsbestätigung manuell? Läuft `select-disk.sh` in der Installer-Busybox?
 - [ ] **S3** AdGuard auf Port 53 neben dem Host-Resolver, Caddy mit `tls internal` und Wildcard-Namen
 - [ ] **S4** Docker-Ports an `127.0.0.1` und nftables zusammen: Ist von außen wirklich nur 80/443/53 offen?
@@ -359,7 +359,7 @@ Entschieden am 2026-10-17: Media-Server, Ort der Configs, lokale Domain und Hard
 
 | Risiko | Auswirkung | Gegenmaßnahme |
 |---|---|---|
-| Cockpit-file-sharing nicht für Debian 13 verfügbar | Ziel „Samba leicht“ gefährdet | Spike S1 zuerst; Fallback GitHub-Release-Pakete |
+| Cockpit-Plugins: kein Trixie im 45Drives-Apt-Repo | Updates kommen nicht automatisch | Trixie-Pakete aus GitHub-Releases, Version + SHA256 in `group_vars`, Renovate meldet neue Releases (S1) |
 | Preseed-Verhalten (Fragen, Bestätigung) | Installer fragt zu viel oder zu wenig | Spike S2, Testmatrix |
 | Port 53 belegt | AdGuard startet nicht | Spike S3, Host-Resolver anpassen |
 | Schwache CPU (A4-5000) | Emby ruckelt bei Transcoding | Direct Play, Clients mit passenden Codecs, kein Transcoding einplanen |
