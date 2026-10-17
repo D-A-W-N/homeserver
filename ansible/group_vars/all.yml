@@ -3,7 +3,7 @@
 
 # System
 hostname: nas
-admin_user: admin
+admin_user: nasadmin   # "admin" ist in Debian reserviert
 timezone: Europe/Berlin
 ssh_authorized_keys: []
 kernel_backports: false

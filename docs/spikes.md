@@ -135,11 +135,56 @@ Benutzer: `useradd -r -M -s /usr/sbin/nologin ps2`, Passwort mit `smbpasswd -c /
 
 ### Nebenbefund für S2
 
-Auf der VM läuft `cupsd` (Druckdienst). Der Preseed muss die Paketauswahl so eng fassen, dass kein Druck- oder Desktop-Zubehör mitkommt.
+Auf der VM läuft `cupsd` (Druckdienst). Der Preseed muss die Paketauswahl so eng fassen, dass kein Druck- oder Desktop-Zubehör mitkommt. → Mit `tasksel ssh-server` ohne `standard` erledigt (S2).
 
 ## S2 – Preseed und Installer
 
-*noch offen*
+**Datum:** 2026-10-17 · **Ergebnis:** ✅ (BIOS-Boot noch offen)
+
+**Aufbau:** Kernel und Initrd aus dem Debian-13.7-netinst-ISO per `qemu -kernel/-initrd` mit `auto=true priority=critical url=http://10.0.2.2:8000/preseed.cfg` gestartet, ISO als CD-Laufwerk, UEFI (OVMF). Bedient per QEMU-Monitor (`screendump`, `sendkey`). Die Fassungen von [`installer/preseed.cfg.in`](../installer/preseed.cfg.in) und [`installer/select-disk.sh`](../installer/select-disk.sh) im Repo entsprechen dem getesteten Stand.
+
+### ISO-Aufbau (für `build-iso.sh`)
+
+`/install.amd/vmlinuz`, `/install.amd/initrd.gz` (Text), `/install.amd/gtk/initrd.gz` (grafisch), `/boot/grub/grub.cfg` (UEFI, mit Theme und Untermenü „Advanced options“), `/isolinux/txt.cfg` (BIOS, 4 Zeilen), `/md5sum.txt` (933 Einträge).
+
+### Welche Fragen erscheinen (`priority=critical`)
+
+| Frage | Preseed | Ergebnis |
+|---|---|---|
+| Sprache, Tastatur, Zeitzone, Netz, Mirror | vorbelegt | nicht gefragt ✅ |
+| Hostname | `get_hostname` + `seen false` | **nicht gefragt, und der Wert wird ignoriert** (System heißt `debian`) |
+| Benutzername | Default + `seen false` | gefragt, Vorschlag aus dem Preseed ✅ |
+| Passwort (zweimal) | nur `seen false` | gefragt ✅ |
+| Systemplatte bestätigen (eigene Frage aus `select-disk.sh`) | – | gefragt, Vorauswahl „Ja“ ✅ |
+| Partitionierungsmethode + Platte | – | **nur** wenn `select-disk.sh` keine Platte setzt; zeigt Größe und Modell ✅ |
+| Änderungen auf die Festplatten schreiben? | `partman/confirm` nicht gesetzt | gefragt, **Vorauswahl „Nein“** ✅ |
+| Danach | – | keine Fragen mehr, `debian-installer/exit/poweroff` schaltet ab |
+
+### Plattenauswahl
+
+| Lauf | Belegung | Ergebnis |
+|---|---|---|
+| 1 | SSD 20 GB an Port 0, HDD 50 GB an Port 1 | SSD gewählt, installiert, HDD danach **0 Byte belegt** ✅ |
+| 2 | HDD an Port 0, SSD an Port 1 | SSD gewählt ✅ (im Installer trotzdem `sda`) |
+| 3 | zwei SSDs | Skript legt sich nicht fest, Installer **fragt** ✅ |
+| A | zwei SSDs, Skript erzwingt `sdb` (Testvariante) | Installer partitioniert `sdb` ✅, folgt also der Wahl des Skripts |
+
+### Befunde
+
+1. **`admin` ist in Debian ein reservierter Benutzername**, der Installer lehnt ihn ab. → Default `admin_user: nasadmin`.
+2. **Hostname lässt sich bei `priority=critical` nicht abfragen**, der Preseed-Wert wird ignoriert. → Der Installer fragt ihn nicht, `aunserver-setup` setzt ihn.
+3. **Gerätenamen sind nicht stabil:** In Lauf 1 war die SSD im Installer `sda` und im installierten System `sdb`. In Lauf 2 war die SSD am zweiten Port im Installer `sda`. Bestätigt die Regel „Platten nur nach Merkmalen“.
+4. `blkid` ist im Installer vorhanden (`/sbin/blkid`), `rotational` wird mit QEMU-`rotation_rate` korrekt gemeldet.
+5. Der Bestätigungsdialog des Installers nennt die Platte nur als `SCSI3 (0,0,0) (sda)`, ohne Größe und Modell. → `select-disk.sh` stellt vorher eine **eigene Rückfrage** mit Modell, Größe und Seriennummer (debconf-Template, funktioniert aus `early_command`). Bei „Nein“ fragt der Installer selbst.
+6. SATA-Platten haben kein `device/serial`, die Seriennummer steht als letztes Wort in `device/wwid`. Auf NVMe gibt es `device/serial` (auf dem Entwicklungsrechner geprüft).
+7. Ergebnis der Installation: Debian 13.7, Kernel 6.12.113, **272 Pakete**, nur `sshd` lauscht, kein cups/Desktop/Exim. Benutzer in `sudo`, root gesperrt, `de_DE.UTF-8`, Tastatur `de`, Quellen `main non-free-firmware` + security + updates (klassische `sources.list` mit `deb-src`; Ansible stellt auf deb822 um). Partitionen: ESP 966 MB, ext4, Swap 1 GB.
+8. `debconf-get` in der Konsole zeigte den gesetzten Wert nicht an; als Nachweis dient Lauf A.
+
+### Offen
+
+- [ ] BIOS-Boot (Testmatrix 2), insbesondere GRUB auf der gewählten Platte (`grub-installer/bootdev`)
+- [ ] Verhalten mit Platte, die bereits `AUNDATA` trägt (Testmatrix 8), und mit USB-Stick als Installationsmedium (Ausschluss per `*usb*`)
+- [ ] Bootmenü-Eintrag im eigenen ISO (M7)
 
 ## S3 – AdGuard Home auf Port 53, Caddy mit `tls internal`
 

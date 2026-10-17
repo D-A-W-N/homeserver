@@ -209,8 +209,8 @@ Danach schreibst du das ISO mit `dd`, Ventoy oder balenaEtcher auf den Stick. Sp
 ### 7.2 Installation (am Gerät, Monitor und Tastatur einmalig nötig)
 
 1. Vom Stick booten, „aunserver installieren“ wählen.
-2. Abgefragt werden nur: **Hostname, Benutzername, Passwort**.
-3. `select-disk.sh` sucht die Systemplatte. Ausgeschlossen werden USB-Geräte, Wechselmedien und Platten mit Label `AUNDATA`. Bevorzugt wird die kleinste SSD/NVMe. Bleibt genau ein Kandidat übrig, wird er vorgeschlagen, sonst fragt der Installer und zeigt Modell, Größe und Seriennummer.
+2. Abgefragt werden nur: **Benutzername** (Vorschlag `nasadmin`, `admin` ist in Debian reserviert) und **Passwort**. Den Hostnamen setzt `aunserver-setup`.
+3. `select-disk.sh` sucht die Systemplatte. Ausgeschlossen werden USB-Geräte, Wechselmedien und Platten mit Label `AUNDATA`. Gibt es genau eine SSD/NVMe, fragt das Skript mit Modell, Größe und Seriennummer nach. Sonst (oder bei „Nein“) fragt der Installer und zeigt Modell und Größe.
 4. **Die Bestätigung vor dem Partitionieren bleibt immer manuell.**
 5. `late_command` kopiert das Repo nach `/opt/aunserver` und richtet den Hinweis für den ersten Login ein.
 
@@ -219,7 +219,7 @@ Danach schreibst du das ISO mit `dd`, Ventoy oder balenaEtcher auf den Stick. Sp
 Ein Dialog (whiptail) direkt am Gerät oder per SSH, idempotent und jederzeit erneut ausführbar:
 
 1. Datenplatte wählen (Systemplatte wird ausgeblendet). Bei vorhandenem `AUNDATA` wird nur eingehängt, sonst formatiert, aber erst **nach Eintippen des Gerätenamens**. Single-Disk-Modus, falls nur eine Platte da ist.
-2. Domain für lokale Namen (Default `nas.home.arpa`), Zeitzone, SSH-Schlüssel.
+2. Hostname, Domain für lokale Namen (Default `nas.home.arpa`), Zeitzone, SSH-Schlüssel.
 3. Apps auswählen (Checkliste, Defaults wie in 4.4).
 4. `config.yml` schreiben, Ansible ausführen.
 5. Samba-Passwort setzen, Tailscale-Login-Link anzeigen.
@@ -284,7 +284,7 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 
 ### M1 – Spikes (Wegwerfcode, Ergebnisse in `docs/spikes.md`)
 - [x] **S1** Cockpit-Plugins (file-sharing, navigator, identities) auf Debian 13 installierbar? Samba-Registry funktioniert? → Ja, Pakete von GitHub-Releases (gepinnt), NFS/rpcbind maskieren; Details in [spikes.md](spikes.md). Bestätigung per Klick in der Weboberfläche steht noch aus.
-- [ ] **S2** Preseed: Welche Fragen erscheinen? Bleibt die Partitionsbestätigung manuell? Läuft `select-disk.sh` in der Installer-Busybox?
+- [x] **S2** Preseed: Welche Fragen erscheinen? Bleibt die Partitionsbestätigung manuell? Läuft `select-disk.sh` in der Installer-Busybox? → Ja; Hostname nicht abfragbar, `admin` reserviert; Entwürfe in `installer/` (BIOS offen)
 - [x] **S3** AdGuard auf Port 53, Caddy mit `tls internal` und Wildcard-Namen → läuft im Host-Netzwerk, AdGuard per API einrichtbar (UI auf `127.0.0.1:8083`), Caddyfile als Ordner mounten
 - [x] **S4** Docker-Ports an `127.0.0.1` und nftables → nur die freigegebenen Ports offen; forward-Regel schließt die Docker-Lücke
 - [x] **S5** SMB1 für PS2/OPL neben SMB3 → zweite Samba-Instanz (D19)
@@ -326,7 +326,7 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 - [ ] `select-disk.sh`, `preseed.cfg.in`, `build-iso.sh` (SHA256, `md5sum.txt`, UEFI und BIOS)
 - [ ] Testmatrix in der VM (siehe 10)
 
-**Abnahme:** Vom Stick zum fertigen NAS ohne Eingriff außer Hostname, Benutzer, Passwort, Plattenbestätigung und Setup-Dialog. Die Datenplatte wird in keinem Szenario angefasst.
+**Abnahme:** Vom Stick zum fertigen NAS ohne Eingriff außer Benutzer, Passwort, Plattenbestätigung und Setup-Dialog. Die Datenplatte wird in keinem Szenario angefasst.
 
 ### M8 – Fernzugriff und Backup
 - [ ] Rolle `network` (Tailscale/WireGuard)
