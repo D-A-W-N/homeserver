@@ -1,3 +1,5 @@
-ansible-core==2.18.*
+# Entwicklungswerkzeuge. ansible-core folgt der Version aus Debian 13 (trixie: 2.19),
+# damit lokal und in der CI dasselbe getestet wird, was auf dem NAS läuft.
+ansible-core==2.19.*
 ansible-lint==25.*
 yamllint==1.*

@@ -3,6 +3,7 @@ config.yml
 vault.yml
 .env
 *.env
+*.secret
 restic-password
 
 # Entwicklung
@@ -11,5 +12,6 @@ __pycache__/
 *.retry
 *.iso
 *.qcow2
+*.img
 .ansible/
 .vm/

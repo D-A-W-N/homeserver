@@ -1,37 +1,47 @@
 ---
+# Defaults. Pro Maschine überschreibt /etc/aunserver/config.yml diese Werte.
+
+# System
 hostname: nas
 admin_user: admin
 timezone: Europe/Berlin
-
-data_mount: /srv/data
-data_fs: ext4
-stacks_dir: /opt/stacks
-
 ssh_authorized_keys: []
+kernel_backports: false
+
+# Netz
+domain: nas.home.arpa
+
+# Speicher (Plan, Abschnitt 5)
+data_mount: /srv/data
+data_label: AUNDATA
+appdata_dir: /srv/appdata
+stacks_dir: /opt/stacks
 
 data_dirs:
   - usenet
-  - usenet/nzb
   - usenet/incomplete
   - usenet/complete
+  - usenet/complete/tv
+  - usenet/complete/movies
+  - usenet/complete/music
   - media
+  - media/tv
+  - media/movies
   - media/music
   - media/books
-  - media/games
-  - media/movies
-  - media/tv
+  - shares
 
-shares:
+# Start-Freigaben; danach werden Freigaben in Cockpit gepflegt (D6)
+samba_initial_shares:
   - name: media
     path: media
+  - name: shares
+    path: shares
 
-stacks: [dockge, arr, emby, scrutiny, ps2gamemanager]
-
-stack_configs:
-  dockge: []
-  arr: [radarr, sonarr, sabnzbd, recommendarr]
-  emby: [emby]
-  scrutiny: [scrutiny/config, scrutiny/influxdb]
-  ps2gamemanager: [ps2gamemanager]
-
-cockpit_plugins: []
+# Apps (Plan, Abschnitt 4); Plattform-Dienste sind immer aktiv
+apps:
+  adguard: true
+  tailscale: true
+  wireguard: false
+  uptime_kuma: false
+  emby: true

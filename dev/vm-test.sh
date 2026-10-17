@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# QEMU-Testumgebung für den Homeserver (Testmatrix aus docs/KONZEPT.md 13.1).
+# QEMU-Testumgebung für aunserver (Testmatrix aus docs/PLAN.md, Abschnitt 10).
 # Benötigt: qemu-system-x86_64, qemu-img, OVMF (für UEFI), curl, sha256sum.
 # shellcheck disable=SC2054  # Kommas gehören zu QEMU-Optionen, keine Array-Trenner
 set -euo pipefail
@@ -18,7 +18,8 @@ Verwendung: ${0##*/} <Befehl> [Optionen]
 Befehle:
   fetch                 Aktuelles Debian-netinst-ISO laden und per SHA256 prüfen
   install  <Szenario>   VM neu anlegen und vom ISO booten (löscht die alten Testplatten)
-  boot     <Szenario>   Installierte VM ohne ISO starten (SSH: localhost:2222)
+  boot     <Szenario>   Installierte VM ohne ISO starten
+                        (SSH: localhost:2222, HTTPS: localhost:8443, Cockpit: localhost:9090)
   vt       <Nr> [Szenario]  Konsole <Nr> im laufenden Installer/VM einblenden (statt Strg+Alt+F<Nr>,
                         das der Host oft abfängt). Zurück zum Installer: vt 1 (grafisch: vt 5)
   clean                 Alle Testplatten und VM-Daten löschen
@@ -26,11 +27,12 @@ Befehle:
 Szenarien (Nummern der Testmatrix):
   1   UEFI, SSD (System) + leere HDD (Daten)
   2   BIOS, wie 1
-  3   UEFI, nur eine Platte
+  3   UEFI, NVMe (System) + zwei SATA-HDDs (Auswahl der Datenplatte im Setup)
   4   UEFI, zwei SSDs (Installer muss fragen)
-  5   UEFI, NVMe (System) + SATA-HDD (Daten)
-  8   UEFI, wie 1, Datenplatte trägt bereits das Label HSDATA
+  5   UEFI, nur eine Platte (Single-Disk-Modus)
+  8   UEFI, wie 1, Datenplatte trägt bereits das Label AUNDATA
   nodata  UEFI, nur SSD (z. B. zum Testen von Szenario 7 nach der Installation)
+  Szenarien 6, 7 und 9 laufen auf einer bereits installierten VM (boot).
 
 Optionen:
   --iso <Datei>   anderes ISO verwenden (z. B. das mit build-iso.sh gebaute)
@@ -38,17 +40,17 @@ Optionen:
   --print         QEMU-Aufruf nur ausgeben, nicht starten
 
 Hinweise für den Installer-Test:
-  - Preseed per Dev-Modus: im Bootmenü 'e' bzw. Tab drücken und anhängen:
+  - Preseed ohne ISO-Umbau (Spike S2): im Bootmenü 'e' bzw. Tab drücken und anhängen:
       auto=true priority=critical url=http://10.0.2.2:8000/preseed.cfg
-    (10.0.2.2 ist der Host aus Sicht der VM; Preseed-Server: installer/serve-preseed.sh)
-  - Platten-Merkmale im Installer prüfen (Spike S3): in einem zweiten Terminal
+    (10.0.2.2 ist der Host aus Sicht der VM; z. B. 'python3 -m http.server 8000' im Preseed-Ordner)
+  - Platten-Merkmale im Installer prüfen: in einem zweiten Terminal
       dev/vm-test.sh vt 2      (dann im VM-Fenster Enter drücken)
       grep . /sys/block/*/queue/rotational
 USAGE
 }
 
 # kurzer Pfad, weil Unix-Sockets maximal 107 Zeichen erlauben
-monitor_sock() { echo "/tmp/hs-vm-$1.sock"; }
+monitor_sock() { echo "/tmp/aun-vm-$1.sock"; }
 
 die() { echo "Fehler: $*" >&2; exit 1; }
 
@@ -123,13 +125,13 @@ PY
   done
 
   # Szenario auswerten
-  local firmware=uefi sys=ssd data=hdd label=0
+  local firmware=uefi sys=ssd data=hdd data2=0 label=0
   case "$scenario" in
     1) ;;
     2) firmware=bios ;;
-    3) data=none ;;
+    3) sys=nvme; data2=1 ;;
     4) data=ssd ;;
-    5) sys=nvme ;;
+    5) data=none ;;
     8) label=1 ;;
     nodata) data=none ;;
     *) die "Unbekanntes Szenario: $scenario" ;;
@@ -137,18 +139,20 @@ PY
 
   mkdir -p "$VM_DIR"
   local sys_img=$VM_DIR/sys-$scenario.qcow2 data_img=$VM_DIR/data-$scenario.qcow2
+  local data2_img=$VM_DIR/data2-$scenario.qcow2
 
   if [ "$cmd" = install ]; then
     [ -e "$iso" ] || die "ISO fehlt: $iso (erst '${0##*/} fetch' ausführen)"
-    rm -f "$sys_img" "$data_img" "$VM_DIR/OVMF_VARS-$scenario.fd"
+    rm -f "$sys_img" "$data_img" "$data2_img" "$VM_DIR/data-$scenario.img" "$VM_DIR/OVMF_VARS-$scenario.fd"
     qemu-img create -q -f qcow2 "$sys_img" "$SYS_SIZE"
+    [ "$data2" = 1 ] && qemu-img create -q -f qcow2 "$data2_img" "$DATA_SIZE"
     if [ "$data" != none ]; then
       if [ "$label" = 1 ]; then
         command -v mkfs.ext4 >/dev/null || die "mkfs.ext4 fehlt (e2fsprogs) für Szenario 8"
         # Dateisystem mit Label direkt auf rohem Image, dann als qcow2 einbinden
         data_img=$VM_DIR/data-$scenario.img
         truncate -s "$DATA_SIZE" "$data_img"
-        mkfs.ext4 -q -F -L HSDATA "$data_img"
+        mkfs.ext4 -q -F -L AUNDATA "$data_img"
       else
         qemu-img create -q -f qcow2 "$data_img" "$DATA_SIZE"
       fi
@@ -161,7 +165,8 @@ PY
   local data_fmt=qcow2
   [ "${data_img##*.}" = img ] && data_fmt=raw
 
-  local args=(-m "$RAM" -smp 2 -nic user,hostfwd=tcp::2222-:22 -device ahci,id=ahci)
+  local args=(-m "$RAM" -smp 2 -device ahci,id=ahci
+    -nic user,hostfwd=tcp::2222-:22,hostfwd=tcp::8443-:443,hostfwd=tcp::9090-:9090)
   [ -w /dev/kvm ] && args+=(-enable-kvm -cpu host)
 
   if [ "$firmware" = uefi ]; then
@@ -173,15 +178,17 @@ PY
 
   # Systemplatte (SSD: rotation_rate=1, NVMe meldet sich selbst als nicht rotierend)
   if [ "$sys" = nvme ]; then
-    args+=(-drive "if=none,id=sys,format=qcow2,file=$sys_img" -device nvme,drive=sys,serial=hsnvme0)
+    args+=(-drive "if=none,id=sys,format=qcow2,file=$sys_img" -device nvme,drive=sys,serial=aunnvme0)
   else
-    args+=(-drive "if=none,id=sys,format=qcow2,file=$sys_img" -device ide-hd,drive=sys,bus=ahci.0,rotation_rate=1,serial=hssys0)
+    args+=(-drive "if=none,id=sys,format=qcow2,file=$sys_img" -device ide-hd,drive=sys,bus=ahci.0,rotation_rate=1,serial=aunsys0)
   fi
   # Datenplatte (HDD: rotation_rate=7200)
   case "$data" in
-    hdd) args+=(-drive "if=none,id=data,format=$data_fmt,file=$data_img" -device ide-hd,drive=data,bus=ahci.1,rotation_rate=7200,serial=hsdata0) ;;
-    ssd) args+=(-drive "if=none,id=data,format=$data_fmt,file=$data_img" -device ide-hd,drive=data,bus=ahci.1,rotation_rate=1,serial=hsdata0) ;;
+    hdd) args+=(-drive "if=none,id=data,format=$data_fmt,file=$data_img" -device ide-hd,drive=data,bus=ahci.1,rotation_rate=7200,serial=aundata0) ;;
+    ssd) args+=(-drive "if=none,id=data,format=$data_fmt,file=$data_img" -device ide-hd,drive=data,bus=ahci.1,rotation_rate=1,serial=aundata0) ;;
   esac
+  # zweite HDD (ahci.2 bleibt für das CD-Laufwerk frei)
+  [ "$data2" = 1 ] && args+=(-drive "if=none,id=data2,format=qcow2,file=$data2_img" -device ide-hd,drive=data2,bus=ahci.3,rotation_rate=7200,serial=aundata1)
   if [ "$cmd" = install ]; then
     args+=(-drive "if=none,id=cd,media=cdrom,readonly=on,file=$iso" -device ide-cd,drive=cd,bus=ahci.2 -boot order=dc)
   fi
