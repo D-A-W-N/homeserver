@@ -34,7 +34,8 @@ Ergebnisse der Vorab-Tests aus [PLAN.md](PLAN.md), Meilenstein M1. Getestet in d
 
 ### Offen
 
-- [ ] **Prüfung in der Weboberfläche:** In Cockpit (`https://localhost:9090`, Login `testuser`) unter *File Sharing* erscheint die Freigabe `spike`. Eine neue Freigabe per Klick anlegen und per `smbclient` erreichen.
+- [x] Weboberfläche: Cockpit mit den Plugins funktioniert (Rückmeldung 2026-10-17).
+- [ ] Eine per Klick angelegte Freigabe ist in `net conf listshares` noch nicht aufgetaucht. Prüfen, ob sie angelegt wurde und wo das Plugin sie speichert.
 
 ### Folgen für die Umsetzung (Rollen `cockpit`, `samba`)
 
@@ -142,8 +143,90 @@ Auf der VM läuft `cupsd` (Druckdienst). Der Preseed muss die Paketauswahl so en
 
 ## S3 – AdGuard Home auf Port 53, Caddy mit `tls internal`
 
-*noch offen* · Vorbefund: `systemd-resolved` ist auf einem frischen Debian 13 **nicht aktiv**, Port 53 ist frei.
+**Datum:** 2026-10-17 · **Ergebnis:** ✅
+
+### Versionen
+
+| Komponente | Version |
+|---|---|
+| Docker CE (download.docker.com, Suite `trixie`) | 29.9.1, Compose 5.6.0, Firewall-Backend iptables über nf_tables |
+| Docker-Repo-Schlüssel | Fingerabdruck `9DC8 5822 9FC7 DD38 854A E2D8 8D81 803C 0EBF CD88` |
+| AdGuard Home | `adguard/adguardhome:v0.107.79` |
+| Caddy | `caddy:2.11.7` |
+
+### Aufbau
+
+- **AdGuard und Caddy laufen mit `network_mode: host`.** Alle anderen Container veröffentlichen Ports nur an `127.0.0.1`, Caddy erreicht sie dort. Damit öffnet Docker selbst keinen Port ins LAN, und die Host-Firewall gilt für alles, was erreichbar ist (siehe S4). AdGuard sieht außerdem die echten Client-IPs.
+- `systemd-resolved` ist auf Debian 13 nicht aktiv, Port 53 ist frei.
+
+### Befunde
+
+1. **AdGuard lässt sich komplett per API einrichten** (gut für Ansible):
+   - `POST /control/install/configure` mit `web`, `dns`, `username`, `password`
+   - `POST /control/rewrite/add` mit `{"domain":"*.nas.home.arpa","answer":"<NAS-IP>"}`
+2. **Fallstrick:** Der Assistent lauscht selbst auf `*:3000`. Die Weboberfläche auf `127.0.0.1:3000` zu legen scheitert mit `address already in use`. → Die Weboberfläche kommt auf **`127.0.0.1:8083`**.
+3. DNS funktioniert: Wildcard-Rewrite → NAS-IP, externe Namen werden aufgelöst, `doubleclick.net` → `0.0.0.0`, sobald die Filterliste geladen ist (AdGuard DNS filter, rund 186.000 Regeln, beim ersten Start einige Sekunden).
+4. Caddy mit globalem `local_certs`: Jede Site bekommt ein Zertifikat der eigenen CA. `curl --cacert root.crt` → HTTP 200, `http://` → 308 auf HTTPS. Root-Zertifikat: `/data/caddy/pki/authorities/local/root.crt` im Caddy-Volume.
+5. **Fallstrick:** Wird die Caddyfile als *einzelne Datei* gemountet, sieht der Container nach `sed -i` oder Ansible-`template` (neue Inode) weiter die alte Version, auch nach `caddy reload`. → Den **Ordner** `/etc/caddy` mounten.
+6. Caddys Admin-API lauscht auf `127.0.0.1:2019`, also nur lokal.
 
 ## S4 – Docker-Ports an 127.0.0.1 und nftables
 
-*noch offen*
+**Datum:** 2026-10-17 · **Ergebnis:** ✅
+
+Gemessen vom Entwicklungsrechner über QEMU-Portweiterleitungen (in der VM kommen die Pakete wie aus dem LAN an, Quelle `10.0.2.2`). Ein Testcontainer `leak` war absichtlich auf `0.0.0.0:8099` veröffentlicht.
+
+| Dienst | ohne Firewall | nur input-Kette (drop) | + forward-Regel |
+|---|---|---|---|
+| `leak` 0.0.0.0:8099 | offen | **offen** (Docker umgeht input) | **zu** ✅ |
+| whoami / AdGuard-UI / Caddy-Admin an 127.0.0.1 | zu | zu | zu |
+| Caddy :80/:443, Cockpit :9090, SSH, Samba :445 | offen | offen | offen |
+| Samba-Legacy :1445, `ps2_clients` passt nicht | offen | – | **zu** ✅ |
+| DNS UDP :53 | – | – | offen ✅ |
+
+Container erreichen mit der forward-Regel weiterhin das Internet und sich gegenseitig.
+
+### Getestetes Regelwerk
+
+```nft
+table inet aunserver
+delete table inet aunserver
+table inet aunserver {
+	set lan4 { type ipv4_addr; flags interval; elements = { 10.0.2.0/24 } }
+	set ps2_clients { type ipv4_addr; flags interval; elements = { 10.0.2.99 } }
+
+	chain input {
+		type filter hook input priority filter; policy drop;
+		iif lo accept
+		ct state established,related accept
+		ct state invalid drop
+		meta l4proto { icmp, ipv6-icmp } accept
+		iifname "docker0" accept
+		iifname "br-*" accept
+		ip saddr @lan4 tcp dport { 22, 53, 80, 443, 445, 5357, 9090 } accept
+		ip saddr @lan4 udp dport { 53, 443, 3702 } accept
+		ip saddr @ps2_clients tcp dport 1445 accept
+		iifname "tailscale0" tcp dport { 22, 53, 80, 443, 445, 9090 } accept
+		iifname "tailscale0" udp dport { 53, 443 } accept
+	}
+
+	# Sicherheitsnetz: versehentlich auf 0.0.0.0 veröffentlichte Container-Ports
+	# sind aus LAN/VPN nicht erreichbar (Docker leitet sie an input vorbei).
+	chain forward {
+		type filter hook forward priority filter - 10; policy accept;
+		ct state new ct status dnat iifname != { "docker0", "lo" } iifname != "br-*" drop
+	}
+}
+```
+
+### Befunde
+
+1. **Eigene Tabelle `inet aunserver`, niemals `flush ruleset`.** Debians Standard-`/etc/nftables.conf` beginnt mit `flush ruleset`. Wird `nftables.service` damit aktiviert, löscht jeder Neustart des Dienstes die Regeln von Docker. → Die Rolle ersetzt `/etc/nftables.conf` durch eine Datei, die nur `include "/etc/nftables.d/*.nft"` enthält. `table …` + `delete table …` am Anfang macht das Laden idempotent.
+2. Die forward-Regel blockt nur **neue, per DNAT umgeleitete** Verbindungen, die nicht aus einem Docker-Netz kommen. Ports an `127.0.0.1` laufen über `docker-proxy` auf `lo` und sind nicht betroffen.
+3. Container dürfen den Host erreichen (`docker0`, `br-*`), z. B. für den Beszel-Agent oder AdGuard als DNS.
+4. Gegen Aussperren beim Testen: `systemd-run --on-active=300 nft delete table inet aunserver` vor dem Laden.
+
+### Offen
+
+- [ ] IPv6: Regeln für das LAN-Präfix (`lan6`) und Link-Local ergänzen, sobald bekannt ist, ob das Heimnetz IPv6 verteilt.
+- [ ] Tailscale-Regeln mit echtem `tailscale0` testen (M8).

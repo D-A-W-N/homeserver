@@ -42,7 +42,7 @@ Stand: 2026-10-17 · Status: Planung (Neustart, ersetzt das alte Konzept)
 | D7 | Docker-Verwaltung | **Dockge** | Leichtgewichtig, ideal für einen Host, arbeitet direkt mit `compose.yaml`. Alternative bei Bedarf: Arcane. |
 | D8 | Stacks | Mitgelieferte Stacks rendert Ansible aus Vorlagen nach `/opt/stacks/<name>`. **Eigene Stacks** legst du frei in Dockge an, Ansible fasst sie nie an | Klare Grenze zwischen „gehört dem Projekt“ und „gehört dir“. |
 | D9 | Monitoring | **Beszel** (Host und Container: CPU, RAM, Netz, Temperaturen, Alarme), **Scrutiny** (SMART), **Dozzle** (Logs), **ntfy** (Push-Benachrichtigung) | Alles leichtgewichtig, auch für schwache NAS-CPUs geeignet. |
-| D10 | Zugriff auf Web-Apps | **Caddy** als Reverse Proxy, alle Apps unter `https://<app>.<domain>`, Container-Ports nur an `127.0.0.1` gebunden | Löst nebenbei das Problem, dass Docker die Host-Firewall umgeht. |
+| D10 | Zugriff auf Web-Apps | **Caddy** als Reverse Proxy, alle Apps unter `https://<app>.<domain>`. Caddy und AdGuard laufen im **Host-Netzwerk**, alle anderen Container veröffentlichen Ports nur an `127.0.0.1` | Docker öffnet selbst keinen Port ins LAN, die Host-Firewall entscheidet allein (Spikes S3/S4). |
 | D11 | DNS | **AdGuard Home** als DNS für das Heimnetz, mit Rewrite `*.<domain>` → NAS-IP | Werbeblocker und lokale Namen in einem Dienst. |
 | D12 | Fernzugriff | **Tailscale** auf dem Host (Default) oder **WireGuard** (wg-easy), per Config wählbar | Tailscale braucht keine Portfreigabe, WireGuard bleibt ohne Drittanbieter. |
 | D13 | Image-Versionen | **Feste Tags** in `group_vars`, **Renovate** erzeugt Update-PRs im Repo | Reproduzierbar, Updates bleiben trotzdem einfach. |
@@ -181,7 +181,7 @@ Grundsatz: **Nichts ist aus dem Internet erreichbar.** Zugriff gibt es nur aus d
 |---|---|
 | Firewall | nftables, Default **drop** eingehend. Erlaubt aus LAN und VPN: 22, 53, 80, 443, 445, 9090 (+ 3702/5357 für wsdd). Port 1445 (SMB1) nur aus dem LAN, nie per VPN, auf Wunsch nur von der PS2-IP |
 | SMB1 | Nur in der getrennten Legacy-Instanz (D19), nur der PS2-Ordner, eigenes Konto `ps2` ohne Shell und mit eigenem Passwort |
-| Docker vs. Firewall | Container-Ports nur an `127.0.0.1`, Zugriff ausschließlich über Caddy. Ausnahmen sind nur DNS (AdGuard) und eventuell die Emby-Discovery im LAN |
+| Docker vs. Firewall | Container-Ports nur an `127.0.0.1`, Zugriff ausschließlich über Caddy (Host-Netzwerk). Zusätzlich verwirft eine forward-Regel neue DNAT-Verbindungen aus LAN/VPN zu Containern, damit auch ein versehentlich auf `0.0.0.0` veröffentlichter Port zu bleibt. Eigene nftables-Tabelle, nie `flush ruleset` (S4) |
 | Docker-Socket | Homepage, Dozzle und Beszel nur über **socket-proxy (read-only)**. Dockge braucht den vollen Socket, ist root-gleich und deshalb nur hinter Caddy aus dem LAN erreichbar |
 | SSH | nur Schlüssel (`ssh_authorized_keys` in der Config), kein Root-Login, Passwort-Login nach der Einrichtung aus |
 | Brute-Force | fail2ban für SSH (optional, Default an) |
@@ -285,8 +285,9 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 ### M1 – Spikes (Wegwerfcode, Ergebnisse in `docs/spikes.md`)
 - [x] **S1** Cockpit-Plugins (file-sharing, navigator, identities) auf Debian 13 installierbar? Samba-Registry funktioniert? → Ja, Pakete von GitHub-Releases (gepinnt), NFS/rpcbind maskieren; Details in [spikes.md](spikes.md). Bestätigung per Klick in der Weboberfläche steht noch aus.
 - [ ] **S2** Preseed: Welche Fragen erscheinen? Bleibt die Partitionsbestätigung manuell? Läuft `select-disk.sh` in der Installer-Busybox?
-- [ ] **S3** AdGuard auf Port 53 neben dem Host-Resolver, Caddy mit `tls internal` und Wildcard-Namen
-- [ ] **S4** Docker-Ports an `127.0.0.1` und nftables zusammen: Ist von außen wirklich nur 80/443/53 offen?
+- [x] **S3** AdGuard auf Port 53, Caddy mit `tls internal` und Wildcard-Namen → läuft im Host-Netzwerk, AdGuard per API einrichtbar (UI auf `127.0.0.1:8083`), Caddyfile als Ordner mounten
+- [x] **S4** Docker-Ports an `127.0.0.1` und nftables → nur die freigegebenen Ports offen; forward-Regel schließt die Docker-Lücke
+- [x] **S5** SMB1 für PS2/OPL neben SMB3 → zweite Samba-Instanz (D19)
 
 **Abnahme:** Jede Annahme bestätigt oder das Design angepasst. Fallback für S1: Plugins aus GitHub-Releases, sonst ein schlankes eigenes Samba-Webformular als späteres Teilprojekt.
 
@@ -376,7 +377,7 @@ Entschieden am 2026-10-17: Media-Server, Ort der Configs, lokale Domain und Hard
 |---|---|---|
 | Cockpit-Plugins: kein Trixie im 45Drives-Apt-Repo | Updates kommen nicht automatisch | Trixie-Pakete aus GitHub-Releases, Version + SHA256 in `group_vars`, Renovate meldet neue Releases (S1) |
 | Preseed-Verhalten (Fragen, Bestätigung) | Installer fragt zu viel oder zu wenig | Spike S2, Testmatrix |
-| Port 53 belegt | AdGuard startet nicht | Spike S3, Host-Resolver anpassen |
+| Port 53 belegt | AdGuard startet nicht | Auf Debian 13 frei (S3); Rolle prüft vor dem Start, dass nichts auf 53 lauscht |
 | Schwache CPU (A4-5000) | Emby ruckelt bei Transcoding | Direct Play, Clients mit passenden Codecs, kein Transcoding einplanen |
 | Einzelne HDD ohne Redundanz | Datenverlust bei Plattenausfall | Scrutiny-Warnung, Backup der Configs, wichtige Freigaben zusätzlich sichern |
 | OPL kann keinen anderen SMB-Port als 445 | PS2-Freigabe nicht erreichbar | Test mit echter PS2; Fallback: zweite IP am Host, Legacy-Instanz dort auf 445 (S5) |
