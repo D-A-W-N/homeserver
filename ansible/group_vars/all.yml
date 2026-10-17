@@ -1,0 +1,47 @@
+---
+# Defaults. Pro Maschine überschreibt /etc/aunserver/config.yml diese Werte.
+
+# System
+hostname: nas
+admin_user: admin
+timezone: Europe/Berlin
+ssh_authorized_keys: []
+kernel_backports: false
+
+# Netz
+domain: nas.home.arpa
+
+# Speicher (Plan, Abschnitt 5)
+data_mount: /srv/data
+data_label: AUNDATA
+appdata_dir: /srv/appdata
+stacks_dir: /opt/stacks
+
+data_dirs:
+  - usenet
+  - usenet/incomplete
+  - usenet/complete
+  - usenet/complete/tv
+  - usenet/complete/movies
+  - usenet/complete/music
+  - media
+  - media/tv
+  - media/movies
+  - media/music
+  - media/books
+  - shares
+
+# Start-Freigaben; danach werden Freigaben in Cockpit gepflegt (D6)
+samba_initial_shares:
+  - name: media
+    path: media
+  - name: shares
+    path: shares
+
+# Apps (Plan, Abschnitt 4); Plattform-Dienste sind immer aktiv
+apps:
+  adguard: true
+  tailscale: true
+  wireguard: false
+  uptime_kuma: false
+  emby: true

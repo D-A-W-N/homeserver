@@ -261,10 +261,11 @@ aunserver/
 
 Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in der VM testbar und hat Abnahmekriterien.
 
-### M0 – Gerüst
-- [ ] Repo-Struktur, README, `.gitignore`, Lizenz
-- [ ] Lint-CI (shellcheck, yamllint, ansible-lint, gitleaks), Versionen gepinnt
-- [ ] `dev/vm-test.sh` (QEMU, UEFI/BIOS, mehrere virtuelle Platten)
+### M0 – Gerüst ✅
+- [x] Repo-Struktur, README, `.gitignore`, Lizenz
+- [x] Lint-CI (shellcheck, yamllint, ansible-lint `production`, gitleaks), Versionen gepinnt (ansible-core 2.19 wie in Debian 13)
+- [x] `dev/vm-test.sh` (QEMU, UEFI/BIOS, mehrere virtuelle Platten)
+- [x] Renovate-Konfiguration (GitHub-App muss einmal aktiviert werden)
 
 **Abnahme:** CI grün, VM startet mit netinst.
 
