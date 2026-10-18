@@ -9,6 +9,7 @@ name: vm-test
       - installer/**
       - dev/**
       - stacks/**
+      - bin/**
       - .github/workflows/vm-test.yml
   workflow_dispatch:
 permissions:
@@ -20,6 +21,10 @@ jobs:
   vm:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    defaults:
+      run:
+        # ausdrücklich bash: dann mit "-eo pipefail", sonst überdeckt "| tee" Fehlschläge
+        shell: bash
     env:
       VM_DIR: ${{ github.workspace }}/.vm
       SSH_PORT: "2222"
@@ -53,44 +58,46 @@ jobs:
       - name: ISO laden und prüfen
         run: dev/vm-test.sh fetch
 
-      - name: SSH-Schlüssel und Testkonfiguration
-        run: |
-          ssh-keygen -q -t ed25519 -N '' -f ~/.ssh/id_ed25519
-          cat > "$RUNNER_TEMP/config.yml" <<EOF
-          ---
-          hostname: nas
-          admin_user: nasadmin
-          ssh_authorized_keys:
-            - $(cat ~/.ssh/id_ed25519.pub)
-          samba_password: ci-test-123
-          samba_legacy_password: ci-ps2-123
-          samba_legacy:
-            enabled: true
-            port: 1445
-            allowed_clients: []
-            shares:
-              - name: PS2SMB
-                path: games/ps2
-          EOF
+      - name: SSH-Schlüssel
+        run: ssh-keygen -q -t ed25519 -N '' -f ~/.ssh/id_ed25519
 
-      # Szenario 8: SSD + HDD mit Label AUNDATA (das Formatieren übernimmt später aunserver-setup)
+      # Szenario 1: SSD + leere HDD, also genau der Zustand nach der Installation vom Stick
       - name: Debian automatisch installieren
-        run: dev/vm-test.sh autoinstall 8 --headless < /dev/null > "$RUNNER_TEMP/install.log" 2>&1
+        run: dev/vm-test.sh autoinstall 1 --headless < /dev/null > "$RUNNER_TEMP/install.log" 2>&1
 
       - name: Installiertes System starten
         run: |
-          dev/vm-test.sh boot 8 --headless < /dev/null > "$RUNNER_TEMP/boot.log" 2>&1 &
+          dev/vm-test.sh boot 1 --headless < /dev/null > "$RUNNER_TEMP/boot.log" 2>&1 &
           opts="-p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=3"
           timeout 300 bash -c "until ssh $opts nasadmin@localhost true 2>/dev/null; do sleep 5; done"
 
-      - name: Playbook, erster Lauf
-        run: dev/vm-ansible.sh "$RUNNER_TEMP/config.yml" | tee "$RUNNER_TEMP/run1.log"
+      - name: Repo in die VM kopieren
+        run: SYNC_ONLY=1 dev/vm-ansible.sh
 
-      - name: Playbook, zweiter Lauf (muss changed=0 melden)
+      - name: aunserver-setup, erster Lauf (formatiert die Datenplatte)
         run: |
-          dev/vm-ansible.sh "$RUNNER_TEMP/config.yml" | tee "$RUNNER_TEMP/run2.log"
+          ssh_vm() { ssh -n -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost "$@"; }
+          # Gerätenamen wechseln zwischen Boots; die Datenplatte über ihre Seriennummer finden
+          disk=$(ssh_vm "lsblk -dn -o NAME,SERIAL" | awk '$2 == "aundata0" {print $1}')
+          echo "Datenplatte: $disk"
+          key=$(cat ~/.ssh/id_ed25519.pub)
+          ssh -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost \
+            "printf '%s\n' aunserver | sudo -S -p '' /opt/aunserver/bin/aunserver-setup --yes \
+               --data-disk $disk --format --confirm-disk $disk --hostname nas \
+               --ssh-key '$key' --samba-password ci-test-123 --ps2-password ci-ps2-123" < /dev/null \
+            | tee "$RUNNER_TEMP/run1.log"
+
+      - name: aunserver-setup, zweiter Lauf (muss changed=0 melden)
+        run: |
+          ssh -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost \
+            "printf '%s\n' aunserver | sudo -S -p '' /opt/aunserver/bin/aunserver-setup --yes" < /dev/null \
+            | tee "$RUNNER_TEMP/run2.log"
           sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/run2.log" \
             | grep -E 'localhost +: ok=[0-9]+ +changed=0 +unreachable=0 +failed=0'
+
+      - name: Warnungen im Playbook
+        if: always()
+        run: grep -hiE '\[WARNING\]|\[DEPRECATION' "$RUNNER_TEMP"/run*.log | sort | uniq -c || echo "keine"
 
       - name: Logs bei Fehler
         if: failure()

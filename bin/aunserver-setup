@@ -1,0 +1,351 @@
+#!/usr/bin/env bash
+# aunserver-setup – Ersteinrichtung des NAS nach der Installation vom USB-Stick (Plan, Abschnitt 7.3).
+#
+# Fragt Datenplatte, Hostname, SSH-Schlüssel, Apps und Passwörter ab, schreibt
+# /etc/aunserver/config.yml und führt das Playbook aus. Jederzeit erneut ausführbar:
+# eine vorhandene Konfiguration und eine Datenplatte mit Label AUNDATA werden weiterverwendet.
+#
+# Interaktiv (Dialoge) oder vollständig über Parameter (z. B. für Tests), siehe --help.
+set -euo pipefail
+
+REPO=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+CONFIG_DIR=/etc/aunserver
+CONFIG=$CONFIG_DIR/config.yml
+LOG=/var/log/aunserver-setup.log
+LABEL=AUNDATA
+TITLE="aunserver – Einrichtung"
+
+usage() {
+  cat <<USAGE
+Verwendung: sudo ${0##*/} [Optionen]
+
+Ohne Optionen fragt das Skript alles in Dialogen ab.
+
+Optionen (alle optional; was fehlt, wird gefragt bzw. bei --yes mit Standardwert belegt):
+  --yes                     keine Rückfragen, Standardwerte verwenden
+  --config DATEI            fertige config.yml übernehmen (überspringt die Fragen)
+  --data-disk NAME          Datenplatte, z. B. sdb oder nvme1n1
+  --format                  Datenplatte formatieren (nur zusammen mit --data-disk und --confirm-disk)
+  --confirm-disk NAME       Bestätigung des Gerätenamens (muss --data-disk entsprechen)
+  --single-disk             keine eigene Datenplatte, Daten auf der Systemplatte
+  --hostname NAME           Standard: nas
+  --domain NAME             Standard: <hostname>.home.arpa
+  --timezone ZONE           Standard: Europe/Berlin
+  --ssh-key SCHLÜSSEL       öffentlicher SSH-Schlüssel (mehrfach möglich)
+  --samba-password PW       Samba-Passwort des Admins
+  --ps2-password PW         Passwort für die SMB1-Freigabe (aktiviert sie)
+  --no-ps2                  keine SMB1-Freigabe für PS2/OPL
+  --apps LISTE              kommagetrennt aus: adguard,emby,recommendarr,ps2gamemanager,uptime_kuma
+                            (Standard: adguard,emby,recommendarr,ps2gamemanager)
+  --no-playbook             nur Konfiguration schreiben (und ggf. formatieren)
+  --reconfigure             vorhandene config.yml neu abfragen statt übernehmen
+  -h, --help                diese Hilfe
+USAGE
+}
+
+die() { echo "Fehler: $*" >&2; exit 1; }
+info() { echo "== $*"; }
+
+# --- Parameter -------------------------------------------------------------------
+COLLECTED=0 FORMAT_TARGET="" YES=0 CONFIG_IN="" DATA_DISK="" FORMAT=0 CONFIRM_DISK="" SINGLE=0 HOST="" DOMAIN="" TZONE=""
+SSH_KEYS=() SAMBA_PW="" PS2_PW="" PS2=-1 APPS="" RUN_PLAYBOOK=1 RECONFIGURE=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --yes) YES=1 ;;
+    --config) CONFIG_IN=${2:?}; shift ;;
+    --data-disk) DATA_DISK=${2:?}; shift ;;
+    --format) FORMAT=1 ;;
+    --confirm-disk) CONFIRM_DISK=${2:?}; shift ;;
+    --single-disk) SINGLE=1 ;;
+    --hostname) HOST=${2:?}; shift ;;
+    --domain) DOMAIN=${2:?}; shift ;;
+    --timezone) TZONE=${2:?}; shift ;;
+    --ssh-key) SSH_KEYS+=("${2:?}"); shift ;;
+    --samba-password) SAMBA_PW=${2:?}; shift ;;
+    --ps2-password) PS2_PW=${2:?}; PS2=1; shift ;;
+    --no-ps2) PS2=0 ;;
+    --apps) APPS=${2:?}; shift ;;
+    --no-playbook) RUN_PLAYBOOK=0 ;;
+    --reconfigure) RECONFIGURE=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) die "Unbekannte Option: $1 (siehe --help)" ;;
+  esac
+  shift
+done
+
+[ "$(id -u)" = 0 ] || die "Bitte mit sudo ausführen: sudo $0"
+ADMIN=${SUDO_USER:-}
+if [ -z "$ADMIN" ] || [ "$ADMIN" = root ]; then die "Bitte als Admin-Benutzer mit sudo starten, nicht als root."; fi
+id -nG "$ADMIN" | grep -qw sudo || die "$ADMIN ist nicht in der Gruppe sudo."
+
+# --- Dialoge -----------------------------------------------------------------------
+# Interaktiv nur, wenn ein Terminal da ist und nicht --yes gesetzt wurde
+interactive() { [ "$YES" = 0 ] && [ -t 0 ]; }
+
+ask() { # ask VAR "Frage" "Standard"
+  local var=$1 prompt=$2 def=$3 val
+  if interactive; then
+    val=$(whiptail --title "$TITLE" --inputbox "$prompt" 10 72 "$def" 3>&1 1>&2 2>&3) || die "Abgebrochen."
+  else
+    val=$def
+  fi
+  printf -v "$var" '%s' "$val"
+}
+
+ask_password() { # ask_password VAR "Wofür"
+  local var=$1 what=$2 a b
+  interactive || die "Passwort für $what fehlt (Parameter angeben oder interaktiv starten)."
+  while :; do
+    a=$(whiptail --title "$TITLE" --passwordbox "Passwort für $what:" 10 72 3>&1 1>&2 2>&3) || die "Abgebrochen."
+    b=$(whiptail --title "$TITLE" --passwordbox "Passwort für $what wiederholen:" 10 72 3>&1 1>&2 2>&3) || die "Abgebrochen."
+    if [ -z "$a" ]; then whiptail --title "$TITLE" --msgbox "Das Passwort darf nicht leer sein." 8 60
+    elif [ "$a" != "$b" ]; then whiptail --title "$TITLE" --msgbox "Die Passwörter stimmen nicht überein." 8 60
+    elif [ ${#a} -lt 8 ]; then whiptail --title "$TITLE" --msgbox "Bitte mindestens 8 Zeichen." 8 60
+    else break; fi
+  done
+  printf -v "$var" '%s' "$a"
+}
+
+yesno() { # yesno "Frage" (Standard ja); ohne Terminal: ja
+  interactive || return 0
+  whiptail --title "$TITLE" --yesno "$1" 12 72
+}
+
+# --- Platten -------------------------------------------------------------------------
+system_disk() { # Platte, auf der / liegt
+  local src
+  src=$(findmnt -no SOURCE /)
+  lsblk -no PKNAME "$src" | head -n1
+}
+
+# Kandidaten für die Datenplatte: ganze Platten, nicht die Systemplatte, kein USB/Wechselmedium
+candidate_disks() {
+  local sys
+  sys=$(system_disk)
+  lsblk -dn -o NAME,TYPE,RM,TRAN | while read -r name type rm tran; do
+    [ "$type" = disk ] || continue
+    [ "$name" = "$sys" ] && continue
+    [ "$rm" = 1 ] && continue
+    [ "$tran" = usb ] && continue
+    case "$name" in loop*|zram*|sr*|fd*) continue ;; esac
+    echo "$name"
+  done
+}
+
+disk_info() { # "Modell, Größe, Seriennummer" (Felder einzeln: Modelle enthalten Leerzeichen)
+  local d=$1 model size serial
+  model=$(lsblk -dn -o MODEL "/dev/$d" | sed 's/ *$//')
+  size=$(lsblk -dn -o SIZE "/dev/$d" | tr -d ' ')
+  serial=$(lsblk -dn -o SERIAL "/dev/$d" | tr -d ' ')
+  echo "${model:-unbekannt}, $size, Seriennummer ${serial:-unbekannt}"
+}
+
+disk_in_use() { # irgendeine Partition der Platte eingehängt oder als Swap aktiv?
+  lsblk -n -o MOUNTPOINTS "/dev/$1" | grep -q '[^[:space:]]'
+}
+
+existing_label() { blkid -t "LABEL=$LABEL" -o device 2>/dev/null || true; }
+
+format_disk() { # format_disk NAME
+  local d=$1 part
+  disk_in_use "$d" && die "/dev/$d ist eingehängt oder in Benutzung, wird nicht formatiert."
+  info "Formatiere /dev/$d (GPT, eine Partition, ext4, Label $LABEL)"
+  wipefs -a "/dev/$d" >/dev/null
+  parted -s "/dev/$d" mklabel gpt mkpart aundata ext4 1MiB 100%
+  udevadm settle
+  case "$d" in nvme*|mmcblk*) part=/dev/${d}p1 ;; *) part=/dev/${d}1 ;; esac
+  [ -b "$part" ] || die "Partition $part nicht gefunden."
+  # 1 % statt 5 % für root reserviert: reine Datenplatte
+  mkfs.ext4 -q -F -m 1 -L "$LABEL" "$part"
+  udevadm settle
+}
+
+choose_data_disk() {
+  local labeled cands=() menu=() d
+  labeled=$(existing_label)
+  if [ -n "$labeled" ] && [ -z "$DATA_DISK" ] && [ "$SINGLE" = 0 ]; then
+    [ "$(echo "$labeled" | wc -l)" = 1 ] || die "Mehrere Platten tragen das Label $LABEL: $(echo "$labeled" | tr '\n' ' ')"
+    info "Datenplatte gefunden: $labeled (Label $LABEL), wird weiterverwendet"
+    return
+  fi
+  [ "$SINGLE" = 1 ] && { info "Single-Disk-Modus: Daten auf der Systemplatte"; return; }
+
+  mapfile -t cands < <(candidate_disks)
+  if [ -z "$DATA_DISK" ]; then
+    if [ ${#cands[@]} = 0 ]; then
+      yesno "Keine zweite Platte gefunden.\n\nDaten auf der Systemplatte ablegen (Single-Disk-Modus)?" || die "Abgebrochen."
+      SINGLE=1; return
+    fi
+    interactive || die "Datenplatte fehlt (--data-disk NAME oder --single-disk)."
+    for d in "${cands[@]}"; do menu+=("$d" "$(disk_info "$d")"); done
+    menu+=("keine" "Single-Disk-Modus: Daten auf der Systemplatte")
+    DATA_DISK=$(whiptail --title "$TITLE" --menu "Welche Platte soll die Datenplatte werden?\n(Die Systemplatte und USB-Geräte werden nicht angezeigt.)" 18 78 8 "${menu[@]}" 3>&1 1>&2 2>&3) || die "Abgebrochen."
+    if [ "$DATA_DISK" = keine ]; then SINGLE=1; DATA_DISK=""; return; fi
+  fi
+  printf '%s\n' "${cands[@]}" | grep -qx "$DATA_DISK" \
+    || die "/dev/$DATA_DISK ist keine zulässige Datenplatte (Systemplatte, USB oder nicht vorhanden)."
+
+  # Sicherheitsregel: formatiert wird nur nach Eintippen des Gerätenamens
+  if interactive; then
+    CONFIRM_DISK=$(whiptail --title "$TITLE" --inputbox "ACHTUNG: Alle Daten auf dieser Platte werden gelöscht:\n\n  /dev/$DATA_DISK: $(disk_info "$DATA_DISK")\n\nZum Bestätigen den Gerätenamen eintippen ($DATA_DISK):" 14 78 3>&1 1>&2 2>&3) || die "Abgebrochen."
+    FORMAT=1
+  fi
+  [ "$FORMAT" = 1 ] || die "Zum Formatieren --format angeben."
+  [ "$CONFIRM_DISK" = "$DATA_DISK" ] || die "Bestätigung stimmt nicht mit $DATA_DISK überein, nichts wurde verändert."
+  # Formatiert wird erst, wenn alle Angaben vollständig sind (siehe main)
+  FORMAT_TARGET=$DATA_DISK
+}
+
+# --- Konfiguration --------------------------------------------------------------------
+yq() { printf "'%s'" "${1//\'/\'\'}"; }   # YAML-String in einfachen Anführungszeichen
+
+app_on() { case ",$APPS," in *",$1,"*) echo true ;; *) echo false ;; esac; }
+
+collect() {
+  local existing_keys
+  ask HOST "Hostname des NAS:" "${HOST:-nas}"
+  [[ "$HOST" =~ ^[a-z][a-z0-9-]{0,62}$ ]] || die "Ungültiger Hostname: $HOST"
+  ask DOMAIN "Name des NAS im Heimnetz (die Apps liegen darunter, z. B. home.$HOST.home.arpa):" "${DOMAIN:-$HOST.home.arpa}"
+  ask TZONE "Zeitzone:" "${TZONE:-Europe/Berlin}"
+  [ -e "/usr/share/zoneinfo/$TZONE" ] || die "Unbekannte Zeitzone: $TZONE"
+
+  # SSH-Schlüssel: vorhandene authorized_keys des Admins übernehmen, sonst abfragen
+  if [ ${#SSH_KEYS[@]} = 0 ] && [ -s "/home/$ADMIN/.ssh/authorized_keys" ]; then
+    mapfile -t SSH_KEYS < <(grep -E '^(ssh-|ecdsa-|sk-)' "/home/$ADMIN/.ssh/authorized_keys")
+    existing_keys=${#SSH_KEYS[@]}
+    info "$existing_keys SSH-Schlüssel aus ~$ADMIN/.ssh/authorized_keys übernommen"
+  fi
+  if [ ${#SSH_KEYS[@]} = 0 ] && interactive; then
+    local k
+    k=$(whiptail --title "$TITLE" --inputbox "Öffentlicher SSH-Schlüssel (Inhalt von ~/.ssh/id_ed25519.pub auf deinem Rechner).\n\nMit Schlüssel wird der Passwort-Login per SSH abgeschaltet. Leer lassen = Passwort-Login bleibt." 13 78 3>&1 1>&2 2>&3) || die "Abgebrochen."
+    [ -n "$k" ] && SSH_KEYS+=("$k")
+  fi
+
+  if [ -z "$APPS" ]; then
+    APPS="adguard,emby,recommendarr,ps2gamemanager"
+    if interactive; then
+      APPS=$(whiptail --title "$TITLE" --separate-output --checklist "Welche Apps sollen laufen? (Leertaste = an/aus)" 16 78 6 \
+        adguard "AdGuard Home: DNS und Werbeblocker fürs Heimnetz" ON \
+        emby "Emby: Media-Server" ON \
+        recommendarr "Recommendarr (eigene App)" ON \
+        ps2gamemanager "PS2GameManager (eigene App)" ON \
+        uptime_kuma "Uptime Kuma: Erreichbarkeit der Dienste" OFF \
+        3>&1 1>&2 2>&3 | paste -sd,) || die "Abgebrochen."
+    fi
+  fi
+
+  if [ "$PS2" = -1 ]; then
+    if interactive; then
+      if whiptail --title "$TITLE" --yesno "SMB1-Freigabe für die PS2 (Open PS2 Loader) einrichten?\n\nGetrennte Samba-Instanz auf Port 1445, nur für den PS2-Ordner, eigenes Konto ps2." 12 72; then PS2=1; else PS2=0; fi
+    else PS2=0; fi
+  fi
+
+  [ -n "$SAMBA_PW" ] || ask_password SAMBA_PW "die Samba-Freigaben ($ADMIN)"
+  if [ "$PS2" = 1 ] && [ -z "$PS2_PW" ]; then
+    ask_password PS2_PW "die PS2-Freigabe (Konto ps2; SMB1 überträgt es schwach geschützt, kein wichtiges Passwort verwenden)"
+  fi
+  COLLECTED=1
+}
+
+write_config() {
+  local k
+  install -d -m 0700 "$CONFIG_DIR"
+  # umask nur für diese Datei (Subshell), nicht für das spätere Playbook
+  (
+  umask 077
+  {
+    echo "---"
+    echo "# Geschrieben von aunserver-setup am $(date -Iseconds). Änderungen hier, danach erneut ausführen."
+    echo "hostname: $(yq "$HOST")"
+    echo "admin_user: $(yq "$ADMIN")"
+    echo "timezone: $(yq "$TZONE")"
+    echo "domain: $(yq "$DOMAIN")"
+    echo "single_disk: $([ "$SINGLE" = 1 ] && echo true || echo false)"
+    if [ ${#SSH_KEYS[@]} = 0 ]; then
+      echo "ssh_authorized_keys: []"
+    else
+      echo "ssh_authorized_keys:"
+      for k in "${SSH_KEYS[@]}"; do echo "  - $(yq "$k")"; done
+    fi
+    echo "samba_password: $(yq "$SAMBA_PW")"
+    [ "$PS2" = 1 ] && echo "samba_legacy_password: $(yq "$PS2_PW")"
+    echo "apps:"
+    echo "  adguard: $(app_on adguard)"
+    echo "  tailscale: false"
+    echo "  wireguard: false"
+    echo "  uptime_kuma: $(app_on uptime_kuma)"
+    echo "  emby: $(app_on emby)"
+    echo "  recommendarr: $(app_on recommendarr)"
+    echo "  ps2gamemanager: $(app_on ps2gamemanager)"
+    echo "samba_legacy:"
+    echo "  enabled: $([ "$PS2" = 1 ] && echo true || echo false)"
+    echo "  port: 1445"
+    echo "  allowed_clients: []"
+    echo "  shares:"
+    echo "    - name: PS2SMB"
+    echo "      path: games/ps2"
+  } > "$CONFIG.tmp"
+  )
+  mv "$CONFIG.tmp" "$CONFIG"
+  info "Konfiguration geschrieben: $CONFIG"
+}
+
+ensure_tools() {
+  local missing=()
+  command -v ansible-playbook >/dev/null || missing+=(ansible)
+  command -v parted >/dev/null || missing+=(parted)
+  command -v whiptail >/dev/null || missing+=(whiptail)
+  if [ ${#missing[@]} -gt 0 ]; then
+    info "Installiere: ${missing[*]}"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}" >/dev/null
+  fi
+}
+
+run_playbook() {
+  info "Starte Ansible (Ausgabe auch in $LOG). Das dauert beim ersten Mal 10–20 Minuten."
+  # Log nur für root: enthält Pfade, Benutzer und Ablauf der Einrichtung
+  install -m 0600 /dev/null "$LOG"
+  (cd "$REPO/ansible" && ansible-playbook -i localhost, -c local site.yml -e "@$CONFIG") 2>&1 | tee "$LOG"
+  [ "${PIPESTATUS[0]}" = 0 ] || die "Das Playbook ist fehlgeschlagen, Details in $LOG. Danach erneut ausführen."
+}
+
+# --- Ablauf -------------------------------------------------------------------------
+main() {
+  ensure_tools
+  if [ -n "$CONFIG_IN" ]; then
+    [ -f "$CONFIG_IN" ] || die "$CONFIG_IN fehlt"
+    install -d -m 0700 "$CONFIG_DIR"
+    install -m 0600 "$CONFIG_IN" "$CONFIG"
+    info "Konfiguration übernommen: $CONFIG_IN"
+    grep -qE '^single_disk: *true' "$CONFIG" && SINGLE=1
+    choose_data_disk
+  elif [ -f "$CONFIG" ] && [ "$RECONFIGURE" = 0 ] && { ! interactive || yesno "Es gibt schon eine Konfiguration ($CONFIG).\n\nUnverändert verwenden und das System damit abgleichen?"; }; then
+    info "Vorhandene Konfiguration wird verwendet: $CONFIG"
+    grep -qE '^single_disk: *true' "$CONFIG" && SINGLE=1
+    choose_data_disk
+  else
+    interactive && whiptail --title "$TITLE" --msgbox "Willkommen! Dieses Skript richtet das NAS ein:\n\n  1. Datenplatte wählen (wird ggf. formatiert)\n  2. Name, SSH-Schlüssel, Apps, Passwörter\n  3. Alles installieren (10–20 Minuten)\n\nAbbrechen ist bis zum Formatieren jederzeit möglich." 15 72
+    choose_data_disk
+    collect
+  fi
+
+  # Erst jetzt, wenn alles abgefragt und geprüft ist, wird die Platte formatiert:
+  # ein Abbruch vorher lässt sie unverändert
+  if [ -n "$FORMAT_TARGET" ] && interactive; then
+    local ps2_text=nein
+    [ "$PS2" = 1 ] && ps2_text=ja
+    whiptail --title "$TITLE" --yesno "Zusammenfassung:\n\n  Datenplatte:  /dev/$FORMAT_TARGET wird FORMATIERT ($(disk_info "$FORMAT_TARGET"))\n  Hostname:     $HOST\n  Adresse:      $DOMAIN\n  Apps:         ${APPS//,/, }\n  PS2-Freigabe: $ps2_text\n\nJetzt einrichten?" 16 78 || die "Abgebrochen, nichts wurde verändert."
+  fi
+  [ -n "$FORMAT_TARGET" ] && format_disk "$FORMAT_TARGET"
+  [ "$COLLECTED" = 1 ] && write_config
+
+  [ "$RUN_PLAYBOOK" = 1 ] || { info "Playbook übersprungen (--no-playbook)."; exit 0; }
+  run_playbook
+
+  echo
+  info "Fertig. Zugänge (auch später: sudo cat $CONFIG_DIR/zugaenge.txt):"
+  echo
+  cat "$CONFIG_DIR/zugaenge.txt"
+}
+
+main
