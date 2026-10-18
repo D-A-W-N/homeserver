@@ -26,7 +26,7 @@ Eigenes Konto beim ersten Aufruf festlegen
 {% endif %}
 
 Medien (Prowlarr, Sonarr, Radarr, Lidarr: Benutzer {{ admin_user }} + Web-Passwort;
-SABnzbd, Bazarr{{ ', PS2GameManager' if apps.ps2gamemanager | bool else '' }}: Passwortabfrage des Browsers, ebenfalls Web-Passwort)
+SABnzbd, Bazarr{{ ', Recommendarr' if apps.recommendarr | bool else '' }}{{ ', PS2GameManager' if apps.ps2gamemanager | bool else '' }}: Passwortabfrage des Browsers, ebenfalls Web-Passwort)
 {% for app in ['prowlarr', 'sonarr', 'radarr', 'lidarr', 'sabnzbd', 'bazarr'] %}
   {{ '%-13s' | format(app | capitalize) }} https://{{ stacks_hosts[app] }}.{{ domain }}
 {% endfor %}
