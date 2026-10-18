@@ -42,7 +42,7 @@ Stand: 2026-10-17 · Status: Planung (Neustart, ersetzt das alte Konzept)
 | D7 | Docker-Verwaltung | **Dockge** | Leichtgewichtig, ideal für einen Host, arbeitet direkt mit `compose.yaml`. Alternative bei Bedarf: Arcane. |
 | D8 | Stacks | Mitgelieferte Stacks rendert Ansible aus Vorlagen nach `/opt/stacks/<name>`. **Eigene Stacks** legst du frei in Dockge an, Ansible fasst sie nie an | Klare Grenze zwischen „gehört dem Projekt“ und „gehört dir“. |
 | D9 | Monitoring | **Beszel** (Host und Container: CPU, RAM, Netz, Temperaturen, Alarme), **Scrutiny** (SMART), **Dozzle** (Logs), **ntfy** (Push-Benachrichtigung) | Alles leichtgewichtig, auch für schwache NAS-CPUs geeignet. |
-| D10 | Zugriff auf Web-Apps | **Caddy** als Reverse Proxy, alle Apps unter `https://<app>.<domain>`, Container-Ports nur an `127.0.0.1` gebunden | Löst nebenbei das Problem, dass Docker die Host-Firewall umgeht. |
+| D10 | Zugriff auf Web-Apps | **Caddy** als Reverse Proxy, alle Apps unter `https://<app>.<domain>`. Caddy und AdGuard laufen im **Host-Netzwerk**, alle anderen Container veröffentlichen Ports nur an `127.0.0.1` | Docker öffnet selbst keinen Port ins LAN, die Host-Firewall entscheidet allein (Spikes S3/S4). |
 | D11 | DNS | **AdGuard Home** als DNS für das Heimnetz, mit Rewrite `*.<domain>` → NAS-IP | Werbeblocker und lokale Namen in einem Dienst. |
 | D12 | Fernzugriff | **Tailscale** auf dem Host (Default) oder **WireGuard** (wg-easy), per Config wählbar | Tailscale braucht keine Portfreigabe, WireGuard bleibt ohne Drittanbieter. |
 | D13 | Image-Versionen | **Feste Tags** in `group_vars`, **Renovate** erzeugt Update-PRs im Repo | Reproduzierbar, Updates bleiben trotzdem einfach. |
@@ -51,6 +51,7 @@ Stand: 2026-10-17 · Status: Planung (Neustart, ersetzt das alte Konzept)
 | D16 | App-Configs | **SSD** (`/srv/appdata`), Sicherung per restic | Schnelle SQLite-Zugriffe, die HDD darf schlafen, Configs überleben einen HDD-Ausfall. |
 | D17 | HTTPS im LAN | Lokale Domain `nas.home.arpa`, Caddy mit eigener CA (`tls internal`) | Keine eigene Domain nötig. Das Stammzertifikat wird einmal pro Gerät installiert. |
 | D18 | Zielhardware | AMD A4-5000, 15 GiB RAM, SSD + 3,6-TB-HDD, UEFI | Kein Transcoding: Emby nur mit Direct Play, Monitoring bewusst leichtgewichtig. |
+| D19 | SMB1 für PS2/OPL | **Zweite Samba-Instanz** `smbd-legacy`: nur SMB1, eigener Port (1445), eigene Benutzerdatenbank mit Benutzer `ps2`, nur der PS2-Ordner, Firewall optional auf die IP der Konsole beschränkt. Freigaben über `config.yml`, nicht über Cockpit | SMB1 gilt in Samba global; die Hauptinstanz bleibt so bei SMB3. Das schwache NTLMv1 trifft nur ein eigenes Konto ohne Login (Spike S5). |
 
 ## 3. Architektur
 
@@ -88,6 +89,7 @@ flowchart LR
 |---|---|---|
 | Cockpit + file-sharing, navigator, identities | System, Platten, Updates, Samba, Dateien, Benutzer | Host, `:9090` |
 | Samba (+ `wsdd2`) | Freigaben, NAS taucht in der Windows-Netzwerkumgebung auf | Host, `:445` |
+| Samba-Legacy *(optional)* | SMB1-Freigabe für PS2/OPL (D19) | Host, `:1445` |
 | Docker CE + Compose | Container-Laufzeit | Host |
 | Caddy | Reverse Proxy, HTTPS | Container, `:80/:443` |
 | Dockge | Stacks verwalten | Container |
@@ -135,6 +137,15 @@ apps:
   wireguard: false
   uptime_kuma: false
   emby: true
+
+# SMB1-Freigaben für PS2/OPL (D19), Pfade relativ zu /srv/data
+samba_legacy:
+  enabled: true
+  port: 1445
+  allowed_clients: []         # z. B. [192.168.1.50] = nur die PS2
+  shares:
+    - name: PS2SMB
+      path: games/ps2
 ```
 
 ## 5. Datenlayout
@@ -147,6 +158,7 @@ Ausgerichtet an den TRaSH Guides. **Ein** Dateisystem für Downloads und Medien,
 │   ├── incomplete/
 │   └── complete/{tv,movies,music}/
 ├── media/{tv,movies,music,books}/
+├── games/ps2/              OPL-Struktur (CD, DVD, VMC, CFG, ART, …), Gruppe ps2share, nur per SMB1-Instanz
 └── shares/                 freie Samba-Freigaben (Dokumente, Fotos, …)
 
 /srv/appdata/               SSD: Configs und Datenbanken aller Container
@@ -167,8 +179,9 @@ Grundsatz: **Nichts ist aus dem Internet erreichbar.** Zugriff gibt es nur aus d
 
 | Bereich | Maßnahme |
 |---|---|
-| Firewall | nftables, Default **drop** eingehend. Erlaubt aus LAN und VPN: 22, 53, 80, 443, 445, 9090 (+ 3702/5357 für wsdd) |
-| Docker vs. Firewall | Container-Ports nur an `127.0.0.1`, Zugriff ausschließlich über Caddy. Ausnahmen sind nur DNS (AdGuard) und eventuell die Emby-Discovery im LAN |
+| Firewall | nftables, Default **drop** eingehend. Erlaubt aus LAN und VPN: 22, 53, 80, 443, 445, 9090 (+ 3702/5357 für wsdd). Port 1445 (SMB1) nur aus dem LAN, nie per VPN, auf Wunsch nur von der PS2-IP |
+| SMB1 | Nur in der getrennten Legacy-Instanz (D19), nur der PS2-Ordner, eigenes Konto `ps2` ohne Shell und mit eigenem Passwort |
+| Docker vs. Firewall | Container-Ports nur an `127.0.0.1`, Zugriff ausschließlich über Caddy (Host-Netzwerk). Zusätzlich verwirft eine forward-Regel neue DNAT-Verbindungen aus LAN/VPN zu Containern, damit auch ein versehentlich auf `0.0.0.0` veröffentlichter Port zu bleibt. Eigene nftables-Tabelle, nie `flush ruleset` (S4) |
 | Docker-Socket | Homepage, Dozzle und Beszel nur über **socket-proxy (read-only)**. Dockge braucht den vollen Socket, ist root-gleich und deshalb nur hinter Caddy aus dem LAN erreichbar |
 | SSH | nur Schlüssel (`ssh_authorized_keys` in der Config), kein Root-Login, Passwort-Login nach der Einrichtung aus |
 | Brute-Force | fail2ban für SSH (optional, Default an) |
@@ -196,8 +209,8 @@ Danach schreibst du das ISO mit `dd`, Ventoy oder balenaEtcher auf den Stick. Sp
 ### 7.2 Installation (am Gerät, Monitor und Tastatur einmalig nötig)
 
 1. Vom Stick booten, „aunserver installieren“ wählen.
-2. Abgefragt werden nur: **Hostname, Benutzername, Passwort**.
-3. `select-disk.sh` sucht die Systemplatte. Ausgeschlossen werden USB-Geräte, Wechselmedien und Platten mit Label `AUNDATA`. Bevorzugt wird die kleinste SSD/NVMe. Bleibt genau ein Kandidat übrig, wird er vorgeschlagen, sonst fragt der Installer und zeigt Modell, Größe und Seriennummer.
+2. Abgefragt werden nur: **Benutzername** (Vorschlag `nasadmin`, `admin` ist in Debian reserviert) und **Passwort**. Den Hostnamen setzt `aunserver-setup`.
+3. `select-disk.sh` sucht die Systemplatte. Ausgeschlossen werden USB-Geräte, Wechselmedien und Platten mit Label `AUNDATA`. Gibt es genau eine SSD/NVMe, fragt das Skript mit Modell, Größe und Seriennummer nach. Sonst (oder bei „Nein“) fragt der Installer und zeigt Modell und Größe.
 4. **Die Bestätigung vor dem Partitionieren bleibt immer manuell.**
 5. `late_command` kopiert das Repo nach `/opt/aunserver` und richtet den Hinweis für den ersten Login ein.
 
@@ -206,7 +219,7 @@ Danach schreibst du das ISO mit `dd`, Ventoy oder balenaEtcher auf den Stick. Sp
 Ein Dialog (whiptail) direkt am Gerät oder per SSH, idempotent und jederzeit erneut ausführbar:
 
 1. Datenplatte wählen (Systemplatte wird ausgeblendet). Bei vorhandenem `AUNDATA` wird nur eingehängt, sonst formatiert, aber erst **nach Eintippen des Gerätenamens**. Single-Disk-Modus, falls nur eine Platte da ist.
-2. Domain für lokale Namen (Default `nas.home.arpa`), Zeitzone, SSH-Schlüssel.
+2. Hostname, Domain für lokale Namen (Default `nas.home.arpa`), Zeitzone, SSH-Schlüssel.
 3. Apps auswählen (Checkliste, Defaults wie in 4.4).
 4. `config.yml` schreiben, Ansible ausführen.
 5. Samba-Passwort setzen, Tailscale-Login-Link anzeigen.
@@ -270,10 +283,11 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 **Abnahme:** CI grün, VM startet mit netinst.
 
 ### M1 – Spikes (Wegwerfcode, Ergebnisse in `docs/spikes.md`)
-- [ ] **S1** Cockpit-Plugins (file-sharing, navigator, identities) auf Debian 13 installierbar? Samba-Registry-Import funktioniert? *Größtes Risiko für Ziel 3.*
-- [ ] **S2** Preseed: Welche Fragen erscheinen? Bleibt die Partitionsbestätigung manuell? Läuft `select-disk.sh` in der Installer-Busybox?
-- [ ] **S3** AdGuard auf Port 53 neben dem Host-Resolver, Caddy mit `tls internal` und Wildcard-Namen
-- [ ] **S4** Docker-Ports an `127.0.0.1` und nftables zusammen: Ist von außen wirklich nur 80/443/53 offen?
+- [x] **S1** Cockpit-Plugins (file-sharing, navigator, identities) auf Debian 13 installierbar? Samba-Registry funktioniert? → Ja, Pakete von GitHub-Releases (gepinnt), NFS/rpcbind maskieren; Details in [spikes.md](spikes.md). Bestätigung per Klick in der Weboberfläche steht noch aus.
+- [x] **S2** Preseed: Welche Fragen erscheinen? Bleibt die Partitionsbestätigung manuell? Läuft `select-disk.sh` in der Installer-Busybox? → Ja; Hostname nicht abfragbar, `admin` reserviert; Entwürfe in `installer/` (BIOS offen)
+- [x] **S3** AdGuard auf Port 53, Caddy mit `tls internal` und Wildcard-Namen → läuft im Host-Netzwerk, AdGuard per API einrichtbar (UI auf `127.0.0.1:8083`), Caddyfile als Ordner mounten
+- [x] **S4** Docker-Ports an `127.0.0.1` und nftables → nur die freigegebenen Ports offen; forward-Regel schließt die Docker-Lücke
+- [x] **S5** SMB1 für PS2/OPL neben SMB3 → zweite Samba-Instanz (D19)
 
 **Abnahme:** Jede Annahme bestätigt oder das Design angepasst. Fallback für S1: Plugins aus GitHub-Releases, sonst ein schlankes eigenes Samba-Webformular als späteres Teilprojekt.
 
@@ -287,8 +301,9 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 ### M3 – Speicher und Samba
 - [ ] Rolle `storage` (Mount, Ordner, `chattr +i`, `RequiresMountsFor`)
 - [ ] Rollen `cockpit` und `samba` (Registry-Modus, wsdd2, Start-Shares)
+- [ ] Legacy-Instanz für PS2 (D19, Spike S5), Ordnerstruktur für OPL
 
-**Abnahme:** Freigabe in Cockpit anlegen → sofort von Windows/macOS/Linux erreichbar; ohne Datenplatte bleibt Docker aus, Cockpit und SSH funktionieren.
+**Abnahme:** Freigabe in Cockpit anlegen → sofort von Windows/macOS/Linux erreichbar; ohne Datenplatte bleibt Docker aus, Cockpit und SSH funktionieren. PS2 mit OPL listet und startet ein Spiel über die SMB1-Freigabe, während die Hauptinstanz SMB1 weiterhin ablehnt.
 
 ### M4 – Plattform-Stacks
 - [ ] proxy, dns, dashboard, monitoring
@@ -311,7 +326,7 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 - [ ] `select-disk.sh`, `preseed.cfg.in`, `build-iso.sh` (SHA256, `md5sum.txt`, UEFI und BIOS)
 - [ ] Testmatrix in der VM (siehe 10)
 
-**Abnahme:** Vom Stick zum fertigen NAS ohne Eingriff außer Hostname, Benutzer, Passwort, Plattenbestätigung und Setup-Dialog. Die Datenplatte wird in keinem Szenario angefasst.
+**Abnahme:** Vom Stick zum fertigen NAS ohne Eingriff außer Benutzer, Passwort, Plattenbestätigung und Setup-Dialog. Die Datenplatte wird in keinem Szenario angefasst.
 
 ### M8 – Fernzugriff und Backup
 - [ ] Rolle `network` (Tailscale/WireGuard)
@@ -344,6 +359,7 @@ M0 → M1 ─┬→ M2 → M3 → M4 → M5 → M6 ─┬→ M8 → M9
 | 7 | – | Neustart ohne Datenplatte | Docker aus, Cockpit und SSH an, nichts landet auf der SSD |
 | 8 | – | HDD mit `AUNDATA` | wird nur eingehängt, nicht formatiert |
 | 9 | – | Port-Scan von außen | nur die freigegebenen Ports offen |
+| 10 | – | SMB1 an Port 445 und SMB2/3 an Port 1445 | beides abgelehnt; SMB1 an 1445 mit `ps2` erlaubt |
 
 ## 11. Offene Fragen
 
@@ -359,9 +375,11 @@ Entschieden am 2026-10-17: Media-Server, Ort der Configs, lokale Domain und Hard
 
 | Risiko | Auswirkung | Gegenmaßnahme |
 |---|---|---|
-| Cockpit-file-sharing nicht für Debian 13 verfügbar | Ziel „Samba leicht“ gefährdet | Spike S1 zuerst; Fallback GitHub-Release-Pakete |
+| Cockpit-Plugins: kein Trixie im 45Drives-Apt-Repo | Updates kommen nicht automatisch | Trixie-Pakete aus GitHub-Releases, Version + SHA256 in `group_vars`, Renovate meldet neue Releases (S1) |
 | Preseed-Verhalten (Fragen, Bestätigung) | Installer fragt zu viel oder zu wenig | Spike S2, Testmatrix |
-| Port 53 belegt | AdGuard startet nicht | Spike S3, Host-Resolver anpassen |
+| Port 53 belegt | AdGuard startet nicht | Auf Debian 13 frei (S3); Rolle prüft vor dem Start, dass nichts auf 53 lauscht |
 | Schwache CPU (A4-5000) | Emby ruckelt bei Transcoding | Direct Play, Clients mit passenden Codecs, kein Transcoding einplanen |
 | Einzelne HDD ohne Redundanz | Datenverlust bei Plattenausfall | Scrutiny-Warnung, Backup der Configs, wichtige Freigaben zusätzlich sichern |
+| OPL kann keinen anderen SMB-Port als 445 | PS2-Freigabe nicht erreichbar | Test mit echter PS2; Fallback: zweite IP am Host, Legacy-Instanz dort auf 445 (S5) |
+| SMB1/NTLMv1 ist unsicher | Passwort von `ps2` ist mitlesbar | eigenes Wegwerf-Passwort, Konto ohne Shell, nur ein Ordner, Port nur im LAN |
 | Caddy-CA auf jedem Gerät nötig | Zertifikatswarnungen | Download-Link und Anleitung je Betriebssystem auf der Startseite |

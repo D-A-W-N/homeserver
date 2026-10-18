@@ -1,0 +1,58 @@
+### aunserver – Preseed für den Debian-13-Installer
+# Boot-Parameter: auto=true priority=critical (file=/cdrom/preseed.cfg bzw. url=...)
+# Abgefragt werden nur: Benutzername, Passwort, Systemplatte (select-disk.sh) und die
+# Bestätigung vor dem Partitionieren. Hostname, Domain usw. setzt später aunserver-setup.
+# Platzhalter: @EARLY_CMD@ (lädt und startet select-disk.sh), @LATE_CMD@ (Repo kopieren)
+# Getestet in Spike S2 (docs/spikes.md).
+
+### Sprache, Tastatur, Zeit
+d-i debian-installer/language string de
+d-i debian-installer/country string DE
+d-i debian-installer/locale string de_DE.UTF-8
+d-i keyboard-configuration/xkb-keymap select de
+d-i time/zone string Europe/Berlin
+d-i clock-setup/utc boolean true
+d-i clock-setup/ntp boolean true
+
+### Netz und Mirror (Hostname wird vom Installer ignoriert, aunserver-setup setzt ihn)
+d-i netcfg/choose_interface select auto
+d-i netcfg/get_hostname string nas
+d-i netcfg/get_domain string home.arpa
+d-i mirror/country string manual
+d-i mirror/http/hostname string deb.debian.org
+d-i mirror/http/directory string /debian
+d-i mirror/http/proxy string
+
+### Konten: root gesperrt, ein Benutzer mit sudo ("admin" ist in Debian reserviert)
+d-i passwd/root-login boolean false
+d-i passwd/user-fullname string
+d-i passwd/username string nasadmin
+d-i passwd/username seen false
+d-i passwd/user-password seen false
+d-i passwd/user-password-again seen false
+
+### Partitionierung
+d-i partman/early_command string @EARLY_CMD@
+d-i partman-auto/method string regular
+d-i partman-auto/choose_recipe select atomic
+d-i partman-lvm/device_remove_lvm boolean true
+d-i partman-md/device_remove_md boolean true
+d-i partman-partitioning/confirm_write_new_label boolean true
+d-i partman/choose_partition select finish
+# partman/confirm bewusst NICHT gesetzt: die Bestätigung bleibt manuell (Vorauswahl "Nein")
+
+### Pakete: Minimalsystem mit SSH
+d-i apt-setup/non-free-firmware boolean true
+d-i apt-setup/services-select multiselect security, updates
+tasksel tasksel/first multiselect ssh-server
+d-i pkgsel/include string sudo curl ca-certificates python3
+d-i pkgsel/upgrade select full-upgrade
+popularity-contest popularity-contest/participate boolean false
+
+### Bootloader
+d-i grub-installer/only_debian boolean true
+d-i grub-installer/with_other_os boolean false
+
+### Abschluss
+d-i preseed/late_command string cp /var/log/select-disk.log /target/root/ 2>/dev/null; @LATE_CMD@
+d-i finish-install/reboot_in_progress note
