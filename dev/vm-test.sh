@@ -18,6 +18,9 @@ Verwendung: ${0##*/} <Befehl> [Optionen]
 Befehle:
   fetch                 Aktuelles Debian-netinst-ISO laden und per SHA256 prüfen
   install  <Szenario>   VM neu anlegen und vom ISO booten (löscht die alten Testplatten)
+  autoinstall <Szenario>  wie install, aber vollautomatisch mit installer/preseed.cfg.in
+                        plus dev/preseed-dev.cfg (Benutzer nasadmin, Passwort "aunserver",
+                        eigener SSH-Schlüssel); schaltet sich danach ab, dann 'boot'
   boot     <Szenario>   Installierte VM ohne ISO starten
                         (SSH: localhost:2222, HTTPS: localhost:8443, Cockpit: localhost:9090)
   vt       <Nr> [Szenario]  Konsole <Nr> im laufenden Installer/VM einblenden (statt Strg+Alt+F<Nr>,
@@ -39,6 +42,12 @@ Optionen:
   --headless      ohne Fenster starten (nur mit fertiger Installation sinnvoll)
   --print         QEMU-Aufruf nur ausgeben, nicht starten
 
+Umgebungsvariablen:
+  VM_DIR          Ablage für Platten und ISO (Default: .vm im Repo)
+  VM_NAME         Name für den Monitor-Socket, wenn mehrere VMs parallel laufen (Default: vm)
+  SSH_PORT, HTTPS_PORT, COCKPIT_PORT   Weiterleitungen auf dem Host (Default: 2222, 8443, 9090)
+  SSH_PUBKEY      Schlüssel für autoinstall (Default: ~/.ssh/id_ed25519.pub)
+
 Hinweise für den Installer-Test:
   - Preseed ohne ISO-Umbau (Spike S2): im Bootmenü 'e' bzw. Tab drücken und anhängen:
       auto=true priority=critical url=http://10.0.2.2:8000/preseed.cfg
@@ -50,7 +59,7 @@ USAGE
 }
 
 # kurzer Pfad, weil Unix-Sockets maximal 107 Zeichen erlauben
-monitor_sock() { echo "/tmp/aun-vm-$1.sock"; }
+monitor_sock() { echo "/tmp/aun-${VM_NAME:-vm}-$1.sock"; }
 
 die() { echo "Fehler: $*" >&2; exit 1; }
 
@@ -86,6 +95,37 @@ fetch() {
   echo "Hinweis: SHA256SUMS wurde nicht per GPG geprüft (SHA256SUMS.sign)."
 }
 
+# Preseed für autoinstall bauen und per HTTP bereitstellen (10.0.2.2:8000 aus Sicht der VM)
+serve_preseed() {
+  local www=$VM_DIR/www repo=$SCRIPT_DIR/.. key=${SSH_PUBKEY:-$HOME/.ssh/id_ed25519.pub}
+  [ -f "$key" ] || die "SSH-Schlüssel fehlt: $key (SSH_PUBKEY setzen)"
+  mkdir -p "$www"
+  cp "$repo/installer/select-disk.sh" "$www/"
+  cp "$key" "$www/authorized_keys"
+  local early='wget -qO /tmp/select-disk.sh http://10.0.2.2:8000/select-disk.sh \&\& AUN_YES=1 sh /tmp/select-disk.sh'
+  local late='mkdir -p /target/home/nasadmin/.ssh \&\& wget -qO /target/home/nasadmin/.ssh/authorized_keys http://10.0.2.2:8000/authorized_keys \&\& chmod 700 /target/home/nasadmin/.ssh \&\& in-target chown -R nasadmin:nasadmin /home/nasadmin/.ssh'
+  sed -e "s|@EARLY_CMD@|$early|" -e "s|@LATE_CMD@|$late|" "$repo/installer/preseed.cfg.in" > "$www/preseed.cfg"
+  cat "$SCRIPT_DIR/preseed-dev.cfg" >> "$www/preseed.cfg"
+  python3 -m http.server 8000 --bind 127.0.0.1 --directory "$www" >/dev/null 2>&1 &
+  PRESEED_PID=$!
+}
+
+# Kernel und Initrd des Installers aus dem ISO holen
+extract_kernel() {
+  local iso=$1 out=$VM_DIR/kernel
+  [ -f "$out/install.amd/initrd.gz" ] && [ "$out/install.amd/initrd.gz" -nt "$iso" ] && return 0
+  mkdir -p "$out"
+  if command -v bsdtar >/dev/null; then
+    bsdtar -xf "$iso" -C "$out" install.amd/vmlinuz install.amd/initrd.gz
+  elif command -v 7z >/dev/null; then
+    7z x -y -o"$out" "$iso" install.amd/vmlinuz install.amd/initrd.gz >/dev/null
+  else
+    die "bsdtar oder 7z wird zum Auspacken des ISOs gebraucht"
+  fi
+  chmod u+w "$out/install.amd"/*
+  touch "$out/install.amd/initrd.gz"
+}
+
 main() {
   local cmd=${1:-}
   [ -n "$cmd" ] || { usage; exit 1; }
@@ -107,7 +147,7 @@ time.sleep(0.3)
 PY
       exit 0 ;;
     clean) rm -rf "${VM_DIR:?}"/*.qcow2 "$VM_DIR"/*.img "$VM_DIR"/OVMF_VARS*.fd; echo "Testplatten gelöscht (ISO bleibt)."; exit 0 ;;
-    install|boot) ;;
+    install|boot|autoinstall) ;;
     *) usage; exit 1 ;;
   esac
 
@@ -141,7 +181,7 @@ PY
   local sys_img=$VM_DIR/sys-$scenario.qcow2 data_img=$VM_DIR/data-$scenario.qcow2
   local data2_img=$VM_DIR/data2-$scenario.qcow2
 
-  if [ "$cmd" = install ]; then
+  if [ "$cmd" = install ] || [ "$cmd" = autoinstall ]; then
     [ -e "$iso" ] || die "ISO fehlt: $iso (erst '${0##*/} fetch' ausführen)"
     rm -f "$sys_img" "$data_img" "$data2_img" "$VM_DIR/data-$scenario.img" "$VM_DIR/OVMF_VARS-$scenario.fd"
     qemu-img create -q -f qcow2 "$sys_img" "$SYS_SIZE"
@@ -166,7 +206,7 @@ PY
   [ "${data_img##*.}" = img ] && data_fmt=raw
 
   local args=(-m "$RAM" -smp 2 -device ahci,id=ahci
-    -nic user,hostfwd=tcp::2222-:22,hostfwd=tcp::8443-:443,hostfwd=tcp::9090-:9090)
+    -nic "user,hostfwd=tcp::${SSH_PORT:-2222}-:22,hostfwd=tcp::${HTTPS_PORT:-8443}-:443,hostfwd=tcp::${COCKPIT_PORT:-9090}-:9090")
   [ -w /dev/kvm ] && args+=(-enable-kvm -cpu host)
 
   if [ "$firmware" = uefi ]; then
@@ -191,6 +231,12 @@ PY
   [ "$data2" = 1 ] && args+=(-drive "if=none,id=data2,format=qcow2,file=$data2_img" -device ide-hd,drive=data2,bus=ahci.3,rotation_rate=7200,serial=aundata1)
   if [ "$cmd" = install ]; then
     args+=(-drive "if=none,id=cd,media=cdrom,readonly=on,file=$iso" -device ide-cd,drive=cd,bus=ahci.2 -boot order=dc)
+  elif [ "$cmd" = autoinstall ]; then
+    extract_kernel "$iso"
+    args+=(-drive "if=none,id=cd,media=cdrom,readonly=on,file=$iso" -device ide-cd,drive=cd,bus=ahci.2
+      -kernel "$VM_DIR/kernel/install.amd/vmlinuz" -initrd "$VM_DIR/kernel/install.amd/initrd.gz"
+      -append "auto=true priority=critical url=http://10.0.2.2:8000/preseed.cfg vga=788 --- quiet"
+      -no-reboot)
   fi
   args+=(-monitor "unix:$(monitor_sock "$scenario"),server,nowait")
   [ "$headless" = 1 ] && args+=(-display none -serial mon:stdio)
@@ -202,7 +248,15 @@ PY
     printf 'qemu-system-x86_64'; printf ' %q' "${args[@]}"; echo
     exit 0
   fi
-  echo "Starte Szenario $scenario ($cmd, $firmware). SSH nach der Installation: ssh -p 2222 <benutzer>@localhost"
+  if [ "$cmd" = autoinstall ]; then
+    serve_preseed
+    trap 'kill "$PRESEED_PID" 2>/dev/null' EXIT
+    echo "Automatische Installation, Szenario $scenario ($firmware). Die VM schaltet sich danach ab."
+    qemu-system-x86_64 "${args[@]}"
+    echo "Fertig. Starten mit: ${0##*/} boot $scenario, dann ssh -p ${SSH_PORT:-2222} nasadmin@localhost"
+    exit 0
+  fi
+  echo "Starte Szenario $scenario ($cmd, $firmware). SSH nach der Installation: ssh -p ${SSH_PORT:-2222} <benutzer>@localhost"
   exec qemu-system-x86_64 "${args[@]}"
 }
 

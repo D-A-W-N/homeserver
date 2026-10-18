@@ -1,0 +1,93 @@
+---
+# Ende-zu-Ende-Test: Debian 13 per Preseed in einer KVM-VM installieren, Playbook zweimal
+# ausführen, der zweite Lauf darf nichts ändern. Dieselben Skripte wie lokal (dev/).
+name: vm-test
+"on":
+  pull_request:
+    paths:
+      - ansible/**
+      - installer/**
+      - dev/**
+      - .github/workflows/vm-test.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: vm-test-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  vm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      VM_DIR: ${{ github.workspace }}/.vm
+      SSH_PORT: "2222"
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: KVM freischalten
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+
+      - name: Werkzeuge installieren
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf libarchive-tools e2fsprogs rsync
+
+      - name: Name des aktuellen Debian-ISOs
+        id: iso
+        run: |
+          name=$(curl -fsSL https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA256SUMS \
+            | grep -oE 'debian-[0-9.]+-amd64-netinst\.iso$' | head -n1)
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - name: ISO aus dem Cache
+        uses: actions/cache@v4
+        with:
+          path: .vm/${{ steps.iso.outputs.name }}
+          key: iso-${{ steps.iso.outputs.name }}
+
+      - name: ISO laden und prüfen
+        run: dev/vm-test.sh fetch
+
+      - name: SSH-Schlüssel und Testkonfiguration
+        run: |
+          ssh-keygen -q -t ed25519 -N '' -f ~/.ssh/id_ed25519
+          cat > "$RUNNER_TEMP/config.yml" <<EOF
+          ---
+          hostname: nas
+          admin_user: nasadmin
+          ssh_authorized_keys:
+            - $(cat ~/.ssh/id_ed25519.pub)
+          samba_legacy:
+            enabled: true
+            port: 1445
+            allowed_clients: []
+            shares:
+              - name: PS2SMB
+                path: games/ps2
+          EOF
+
+      - name: Debian automatisch installieren
+        run: dev/vm-test.sh autoinstall 1 --headless < /dev/null > "$RUNNER_TEMP/install.log" 2>&1
+
+      - name: Installiertes System starten
+        run: |
+          dev/vm-test.sh boot 1 --headless < /dev/null > "$RUNNER_TEMP/boot.log" 2>&1 &
+          opts="-p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=3"
+          timeout 300 bash -c "until ssh $opts nasadmin@localhost true 2>/dev/null; do sleep 5; done"
+
+      - name: Playbook, erster Lauf
+        run: dev/vm-ansible.sh "$RUNNER_TEMP/config.yml" | tee "$RUNNER_TEMP/run1.log"
+
+      - name: Playbook, zweiter Lauf (muss changed=0 melden)
+        run: |
+          dev/vm-ansible.sh "$RUNNER_TEMP/config.yml" | tee "$RUNNER_TEMP/run2.log"
+          sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/run2.log" \
+            | grep -E 'localhost +: ok=[0-9]+ +changed=0 +unreachable=0 +failed=0'
+
+      - name: Logs bei Fehler
+        if: failure()
+        run: tail -n 50 "$RUNNER_TEMP"/*.log || true

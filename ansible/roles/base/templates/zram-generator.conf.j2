@@ -1,0 +1,5 @@
+# {{ ansible_managed }}
+[zram0]
+zram-size = {{ base_zram_size }}
+compression-algorithm = zstd
+swap-priority = 100

@@ -291,12 +291,15 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 
 **Abnahme:** Jede Annahme bestätigt oder das Design angepasst. Fallback für S1: Plugins aus GitHub-Releases, sonst ein schlankes eigenes Samba-Webformular als späteres Teilprojekt.
 
-### M2 – Basis-System und Sicherheit
-- [ ] `site.yml`, Rollen `base`, `security`, `docker`
-- [ ] Backports-Kernel optional (`kernel_backports: false`)
-- [ ] Idempotenz-Test in der CI (zweiter Lauf `changed=0`)
+### M2 – Basis-System und Sicherheit ✅
+- [x] `site.yml`, Rollen `base`, `security`, `docker`
+- [x] Backports-Kernel optional (`kernel_backports: false`)
+- [x] Idempotenz-Test in der CI: echte KVM-VM per Preseed installieren, Playbook zweimal, zweiter Lauf `changed=0` (`.github/workflows/vm-test.yml`)
+- [x] Dev-Werkzeuge: `dev/vm-test.sh autoinstall` (ohne Eingaben), `dev/vm-ansible.sh` (Playbook in der VM)
 
-**Abnahme:** Port-Scan aus dem LAN zeigt nur erlaubte Ports, SSH nur mit Schlüssel, zweiter Lauf ohne Änderungen.
+**Abnahme:** SSH nur mit Schlüssel (laufender sshd bietet nur `publickey`), root abgewiesen, Firewall-Tabelle neben Dockers Tabellen auch nach Neustart des nftables-Dienstes, sysctl/zram/Auto-Updates (inkl. Docker-Repo) aktiv, alles nach Reboot unverändert; zweiter Lauf ohne Änderungen. Getestet am 2026-10-18 auf frisch installierter VM.
+
+**Befunde:** `force_handlers = True` nötig (nach einem Abbruch gingen Handler verloren, sshd/sysctl blieben unwirksam). Das Docker-Repo hat kein `codename`-Feld, unattended-upgrades braucht `archive=`. Einmal trat direkt nach dem ersten Reboot `changed=1` auf, nicht reproduzierbar; beobachten.
 
 ### M3 – Speicher und Samba
 - [ ] Rolle `storage` (Mount, Ordner, `chattr +i`, `RequiresMountsFor`)

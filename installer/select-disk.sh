@@ -42,6 +42,14 @@ if [ "$#" -ne 1 ]; then
 fi
 pick=$1
 
+# AUN_YES=1 (nur dev/vm-test.sh autoinstall): ohne Rückfrage übernehmen
+if [ "${AUN_YES:-}" = 1 ]; then
+  log "gewählt (AUN_YES): /dev/$pick"
+  debconf-set partman-auto/disk "/dev/$pick"
+  debconf-set grub-installer/bootdev "/dev/$pick"
+  exit 0
+fi
+
 # shellcheck disable=SC1091  # nur im Installer vorhanden
 . /usr/share/debconf/confmodule
 cat >/tmp/aunserver.templates <<'TPL'

@@ -24,5 +24,7 @@
         pgid: "{{ getent_passwd[admin_user][2] }}"
       when: getent_passwd[admin_user] is defined
 
-  # Rollen kommen ab M2 dazu (base, security, docker, ...)
-  roles: []
+  roles:
+    - base
+    - security
+    - docker

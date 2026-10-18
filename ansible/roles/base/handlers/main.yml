@@ -1,0 +1,15 @@
+---
+- name: Paketlisten aktualisieren
+  ansible.builtin.apt:
+    update_cache: true
+
+- name: Zram neu starten
+  ansible.builtin.systemd_service:
+    name: systemd-zram-setup@zram0.service
+    state: restarted
+    daemon_reload: true
+
+- name: Journald neu starten
+  ansible.builtin.systemd_service:
+    name: systemd-journald.service
+    state: restarted
