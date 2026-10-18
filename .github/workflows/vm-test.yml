@@ -24,7 +24,7 @@ jobs:
       VM_DIR: ${{ github.workspace }}/.vm
       SSH_PORT: "2222"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: KVM freischalten
         run: |
@@ -45,7 +45,7 @@ jobs:
           echo "name=$name" >> "$GITHUB_OUTPUT"
 
       - name: ISO aus dem Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .vm/${{ steps.iso.outputs.name }}
           key: iso-${{ steps.iso.outputs.name }}

@@ -80,6 +80,7 @@
   loop: "{{ stacks_sab_misc | dict2items }}"
   loop_control:
     label: "{{ item.key }}"
+  register: stacks_sab_misc_set
   vars:
     stacks_sab_misc:
       download_dir: /data/usenet/incomplete
@@ -98,23 +99,61 @@
 - name: SABnzbd-Kategorien lesen
   ansible.builtin.uri:
     url: "http://127.0.0.1:{{ stacks_ports.sabnzbd }}/api?mode=get_config&output=json&section=categories\
-      &keyword={{ item }}&apikey={{ stacks_arr_keys.sabnzbd }}"
-  loop: [tv, movies, music]
+      &keyword={{ item.category }}&apikey={{ stacks_arr_keys.sabnzbd }}"
+  loop: "{{ stacks_arr_apps }}"
+  loop_control:
+    label: "{{ item.category }}"
   register: stacks_sab_categories
   no_log: true
 
 - name: SABnzbd-Kategorien (Unterordner von complete)
   ansible.builtin.uri:
     url: "http://127.0.0.1:{{ stacks_ports.sabnzbd }}/api?mode=set_config&output=json&section=categories\
-      &name={{ item.item }}&dir={{ item.item }}&apikey={{ stacks_arr_keys.sabnzbd }}"
+      &name={{ item.item.category }}&dir={{ item.item.root }}&apikey={{ stacks_arr_keys.sabnzbd }}"
   loop: "{{ stacks_sab_categories.results }}"
   loop_control:
-    label: "{{ item.item }}"
+    label: "{{ item.item.category }} -> complete/{{ item.item.root }}"
   when: >-
     item.json.config.categories | default([])
-    | selectattr('dir', 'equalto', item.item) | list | length == 0
+    | selectattr('dir', 'equalto', item.item.root) | list | length == 0
+  register: stacks_sab_categories_set
   changed_when: true
   no_log: true
+
+# Nach Änderungen einmal neu starten und prüfen, dass alles gespeichert ist; sonst laut
+# abbrechen statt still zu driften (Standard-Kategorien verloren im Test ihren Ordner).
+- name: SABnzbd nach Änderungen kontrolliert neu starten
+  community.docker.docker_compose_v2:
+    project_src: "{{ stacks_dir }}/media"
+    state: restarted
+    services: [sabnzbd]
+  when: stacks_sab_misc_set is changed or stacks_sab_categories_set is changed
+
+- name: Kategorien nach dem Neustart erneut lesen
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports.sabnzbd }}/api?mode=get_config&output=json&section=categories\
+      &keyword={{ item.category }}&apikey={{ stacks_arr_keys.sabnzbd }}"
+  loop: "{{ stacks_arr_apps }}"
+  loop_control:
+    label: "{{ item.category }}"
+  register: stacks_sab_categories_after
+  until: stacks_sab_categories_after is succeeded
+  retries: 30
+  delay: 2
+  when: stacks_sab_misc_set is changed or stacks_sab_categories_set is changed
+  no_log: true
+
+- name: SABnzbd hat die Kategorien dauerhaft gespeichert
+  ansible.builtin.assert:
+    that: >-
+      item.json.config.categories | default([])
+      | selectattr('dir', 'equalto', item.item.root) | list | length == 1
+    fail_msg: "SABnzbd hat den Ordner der Kategorie {{ item.item.category }} nach dem Neustart nicht mehr."
+    quiet: true
+  loop: "{{ stacks_sab_categories_after.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.category | default('-') }}"
+  when: item.json is defined
 
 # --- Sonarr, Radarr, Lidarr, Prowlarr ----------------------------------------------
 

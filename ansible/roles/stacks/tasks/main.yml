@@ -71,8 +71,11 @@
     group: docker
     mode: "0750"
 
+# eigener Schleifenname: die eingebundenen Dateien haben selbst Schleifen mit "item"
 - name: Plattform-Stacks ausrollen
-  ansible.builtin.include_tasks: "{{ item }}.yml"
+  ansible.builtin.include_tasks: "{{ stacks_part }}.yml"
+  loop_control:
+    loop_var: stacks_part
   loop:
     - socket-proxy
     - proxy

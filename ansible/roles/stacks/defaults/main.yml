@@ -87,8 +87,11 @@ stacks_beszel_webhook: ntfy://ntfy:80/beszel?scheme=http
 # zwischen ähnlichen Releases, ohne DL oder deutlich bessere Releases zu überstimmen.
 stacks_recyclarr_x265_score: 500
 
-# Servarr-Apps, die per API verbunden werden (Bibliotheksordner, SABnzbd-Kategorie)
+# Servarr-Apps, die per API verbunden werden (Bibliotheksordner, SABnzbd-Kategorie).
+# Eigene Kategorienamen statt SABnzbds Standard-Kategorien tv/movies: deren Ordner gingen
+# im Test nach der Einrichtung wieder verloren, neu angelegte Kategorien blieben stabil (M5).
+# Download-Ordner: complete/<root> (tv, movies, music) wie im Datenlayout.
 stacks_arr_apps:
-  - { name: sonarr, api: v3, port: 8989, root: tv, category_field: tvCategory, category: tv }
-  - { name: radarr, api: v3, port: 7878, root: movies, category_field: movieCategory, category: movies }
-  - { name: lidarr, api: v1, port: 8686, root: music, category_field: musicCategory, category: music }
+  - { name: sonarr, api: v3, port: 8989, root: tv, category_field: tvCategory, category: sonarr }
+  - { name: radarr, api: v3, port: 7878, root: movies, category_field: movieCategory, category: radarr }
+  - { name: lidarr, api: v1, port: 8686, root: music, category_field: musicCategory, category: lidarr }
