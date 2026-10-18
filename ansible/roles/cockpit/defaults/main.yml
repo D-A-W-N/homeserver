@@ -1,0 +1,41 @@
+---
+cockpit_packages:
+  - cockpit
+  - cockpit-storaged
+  - cockpit-packagekit
+
+# 45Drives-Plugins aus den GitHub-Releases (das 45Drives-Apt-Repo kennt kein Trixie, Spike S1).
+# Version und SHA256 gepinnt; Renovate meldet neue Releases.
+cockpit_plugins:
+  - name: cockpit-file-sharing
+    # renovate: datasource=github-releases depName=45Drives/cockpit-file-sharing
+    version: 4.6.3
+    url: https://github.com/45Drives/cockpit-file-sharing/releases/download/v4.6.3/cockpit-file-sharing_4.6.3-1trixie_all.deb
+    sha256: a7bd5196d218c3fe87c4fca1ff999e868c2d4fdbf85e5877dff1bfd54e8043d2
+  - name: cockpit-identities
+    # renovate: datasource=github-releases depName=45Drives/cockpit-identities
+    version: 0.1.14
+    url: https://github.com/45Drives/cockpit-identities/releases/download/v0.1.14-1/cockpit-identities_0.1.14-1trixie_all.deb
+    sha256: 320e6607e288060222717507ffc9f9fe2b46c6e2b8bb88226549bef46982eb6a
+  - name: cockpit-navigator
+    # nur als Bookworm-Paket veröffentlicht, läuft auf Trixie (reines Web-Paket)
+    # renovate: datasource=github-releases depName=45Drives/cockpit-navigator
+    version: 0.6.1
+    url: https://github.com/45Drives/cockpit-navigator/releases/download/v0.6.1/cockpit-navigator_0.6.1-1bookworm_all.deb
+    sha256: 4512d21205ba248e4e693007d5d890253504ee82bcdfea58c05c084f39d7c1bf
+
+# Kommen als Abhängigkeit von cockpit-file-sharing mit und werden nicht gebraucht (S1, M3-Test:
+# ohne die Hilfsdienste blieben Port 2049 und zufällige RPC-Ports offen)
+cockpit_masked_units:
+  - nfs-server.service
+  - nfs-mountd.service
+  - nfsdcld.service
+  - nfs-blkmap.service
+  - nfs-idmapd.service
+  - rpc-statd.service
+  - rpc-statd-notify.service
+  - rpc-gssd.service
+  - rpc-svcgssd.service
+  - rpcbind.service
+  - rpcbind.socket
+  - nfs-client.target

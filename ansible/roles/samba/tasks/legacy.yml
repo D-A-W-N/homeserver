@@ -1,0 +1,106 @@
+---
+# Zweite Samba-Instanz nur mit SMB1 für Open PS2 Loader (D19, Spike S5).
+# Eigene Konfiguration, eigene Benutzerdatenbank, eigener Port.
+
+- name: Gruppe für die PS2-Ordner
+  ansible.builtin.group:
+    name: ps2share
+    system: true
+
+- name: Konto ps2 (kein Login, nur für SMB1)
+  ansible.builtin.user:
+    name: ps2
+    system: true
+    create_home: false
+    home: /nonexistent
+    shell: /usr/sbin/nologin
+    groups: ps2share
+    append: true
+
+- name: Admin darf die PS2-Ordner bearbeiten
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    groups: ps2share
+    append: true
+
+# Schreiben klappt nur über Gruppenbesitz, nicht mit "force user" (S5)
+- name: PS2-Freigabeordner
+  ansible.builtin.file:
+    path: "{{ data_mount }}/{{ item.path }}"
+    state: directory
+    owner: "{{ admin_user }}"
+    group: ps2share
+    mode: "2775"
+  loop: "{{ samba_legacy.shares }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: OPL-Ordnerstruktur
+  ansible.builtin.file:
+    path: "{{ data_mount }}/{{ item.0.path }}/{{ item.1 }}"
+    state: directory
+    owner: "{{ admin_user }}"
+    group: ps2share
+    mode: "2775"
+  loop: "{{ samba_legacy.shares | product(samba_opl_dirs) | list }}"
+  loop_control:
+    label: "{{ item.0.name }}/{{ item.1 }}"
+
+- name: Ordner der SMB1-Instanz
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: /etc/samba-legacy, mode: "0755" }
+    - { path: /var/lib/samba-legacy, mode: "0755" }
+    - { path: /var/lib/samba-legacy/private, mode: "0700" }
+    - { path: /var/cache/samba-legacy, mode: "0755" }
+
+- name: Konfiguration der SMB1-Instanz
+  ansible.builtin.template:
+    src: smb-legacy.conf.j2
+    dest: /etc/samba-legacy/smb.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: testparm -s %s
+  notify: Samba-Legacy neu starten
+
+- name: Dienst der SMB1-Instanz
+  ansible.builtin.template:
+    src: smbd-legacy.service.j2
+    dest: /etc/systemd/system/smbd-legacy.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Samba-Legacy neu starten
+
+- name: SMB1-Instanz läuft
+  ansible.builtin.systemd_service:
+    name: smbd-legacy.service
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Konto ps2 in der SMB1-Instanz prüfen
+  ansible.builtin.command: pdbedit -s /etc/samba-legacy/smb.conf -L -u ps2
+  register: samba_legacy_account
+  changed_when: false
+  failed_when: false
+
+- name: Passwort für ps2 setzen (nur wenn noch kein Konto existiert)
+  ansible.builtin.shell: |
+    set -o pipefail
+    printf '%s\n%s\n' "$PW" "$PW" | smbpasswd -c /etc/samba-legacy/smb.conf -s -a ps2
+  args:
+    executable: /bin/bash
+  environment:
+    PW: "{{ samba_legacy_password }}"
+  no_log: true
+  changed_when: true
+  when:
+    - samba_legacy_account.rc != 0
+    - samba_legacy_password is defined

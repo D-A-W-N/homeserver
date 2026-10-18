@@ -1,0 +1,5 @@
+---
+samba_wsdd: true
+
+# Ordner, die OPL in jeder PS2-Freigabe erwartet
+samba_opl_dirs: [APPS, ART, CD, CFG, CHT, DVD, LNG, POPS, THM, VMC]

@@ -1,0 +1,94 @@
+---
+# Datenplatte per Label einhängen (aunserver-setup formatiert und beschriftet sie),
+# Ordnerstruktur nach Plan, Abschnitt 5. Im Single-Disk-Modus ist data_mount ein
+# normaler Ordner auf der Systemplatte.
+
+- name: Datenplatte mit Label suchen
+  ansible.builtin.command: blkid -t "LABEL={{ data_label }}" -o device
+  register: storage_devices
+  changed_when: false
+  failed_when: storage_devices.rc not in [0, 2]
+
+- name: Genau eine Datenplatte vorhanden
+  ansible.builtin.assert:
+    that: storage_devices.stdout_lines | length == 1
+    fail_msg: >-
+      {{ 'Keine Platte mit Label ' ~ data_label ~ ' gefunden. Erst sudo /opt/aunserver/bin/aunserver-setup ausführen
+      (formatiert die Datenplatte) oder single_disk: true setzen.'
+      if storage_devices.stdout_lines | length == 0 else
+      'Mehrere Platten tragen das Label ' ~ data_label ~ ': ' ~ storage_devices.stdout_lines | join(', ')
+      ~ '. Eine davon umbenennen (e2label/xfs_admin), sonst ist unklar, welche gemeint ist.' }}
+    quiet: true
+  when: not single_disk | bool
+
+- name: Datenplatte einhängen
+  when: not single_disk | bool
+  block:
+    - name: Dateisystem der Datenplatte bestimmen
+      ansible.builtin.command: blkid -s TYPE -o value {{ storage_devices.stdout_lines[0] }}
+      register: storage_fstype
+      changed_when: false
+
+    - name: Prüfen, ob die Datenplatte schon eingehängt ist
+      ansible.builtin.command: findmnt --noheadings --output SOURCE --mountpoint {{ data_mount }}
+      register: storage_findmnt
+      changed_when: false
+      failed_when: false
+
+    - name: Mountpoint anlegen
+      ansible.builtin.file:
+        path: "{{ data_mount }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      when: storage_findmnt.rc != 0
+
+    # Ein leerer, unveränderlicher Mountpoint verhindert, dass bei fehlender Platte
+    # Daten auf der Systemplatte landen. Nur möglich, solange nichts eingehängt ist.
+    - name: Leeren Mountpoint unveränderlich machen
+      ansible.builtin.file:
+        path: "{{ data_mount }}"
+        attributes: +i
+      when: storage_findmnt.rc != 0
+
+    - name: Datenplatte per Label einhängen (fstab)
+      ansible.posix.mount:
+        path: "{{ data_mount }}"
+        src: "LABEL={{ data_label }}"
+        fstype: "{{ storage_fstype.stdout }}"
+        opts: "{{ storage_mount_opts }}{{ ',inode64' if storage_fstype.stdout == 'xfs' else '' }}"
+        state: mounted
+
+- name: Datenordner (Single-Disk-Modus)
+  ansible.builtin.file:
+    path: "{{ data_mount }}"
+    state: directory
+    owner: "{{ admin_user }}"
+    group: "{{ admin_user }}"
+    mode: "0775"
+  when: single_disk | bool
+
+- name: Wurzel der Datenplatte gehört dem Admin
+  ansible.builtin.file:
+    path: "{{ data_mount }}"
+    owner: "{{ admin_user }}"
+    group: "{{ admin_user }}"
+    mode: "0775"
+
+- name: Ordnerstruktur (setgid, damit die Gruppe erhalten bleibt)
+  ansible.builtin.file:
+    path: "{{ data_mount }}/{{ item }}"
+    state: directory
+    owner: "{{ admin_user }}"
+    group: "{{ admin_user }}"
+    mode: "2775"
+  loop: "{{ data_dirs }}"
+
+- name: Ordner für App-Konfigurationen auf der Systemplatte
+  ansible.builtin.file:
+    path: "{{ appdata_dir }}"
+    state: directory
+    owner: "{{ admin_user }}"
+    group: "{{ admin_user }}"
+    mode: "0750"

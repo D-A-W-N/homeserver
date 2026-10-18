@@ -1,0 +1,15 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Samba SMB1 nur für PS2/OPL (aunserver)
+After=network.target local-fs.target
+RequiresMountsFor={{ data_mount }}
+
+[Service]
+Type=notify
+RuntimeDirectory=samba-legacy
+ExecStart=/usr/sbin/smbd --foreground --no-process-group -s /etc/samba-legacy/smb.conf
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

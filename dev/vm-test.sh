@@ -47,6 +47,7 @@ Umgebungsvariablen:
   VM_NAME         Name für den Monitor-Socket, wenn mehrere VMs parallel laufen (Default: vm)
   SSH_PORT, HTTPS_PORT, COCKPIT_PORT   Weiterleitungen auf dem Host (Default: 2222, 8443, 9090)
   SSH_PUBKEY      Schlüssel für autoinstall (Default: ~/.ssh/id_ed25519.pub)
+  NO_DATA=1       bei 'boot': ohne Datenplatte starten (Testmatrix 7)
 
 Hinweise für den Installer-Test:
   - Preseed ohne ISO-Umbau (Spike S2): im Bootmenü 'e' bzw. Tab drücken und anhängen:
@@ -176,6 +177,8 @@ PY
     nodata) data=none ;;
     *) die "Unbekanntes Szenario: $scenario" ;;
   esac
+  # NO_DATA=1: installierte VM ohne Datenplatte starten (Testmatrix 7)
+  [ "$cmd" = boot ] && [ "${NO_DATA:-0}" = 1 ] && data=none data2=0
 
   mkdir -p "$VM_DIR"
   local sys_img=$VM_DIR/sys-$scenario.qcow2 data_img=$VM_DIR/data-$scenario.qcow2

@@ -15,6 +15,8 @@ lan_subnets: []
 lan6_subnets: []   # z. B. [fd00::/64]; Link-Local ist immer erlaubt
 
 # Speicher (Plan, Abschnitt 5)
+# true = keine eigene Datenplatte, data_mount liegt auf der Systemplatte
+single_disk: false
 data_mount: /srv/data
 data_label: AUNDATA
 appdata_dir: /srv/appdata
@@ -33,8 +35,8 @@ data_dirs:
   - media/music
   - media/books
   - games
-  - games/ps2
   - shares
+# games/ps2 legt die Samba-Legacy-Rolle an (Gruppe ps2share)
 
 # Start-Freigaben; danach werden Freigaben in Cockpit gepflegt (D6)
 samba_initial_shares:

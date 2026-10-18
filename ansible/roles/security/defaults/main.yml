@@ -1,7 +1,8 @@
 ---
 # Dienste, die aus LAN und VPN erreichbar sind (Plan, Abschnitt 6)
-security_tcp_ports: [22, 53, 80, 443, 445, 5357, 9090]
-security_udp_ports: [53, 443, 3702]
+# 3702 = WS-Discovery (wsdd2, TCP und UDP), 5355 = LLMNR (Name "nas" für Windows)
+security_tcp_ports: [22, 53, 80, 443, 445, 3702, 9090]
+security_udp_ports: [53, 443, 3702, 5355]
 # Über das VPN (tailscale0) ohne Samba-Discovery
 security_vpn_tcp_ports: [22, 53, 80, 443, 445, 9090]
 security_vpn_udp_ports: [53, 443]

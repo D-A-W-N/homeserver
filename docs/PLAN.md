@@ -119,6 +119,8 @@ flowchart LR
 | Recyclarr | Qualitätsprofile nach TRaSH Guides, automatisch synchronisiert |
 | Emby | Media-Server (Direct Play, Medienordner beschreibbar für Cover und Metadaten) |
 | Bücher *(optional)* | Readarr ist eingestellt; Audiobookshelf und/oder Calibre-Web als Ersatz, siehe O6 |
+| **Recommendarr** *(eigene App)* | Empfehlungen auf Basis von Sonarr/Radarr; Compose-Datei kommt vom Nutzer |
+| **PS2GameManager** *(eigene App)* | Verwaltung der PS2-Spiele im OPL-Ordner (`games/ps2`); Compose-Datei kommt vom Nutzer |
 
 ### 4.4 Netzwerk
 
@@ -170,7 +172,7 @@ Ausgerichtet an den TRaSH Guides. **Ein** Dateisystem für Downloads und Medien,
 - Sonarr, Radarr und Lidarr sehen `/srv/data` als `/data`, SABnzbd sieht nur `/data/usenet`.
 - Alle Container laufen mit `PUID`/`PGID` des Admins und `umask 002`.
 - Configs liegen auf der **SSD** (D16) und werden per restic gesichert.
-- Die Datenplatte wird per **UUID** mit `nofail` eingehängt. Docker startet nur mit eingehängter Platte (`RequiresMountsFor`), und der leere Mountpoint bekommt `chattr +i`. So landet nichts versehentlich auf der SSD.
+- Die Datenplatte wird per **Label `AUNDATA`** mit `nofail` eingehängt (Ansible; `aunserver-setup` formatiert und beschriftet nur). Zwei Platten mit diesem Label → Abbruch statt Raten. Docker startet nur mit eingehängter Platte (`RequiresMountsFor`), und der leere Mountpoint bekommt `chattr +i`. So landet nichts versehentlich auf der SSD.
 - Standard-Freigaben: `media` (lesen und schreiben) und `shares`. Weitere legst du in Cockpit an.
 
 ## 6. Sicherheit
@@ -179,7 +181,7 @@ Grundsatz: **Nichts ist aus dem Internet erreichbar.** Zugriff gibt es nur aus d
 
 | Bereich | Maßnahme |
 |---|---|
-| Firewall | nftables, Default **drop** eingehend. Erlaubt aus LAN und VPN: 22, 53, 80, 443, 445, 9090 (+ 3702/5357 für wsdd). Port 1445 (SMB1) nur aus dem LAN, nie per VPN, auf Wunsch nur von der PS2-IP |
+| Firewall | nftables, Default **drop** eingehend. Erlaubt aus LAN und VPN: 22, 53, 80, 443, 445, 9090 (+ 3702 TCP/UDP für wsdd2, 5355 UDP für LLMNR). Port 1445 (SMB1) nur aus dem LAN, nie per VPN, auf Wunsch nur von der PS2-IP |
 | SMB1 | Nur in der getrennten Legacy-Instanz (D19), nur der PS2-Ordner, eigenes Konto `ps2` ohne Shell und mit eigenem Passwort |
 | Docker vs. Firewall | Container-Ports nur an `127.0.0.1`, Zugriff ausschließlich über Caddy (Host-Netzwerk). Zusätzlich verwirft eine forward-Regel neue DNAT-Verbindungen aus LAN/VPN zu Containern, damit auch ein versehentlich auf `0.0.0.0` veröffentlichter Port zu bleibt. Eigene nftables-Tabelle, nie `flush ruleset` (S4) |
 | Docker-Socket | Homepage, Dozzle und Beszel nur über **socket-proxy (read-only)**. Dockge braucht den vollen Socket, ist root-gleich und deshalb nur hinter Caddy aus dem LAN erreichbar |
@@ -301,12 +303,16 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 
 **Befunde:** `force_handlers = True` nötig (nach einem Abbruch gingen Handler verloren, sshd/sysctl blieben unwirksam). Das Docker-Repo hat kein `codename`-Feld, unattended-upgrades braucht `archive=`. Einmal trat direkt nach dem ersten Reboot `changed=1` auf, nicht reproduzierbar; beobachten.
 
-### M3 – Speicher und Samba
-- [ ] Rolle `storage` (Mount, Ordner, `chattr +i`, `RequiresMountsFor`)
-- [ ] Rollen `cockpit` und `samba` (Registry-Modus, wsdd2, Start-Shares)
-- [ ] Legacy-Instanz für PS2 (D19, Spike S5), Ordnerstruktur für OPL
+### M3 – Speicher und Samba ✅
+- [x] Rolle `storage` (Mount per Label, Ordner, `chattr +i`, Single-Disk-Modus)
+- [x] Rollen `cockpit` (Backports, Plugins gepinnt mit SHA256, alle NFS-Dienste maskiert) und `samba` (Registry-Modus, wsdd2, Start-Shares, Samba-Passwort)
+- [x] Legacy-Instanz für PS2 (D19, Spike S5), Ordnerstruktur für OPL, Gruppe `ps2share`
 
-**Abnahme:** Freigabe in Cockpit anlegen → sofort von Windows/macOS/Linux erreichbar; ohne Datenplatte bleibt Docker aus, Cockpit und SSH funktionieren. PS2 mit OPL listet und startet ein Spiel über die SMB1-Freigabe, während die Hauptinstanz SMB1 weiterhin ablehnt.
+**Abnahme (VM, 2026-10-18):** Von außen durch die Firewall getestet: SMB3-Schreiben als Admin ✅, SMB1 an 445 abgelehnt ✅, Gast abgelehnt ✅, `ps2` an der Hauptinstanz abgelehnt ✅, SMB1-Schreiben als `ps2` in `DVD/` ✅, SMB3 an 1445 abgelehnt ✅, Admin an der PS2-Instanz abgelehnt ✅. Neue Registry-Freigabe (wie Cockpit) sofort erreichbar und vom nächsten Playbook-Lauf unberührt ✅. Nach Reboot lauschen nur 22, 445, 1445, 3702, 5355, 9090 ✅. **Testmatrix 7:** ohne Datenplatte Boot in 18 s, Status `running`, Docker und PS2-Instanz aus, SSH/Cockpit an, leerer Mountpoint selbst für root schreibgeschützt ✅; mit Platte kommt alles von selbst zurück ✅.
+
+**Auf dem echten Server testen (M9):** Freigabe per Klick in Cockpit (Mechanismus `net conf` ist getestet) · PS2 mit OPL (S5).
+
+**Befunde:** `smbd` übernimmt geänderte `smb ports` nur bei Neustart, nicht bei reload (Port 139 blieb offen). `cockpit-file-sharing` zieht mehr NFS-Dienste mit als in S1 gesehen (Port 2049 und RPC-Ports), jetzt alle maskiert. wsdd2 nutzt TCP 3702 (nicht 5357). Gerätenamen wechseln auch zwischen zwei Boots derselben VM (`sdb` → `sda`).
 
 ### M4 – Plattform-Stacks
 - [ ] proxy, dns, dashboard, monitoring
@@ -315,6 +321,7 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 **Abnahme:** Alle Dienste unter `https://<app>.<domain>` erreichbar, Testalarm kommt aufs Handy.
 
 ### M5 – Medien-Stack
+- [ ] **Vorher: Compose-Dateien für Recommendarr und PS2GameManager beim Nutzer erfragen** (eigene Apps)
 - [ ] Stack `media`, Recyclarr mit TRaSH-Profilen
 - [ ] Hardlink-Test (Download → Bibliothek liefert Linkzähler 2)
 
@@ -343,6 +350,7 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 - [ ] Renovate für Image-Tags
 - [ ] `docs/BETRIEB.md`
 - [ ] Umstellung des echten NAS (vorher Configs des Altsystems sichern)
+- [ ] Abnahme auf dem echten Server: Freigabe per Klick in Cockpit anlegen und von Windows erreichen; PS2 mit OPL über die SMB1-Freigabe (Port in OPL auf 1445, sonst Fallback zweite IP, S5)
 
 ```
 M0 → M1 ─┬→ M2 → M3 → M4 → M5 → M6 ─┬→ M8 → M9

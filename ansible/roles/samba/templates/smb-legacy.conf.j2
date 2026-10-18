@@ -1,0 +1,34 @@
+# {{ ansible_managed }}
+# SMB1-Instanz nur für Open PS2 Loader (D19, Spike S5). Freigaben aus config.yml (samba_legacy).
+[global]
+   server role = standalone server
+   workgroup = WORKGROUP
+   smb ports = {{ samba_legacy.port }}
+   server min protocol = NT1
+   server max protocol = NT1
+   ntlm auth = ntlmv1-permitted
+   lanman auth = no
+   disable netbios = yes
+   map to guest = never
+   load printers = no
+   printing = bsd
+   printcap name = /dev/null
+   map archive = no
+   pid directory = /run/samba-legacy
+   lock directory = /var/lib/samba-legacy/lock
+   state directory = /var/lib/samba-legacy
+   cache directory = /var/cache/samba-legacy
+   private dir = /var/lib/samba-legacy/private
+   ncalrpc dir = /run/samba-legacy/ncalrpc
+   log file = /var/log/samba/legacy.log
+   max log size = 1000
+{% for share in samba_legacy.shares %}
+
+[{{ share.name }}]
+   path = {{ data_mount }}/{{ share.path }}
+   read only = no
+   valid users = ps2
+   force group = ps2share
+   create mask = 0664
+   directory mask = 2775
+{% endfor %}
