@@ -1,0 +1,48 @@
+#!/usr/sbin/nft -f
+# {{ ansible_managed }}
+# Getestet in Spike S4 (docs/spikes.md). Eigene Tabelle, nie "flush ruleset".
+table inet aunserver
+delete table inet aunserver
+table inet aunserver {
+	set lan4 {
+		type ipv4_addr; flags interval
+		elements = { {{ security_lan4 | join(', ') }} }
+	}
+	set lan6 {
+		type ipv6_addr; flags interval
+		elements = { fe80::/10{% for n in lan6_subnets %}, {{ n }}{% endfor %} }
+	}
+{% if samba_legacy.enabled | bool %}
+	# SMB1 für PS2/OPL (D19): nur LAN, auf Wunsch nur bestimmte Geräte, nie per VPN
+	set ps2_clients {
+		type ipv4_addr; flags interval
+		elements = { {{ (samba_legacy.allowed_clients if samba_legacy.allowed_clients | length > 0 else security_lan4) | join(', ') }} }
+	}
+{% endif %}
+
+	chain input {
+		type filter hook input priority filter; policy drop;
+		iif lo accept
+		ct state established,related accept
+		ct state invalid drop
+		meta l4proto { icmp, ipv6-icmp } accept
+		iifname "docker0" accept
+		iifname "br-*" accept
+		ip saddr @lan4 tcp dport { {{ security_tcp_ports | join(', ') }} } accept
+		ip saddr @lan4 udp dport { {{ security_udp_ports | join(', ') }} } accept
+		ip6 saddr @lan6 tcp dport { {{ security_tcp_ports | join(', ') }} } accept
+		ip6 saddr @lan6 udp dport { {{ security_udp_ports | join(', ') }} } accept
+{% if samba_legacy.enabled | bool %}
+		ip saddr @ps2_clients tcp dport {{ samba_legacy.port }} accept
+{% endif %}
+		iifname "tailscale0" tcp dport { {{ security_vpn_tcp_ports | join(', ') }} } accept
+		iifname "tailscale0" udp dport { {{ security_vpn_udp_ports | join(', ') }} } accept
+	}
+
+	# Sicherheitsnetz: versehentlich auf 0.0.0.0 veröffentlichte Container-Ports
+	# sind aus LAN/VPN nicht erreichbar (Docker leitet sie an input vorbei).
+	chain forward {
+		type filter hook forward priority filter - 10; policy accept;
+		ct state new ct status dnat iifname != { "docker0", "lo" } iifname != "br-*" drop
+	}
+}

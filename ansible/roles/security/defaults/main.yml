@@ -1,0 +1,9 @@
+---
+# Dienste, die aus LAN und VPN erreichbar sind (Plan, Abschnitt 6)
+security_tcp_ports: [22, 53, 80, 443, 445, 5357, 9090]
+security_udp_ports: [53, 443, 3702]
+# Über das VPN (tailscale0) ohne Samba-Discovery
+security_vpn_tcp_ports: [22, 53, 80, 443, 445, 9090]
+security_vpn_udp_ports: [53, 443]
+
+security_fail2ban: true

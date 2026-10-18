@@ -1,0 +1,132 @@
+---
+- name: Sicherheitspakete installieren
+  ansible.builtin.apt:
+    name: "{{ ['nftables'] + (['fail2ban', 'python3-systemd'] if security_fail2ban | bool else []) }}"
+    state: present
+
+# --- SSH ---------------------------------------------------------------------
+
+- name: SSH-Schlüssel des Admins hinterlegen
+  ansible.posix.authorized_key:
+    user: "{{ admin_user }}"
+    key: "{{ item }}"
+    state: present
+  loop: "{{ ssh_authorized_keys }}"
+  loop_control:
+    label: "{{ item.split(' ')[-1] }}"
+
+- name: SSH härten
+  ansible.builtin.template:
+    src: sshd-aunserver.conf.j2
+    dest: /etc/ssh/sshd_config.d/10-aunserver.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: SSH neu laden
+
+- name: Hinweis, solange Passwort-Login für SSH aktiv bleibt
+  ansible.builtin.debug:
+    msg: >-
+      Es ist kein SSH-Schlüssel in ssh_authorized_keys eingetragen. Der Passwort-Login
+      bleibt deshalb aktiv. Schlüssel eintragen und das Playbook erneut ausführen.
+  when: ssh_authorized_keys | length == 0
+
+# --- Firewall (Spike S4) -----------------------------------------------------
+
+- name: LAN-Netze bestimmen
+  ansible.builtin.set_fact:
+    security_lan4: >-
+      {{ lan_subnets if lan_subnets | length > 0
+         else [ansible_facts.default_ipv4.network ~ '/' ~ ansible_facts.default_ipv4.prefix] }}
+
+- name: Ordner für nftables-Regeln
+  ansible.builtin.file:
+    path: /etc/nftables.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Firewall-Regeln (eigene Tabelle, Docker-Regeln bleiben unberührt)
+  ansible.builtin.template:
+    src: aunserver.nft.j2
+    dest: /etc/nftables.d/aunserver.nft
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/nft -c -f %s
+  notify: Firewall laden
+
+- name: Firewall-Hauptdatei ohne "flush ruleset" (würde Dockers Regeln löschen)
+  ansible.builtin.copy:
+    dest: /etc/nftables.conf
+    content: |
+      #!/usr/sbin/nft -f
+      # Von aunserver verwaltet. Kein "flush ruleset": Docker pflegt eigene Tabellen.
+      include "/etc/nftables.d/*.nft"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Firewall laden
+
+- name: Ordner für nftables-Drop-in
+  ansible.builtin.file:
+    path: /etc/systemd/system/nftables.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Firewall-Dienst darf beim Stoppen nicht alles leeren
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/nftables.service.d/aunserver.conf
+    content: |
+      # Von aunserver verwaltet. Debian leert beim Stoppen/Neustarten das gesamte Regelwerk
+      # (auch Dockers). Stattdessen nur die eigene Tabelle entfernen bzw. neu laden.
+      [Service]
+      ExecStop=
+      ExecStop=-/usr/sbin/nft delete table inet aunserver
+      ExecReload=
+      ExecReload=/usr/sbin/nft -f /etc/nftables.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Firewall laden
+
+- name: Firewall beim Start laden
+  ansible.builtin.systemd_service:
+    name: nftables.service
+    enabled: true
+    state: started
+    daemon_reload: true
+
+# --- fail2ban ----------------------------------------------------------------
+
+- name: Fail2ban für SSH
+  ansible.builtin.template:
+    src: fail2ban-aunserver.local.j2
+    dest: /etc/fail2ban/jail.d/aunserver.local
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Fail2ban neu starten
+  when: security_fail2ban | bool
+
+- name: Fail2ban läuft
+  ansible.builtin.systemd_service:
+    name: fail2ban.service
+    enabled: true
+    state: started
+  when: security_fail2ban | bool
+
+# --- Kernel ------------------------------------------------------------------
+
+- name: Sysctl-Grundhärtung
+  ansible.builtin.template:
+    src: sysctl-aunserver.conf.j2
+    dest: /etc/sysctl.d/90-aunserver.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Sysctl laden

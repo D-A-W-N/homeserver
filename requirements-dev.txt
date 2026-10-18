@@ -1,5 +1,5 @@
-# Entwicklungswerkzeuge. ansible-core folgt der Version aus Debian 13 (trixie: 2.19),
+# Entwicklungswerkzeuge. ansible folgt der Version aus Debian 13 (trixie: 12.0.0, ansible-core 2.19),
 # damit lokal und in der CI dasselbe getestet wird, was auf dem NAS läuft.
-ansible-core==2.19.*
+ansible==12.0.*        # bündelt ansible-core 2.19 + Collections, wie das Debian-Paket "ansible"
 ansible-lint==25.*
 yamllint==1.*

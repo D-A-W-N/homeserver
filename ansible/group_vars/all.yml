@@ -8,8 +8,11 @@ timezone: Europe/Berlin
 ssh_authorized_keys: []
 kernel_backports: false
 
-# Netz
+# Netz: voller Name des NAS; Apps liegen darunter (https://<app>.<domain>)
 domain: nas.home.arpa
+# Netze, die auf die NAS-Dienste zugreifen dürfen. Leer = Netz der Standard-Schnittstelle.
+lan_subnets: []
+lan6_subnets: []   # z. B. [fd00::/64]; Link-Local ist immer erlaubt
 
 # Speicher (Plan, Abschnitt 5)
 data_mount: /srv/data

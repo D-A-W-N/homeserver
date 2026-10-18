@@ -1,0 +1,99 @@
+---
+- name: Nur Debian 13 wird unterstützt
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == 'Debian'
+      - ansible_facts.distribution_major_version == '13'
+    fail_msg: "aunserver braucht Debian 13 (trixie), gefunden: {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
+    quiet: true
+
+- name: Paketquellen im deb822-Format (inkl. Backports)
+  ansible.builtin.template:
+    src: debian.sources.j2
+    dest: /etc/apt/sources.list.d/debian.sources
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Paketlisten aktualisieren
+
+- name: Alte sources.list entfernen (ersetzt durch debian.sources)
+  ansible.builtin.file:
+    path: /etc/apt/sources.list
+    state: absent
+  notify: Paketlisten aktualisieren
+
+- name: Paketlisten sofort aktualisieren, falls Quellen geändert
+  ansible.builtin.meta: flush_handlers
+
+- name: Basispakete installieren
+  ansible.builtin.apt:
+    name: "{{ base_packages }}"
+    state: present
+    cache_valid_time: 3600
+
+- name: Kernel aus den Backports (optional)
+  ansible.builtin.apt:
+    name: linux-image-amd64
+    default_release: trixie-backports
+    state: latest # noqa package-latest
+  when: kernel_backports | bool
+
+- name: Firmware für AMD-Grafik (nur auf AMD-CPUs)
+  ansible.builtin.apt:
+    name: firmware-amd-graphics
+    state: present
+  when: ansible_facts.processor | select('search', 'AMD') | list | length > 0
+
+- name: Hostname setzen
+  ansible.builtin.hostname:
+    name: "{{ hostname }}"
+
+- name: Hostname in /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.1\.1\s'
+    line: "127.0.1.1\t{{ domain }} {{ hostname }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Zeitzone setzen
+  community.general.timezone:
+    name: "{{ timezone }}"
+
+- name: Zram einrichten
+  ansible.builtin.template:
+    src: zram-generator.conf.j2
+    dest: /etc/systemd/zram-generator.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Zram neu starten
+
+- name: Ordner für journald-Drop-in
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Journal begrenzen
+  ansible.builtin.template:
+    src: journald.conf.j2
+    dest: /etc/systemd/journald.conf.d/90-aunserver.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Journald neu starten
+
+- name: Automatische Updates einschalten
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/apt/apt.conf.d/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - 20auto-upgrades
+    - 52aunserver-unattended-upgrades
