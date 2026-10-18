@@ -25,6 +25,9 @@ jobs:
           if [ "${#files[@]}" -gt 0 ]; then shellcheck "${files[@]}"; fi
       - name: yamllint
         run: yamllint .
+      - name: Renovate-Konfiguration prüfen
+        # Renovate nutzt RE2 (z. B. keine Lookaheads); Fehler sonst erst im Dependency Dashboard sichtbar
+        run: npx --yes --package renovate@44 renovate-config-validator renovate.json
       - name: ansible-lint
         run: cd ansible && ansible-lint
       - name: Syntaxprüfung
