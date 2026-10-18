@@ -2,7 +2,7 @@
 
 Ein USB-Stick, der jederzeit ein fertiges NAS installiert: Debian 13, Docker mit Verwaltung und Überwachung, Samba-Freigaben per Weboberfläche, Servarr-Medienstack (Usenet) mit Emby sowie Netzwerk-Apps (Caddy, AdGuard Home, Tailscale, Homepage).
 
-> **Status:** M0 (Grundgerüst). Noch nichts lauffähig.
+> **Status:** Funktionsumfang komplett (M0–M8), in VMs und CI getestet; Umzug auf das echte NAS steht an (M9).
 
 ## USB-Stick erstellen
 
@@ -24,12 +24,17 @@ Nach der Installation vom USB-Stick per SSH (oder am Gerät) anmelden und ausfü
 sudo /opt/aunserver/bin/aunserver-setup
 ```
 
+Nach einer Neuinstallation mit vorhandenem Backup: `sudo /opt/aunserver/bin/aunserver-setup --restore` (fragt zusätzlich Backup-Ziel und -Passwort).
+
 Das Skript fragt Datenplatte, Hostname, SSH-Schlüssel, Apps und Passwörter ab, formatiert die Datenplatte erst nach Eintippen ihres Gerätenamens und einer letzten Zusammenfassung und richtet dann alles ein (beim ersten Mal 10–20 Minuten). Am Ende zeigt es alle Zugänge (später: `sudo cat /etc/aunserver/zugaenge.txt`).
 
-Es ist jederzeit erneut ausführbar: Eine vorhandene Konfiguration (`/etc/aunserver/config.yml`) und Datenplatte (Label `AUNDATA`) werden weiterverwendet. Änderungen also in der `config.yml` vornehmen und das Skript erneut starten. Alle Antworten gehen auch als Parameter (`--help`).
+Es ist jederzeit erneut ausführbar: Eine vorhandene Konfiguration (`/etc/aunserver/config.yml`) und Datenplatte (Label `AUNDATA`) werden weiterverwendet. Änderungen also in der `config.yml` vornehmen und das Skript erneut starten (nach der ersten Einrichtung kurz `sudo aunserver-setup`). Alle Antworten gehen auch als Parameter (`--help`).
+
+Updates: Debian und Docker aktualisieren sich selbst; neue Stände von aunserver und den Apps meldet das NAS per ntfy, installiert wird mit `sudo aunserver-update`.
 
 ## Dokumentation
 
+- [Betrieb](docs/BETRIEB.md): Zugänge, Updates, Backup und Wiederherstellung, Fehlersuche
 - [Projektplan](docs/PLAN.md): Ziele, Entscheidungen, Architektur, Meilensteine
 
 ## Entwicklung
@@ -38,7 +43,7 @@ Es ist jederzeit erneut ausführbar: Eine vorhandene Konfiguration (`/etc/aunser
 python3.13 -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt
 yamllint . && (cd ansible && ansible-lint)
-shellcheck dev/*.sh
+shellcheck bin/* dev/*.sh installer/*.sh
 ```
 
 VM-Tests mit QEMU (Testmatrix aus dem Plan, Abschnitt 10): `dev/vm-test.sh --help`.
@@ -53,9 +58,9 @@ dev/vm-ansible.sh /tmp/test.yml      # Repo in die VM kopieren und das Playbook 
 
 `autoinstall` nutzt den echten Preseed aus `installer/` plus `dev/preseed-dev.cfg` (Benutzer `nasadmin`, Passwort `aunserver`, eigener SSH-Schlüssel, keine Rückfragen). Für manuelle Installationen gibt es weiterhin `install`.
 
-Die CI fährt denselben Ablauf in einer KVM-VM (`.github/workflows/vm-test.yml`): installieren, Playbook zweimal ausführen, der zweite Lauf muss `changed=0` melden.
+Die CI fährt denselben Ablauf in einer KVM-VM (`.github/workflows/vm-test.yml`, UEFI und BIOS): Dev-ISO bauen, davon installieren, Setup zweimal ausführen (der zweite Lauf muss `changed=0` melden), Backup und Wiederherstellung prüfen.
 
-Image- und Action-Updates kommen per [Renovate](https://docs.renovatebot.com/) als Pull Request (GitHub-App muss einmal für das Repo aktiviert werden).
+Image- und Action-Updates kommen per [Renovate](https://docs.renovatebot.com/) als Pull Request.
 
 ## Lizenz
 

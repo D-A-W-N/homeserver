@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+# Meldet einen neuen Stand auf GitHub einmalig per ntfy (Thema "updates")
+[Unit]
+Description=aunserver: nach Updates suchen
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/aunserver-update --check --notify http://127.0.0.1:{{ stacks_ports.ntfy }}/updates
+# 10 = Update verfügbar, kein Fehler
+SuccessExitStatus=10

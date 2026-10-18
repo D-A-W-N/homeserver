@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+[Unit]
+Description=aunserver: täglich nach Updates suchen
+
+[Timer]
+OnCalendar=*-*-* 18:00
+Persistent=true
+RandomizedDelaySec=30min
+
+[Install]
+WantedBy=timers.target

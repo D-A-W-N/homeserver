@@ -52,6 +52,7 @@ Stand: 2026-10-17 · Status: Planung (Neustart, ersetzt das alte Konzept)
 | D17 | HTTPS im LAN | Lokale Domain `nas.home.arpa`, Caddy mit eigener CA (`tls internal`) | Keine eigene Domain nötig. Das Stammzertifikat wird einmal pro Gerät installiert. |
 | D18 | Zielhardware | AMD A4-5000, 15 GiB RAM, SSD + 3,6-TB-HDD, UEFI | Kein Transcoding: Emby nur mit Direct Play, Monitoring bewusst leichtgewichtig. |
 | D19 | SMB1 für PS2/OPL | **Zweite Samba-Instanz** `smbd-legacy`: nur SMB1, eigener Port (1445), eigene Benutzerdatenbank mit Benutzer `ps2`, nur der PS2-Ordner, Firewall optional auf die IP der Konsole beschränkt. Freigaben über `config.yml`, nicht über Cockpit | SMB1 gilt in Samba global; die Hauptinstanz bleibt so bei SMB3. Das schwache NTLMv1 trifft nur ein eigenes Konto ohne Login (Spike S5). |
+| D20 | Updates des NAS | **`aunserver-update`** holt den Stand von `main` (GitHub-Tarball, Commit per `export-subst` in `COMMIT`), vorher Backup, danach Setup; täglicher Check meldet per ntfy, installiert wird per Hand (entschieden 2026-10-18) | Jeder Merge in `main` hat den VM-Test bestanden; Renovate-Updates kommen so ohne eigenes Release an, aber nie unbeaufsichtigt. |
 
 ## 3. Architektur
 
@@ -374,11 +375,13 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 **Befunde:** Nach einer Neuinstallation erzeugte das Setup ein neues Backup-Passwort → `--backup-password`/`--restore`. Beim Zurückspielen müssen **alle** Stacks gestoppt sein, sonst behält AdGuard die Einstellungen im Speicher und schreibt sie zurück (Passwort passte nicht mehr). AdGuard-Einrichtung wird an `AdGuardHome.yaml` erkannt statt per HTTP (direkt nach einem Neustart antwortet noch kein Port). Zugangsübersicht las den Tailscale-Zustand vor der Anmeldung. Testumgebung: Unter Spiellast auf dem Host kamen in der VM beschädigte Dateien an (lzma-Fehler, falsche Prüfsummen); ohne Last fehlerfrei → vermutlich RAM/Takt des Hosts. `dev/vm-test.sh` kann dafür `CPU_MODEL` und `DRIVE_OPTS` setzen.
 
 ### M9 – Release
-- [ ] `release.yml`: ISO bei Tag bauen, als Release-Asset
-- [ ] Renovate-App für das Repo aktivieren (Konfiguration liegt bereit; ohne die App kommen keine Update-PRs)
-- [ ] `docs/BETRIEB.md`
+- [x] `release.yml`: ISO bei Tag bauen, als Release-Asset (seit M7)
+- [x] Renovate-App für das Repo aktiviert
+- [x] `aunserver-update` (D20): Stand von `main` holen, vorher Backup, Setup ausführen, `--rollback`; täglicher Check meldet neue Stände per ntfy (`updates`); `aunserver-setup`/`aunserver-update` liegen im Pfad
+- [x] `docs/BETRIEB.md`, README auf aktuellen Stand
+- [ ] Release `v0.9.0` taggen (ISO für den Umzug), `v1.0.0` nach der Abnahme auf dem echten Server
 - [ ] Umstellung des echten NAS (vorher Configs des Altsystems sichern)
-- [ ] Abnahme auf dem echten Server: Freigabe per Klick in Cockpit anlegen und von Windows erreichen; PS2 mit OPL über die SMB1-Freigabe (Port in OPL auf 1445, sonst Fallback zweite IP, S5)
+- [ ] Abnahme auf dem echten Server: Freigabe per Klick in Cockpit anlegen und von Windows erreichen; PS2 mit OPL über die SMB1-Freigabe (Port in OPL auf 1445, sonst Fallback zweite IP, S5); Tailscale-Route und DNS freigeben, ntfy-App am Handy
 
 ```
 M0 → M1 ─┬→ M2 → M3 → M4 → M5 → M6 ─┬→ M8 → M9

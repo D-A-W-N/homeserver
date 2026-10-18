@@ -42,7 +42,7 @@ SABnzbd, Bazarr{{ ', Recommendarr' if apps.recommendarr | bool else '' }}{{ ', P
   Noch einzutragen: Usenet-Server in SABnzbd, Indexer in Prowlarr, Bibliotheken in Emby
 
 Ohne Anmeldung (nur aus LAN/VPN erreichbar)
-  ntfy          https://{{ stacks_hosts.ntfy }}.{{ domain }}   (Themen: smart, beszel)
+  ntfy          https://{{ stacks_hosts.ntfy }}.{{ domain }}   (Themen: smart, beszel, backup, updates)
 
 {% if apps.tailscale | bool %}
 Fernzugriff (Tailscale){{ '' if network_tailscale_state | default('') == 'Running' else '  – noch nicht angemeldet: sudo tailscale up' }}
@@ -50,7 +50,7 @@ Fernzugriff (Tailscale){{ '' if network_tailscale_state | default('') == 'Runnin
   2. tailscale.com → DNS → Nameservers → "Add nameserver: Custom": Tailscale-IP des NAS
      (sudo tailscale ip -4), dann "Override local DNS" einschalten
   3. Handy: Tailscale-App, Stammzertifikat (http://{{ domain }}/ca.crt) installieren,
-     ntfy-App: Server https://{{ stacks_hosts.ntfy }}.{{ domain }}, Themen beszel, smart, backup
+     ntfy-App: Server https://{{ stacks_hosts.ntfy }}.{{ domain }}, Themen beszel, smart, backup, updates
 
 {% endif %}
 Backup (restic)
@@ -64,6 +64,11 @@ Backup (restic)
 {% else %}
   NICHT EINGERICHTET: backup.repository in /etc/aunserver/config.yml setzen und das Setup erneut starten
 {% endif %}
+
+Updates
+  Debian, Docker, Tailscale   automatisch (unattended-upgrades)
+  aunserver und App-Images    täglicher Check, neuer Stand wird per ntfy (Thema updates) gemeldet
+  Befehle       sudo aunserver-update | --check | --rollback
 
 Samba
   Freigaben     \\{{ hostname }}\media, \\{{ hostname }}\shares  (Benutzer {{ admin_user }}, Samba-Passwort)
