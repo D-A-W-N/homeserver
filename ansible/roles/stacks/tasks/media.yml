@@ -93,16 +93,26 @@
   changed_when: true
   no_log: true
 
-# Die API liefert Kategorien nur ohne Ordner; SABnzbd speichert sie erst nach einer Änderung
-# in der sabnzbd.ini. Deshalb gegen die Datei prüfen und über die API setzen (M5-Test).
+# Kategorie mit Ordner gezielt über die API abfragen (keyword=<Name>). Die frühere Prüfung
+# gegen die sabnzbd.ini war in der CI unzuverlässig (zweiter Lauf meldete Änderungen).
+- name: SABnzbd-Kategorien lesen
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports.sabnzbd }}/api?mode=get_config&output=json&section=categories\
+      &keyword={{ item }}&apikey={{ stacks_arr_keys.sabnzbd }}"
+  loop: [tv, movies, music]
+  register: stacks_sab_categories
+  no_log: true
+
 - name: SABnzbd-Kategorien (Unterordner von complete)
   ansible.builtin.uri:
     url: "http://127.0.0.1:{{ stacks_ports.sabnzbd }}/api?mode=set_config&output=json&section=categories\
-      &name={{ item }}&dir={{ item }}&apikey={{ stacks_arr_keys.sabnzbd }}"
-  loop: [tv, movies, music]
+      &name={{ item.item }}&dir={{ item.item }}&apikey={{ stacks_arr_keys.sabnzbd }}"
+  loop: "{{ stacks_sab_categories.results }}"
+  loop_control:
+    label: "{{ item.item }}"
   when: >-
-    stacks_arr_configs.results[4].content | b64decode
-    is not search('(?m)^\\[\\[' ~ item ~ '\\]\\]\\n(?:[^\\[\\n].*\\n)*?dir = ' ~ item ~ '$')
+    item.json.config.categories | default([])
+    | selectattr('dir', 'equalto', item.item) | list | length == 0
   changed_when: true
   no_log: true
 

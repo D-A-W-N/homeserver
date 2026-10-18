@@ -340,7 +340,7 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 **Bazarr:** per API mit Sonarr/Radarr verbunden (SignalR live), Sprachprofil „Deutsch + Englisch“ als Standard für neue Serien/Filme; wird nur angelegt, solange kein Profil existiert (Bazarr löscht beim Speichern nicht mitgeschickte Profile). Untertitel-Anbieter trägt der Nutzer ein.
 **Offen:** Testdownload mit echtem Usenet-Zugang auf dem echten Server.
 
-**Befunde:** Emby 4.11.x sind Vorabversionen, Prowlarr/Bazarr-Tags „latest“ sind Nightly/Develop → stabile Releases über die GitHub-Releases von linuxserver ermittelt. SABnzbd liefert Kategorien per API ohne Ordner und speichert sie erst nach Änderung in der ini. `host_whitelist` kommt als Liste. Der Entrypoint von PS2GameManager `chown`t `/config` auf PUID:PGID. x265 bei 1080p: in der deutschen TRaSH-Wertung neutral (0), nicht geblockt. Hinweis: x265 braucht HEVC-fähige Abspielgeräte, der A4-5000 kann HEVC nicht umwandeln.
+**Befunde:** Emby 4.11.x sind Vorabversionen, Prowlarr/Bazarr-Tags „latest“ sind Nightly/Develop → stabile Releases über die GitHub-Releases von linuxserver ermittelt. SABnzbd liefert Kategorien mit Ordner nur gezielt (`get_config&section=categories&keyword=<Name>`); Prüfung gegen die ini war in der CI unzuverlässig. Kategorien lassen sich per API nicht löschen. `host_whitelist` kommt als Liste. Der Entrypoint von PS2GameManager `chown`t `/config` auf PUID:PGID. x265 bei 1080p: in der deutschen TRaSH-Wertung neutral (0), nicht geblockt. Hinweis: x265 braucht HEVC-fähige Abspielgeräte, der A4-5000 kann HEVC nicht umwandeln.
 
 ### M6 – Ersteinrichtung `aunserver-setup`
 - [ ] Dialog, Plattenauswahl mit Sicherheitsabfrage, Single-Disk-Modus, App-Auswahl
