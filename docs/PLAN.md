@@ -39,7 +39,7 @@ Stand: 2026-10-17 · Status: Planung (Neustart, ersetzt das alte Konzept)
 | D4 | Konfiguration | **Ansible lokal** (`-c local`), eine Datei `/etc/aunserver/config.yml` | Idempotent, jederzeit erneut ausführbar, kein Agent nötig. |
 | D5 | Verwaltungsoberfläche | **Cockpit** (System, Platten, Updates, Terminal) mit Plugins **file-sharing** (Samba), **navigator** (Dateien), **identities** (Benutzer) | Läuft auf dem Host und bleibt deshalb erreichbar, auch wenn Docker nicht läuft. |
 | D6 | Samba | **Weboberfläche ist führend** (Cockpit file-sharing, Samba-Registry). Ansible legt nur Grundkonfiguration und Start-Shares an und überschreibt danach nichts mehr | Gewünscht: „sehr leicht verwalten“. Wiederherstellbar durch Backup des Registry-Exports (`net conf list`). |
-| D7 | Docker-Verwaltung | **Dockge** | Leichtgewichtig, ideal für einen Host, arbeitet direkt mit `compose.yaml`. Alternative bei Bedarf: Arcane. |
+| D7 | Docker-Verwaltung | **Arcane** (geändert am 2026-10-18, vorher Dockge) | Dockge ohne Release seit 03/2025; Arcane aktiv gepflegt, Compose-Stacks unter `/opt/stacks`, Logs, Ressourcen, Image-Updates. |
 | D8 | Stacks | Mitgelieferte Stacks rendert Ansible aus Vorlagen nach `/opt/stacks/<name>`. **Eigene Stacks** legst du frei in Dockge an, Ansible fasst sie nie an | Klare Grenze zwischen „gehört dem Projekt“ und „gehört dir“. |
 | D9 | Monitoring | **Beszel** (Host und Container: CPU, RAM, Netz, Temperaturen, Alarme), **Scrutiny** (SMART), **Dozzle** (Logs), **ntfy** (Push-Benachrichtigung) | Alles leichtgewichtig, auch für schwache NAS-CPUs geeignet. |
 | D10 | Zugriff auf Web-Apps | **Caddy** als Reverse Proxy, alle Apps unter `https://<app>.<domain>`. Caddy und AdGuard laufen im **Host-Netzwerk**, alle anderen Container veröffentlichen Ports nur an `127.0.0.1` | Docker öffnet selbst keinen Port ins LAN, die Host-Firewall entscheidet allein (Spikes S3/S4). |
@@ -92,7 +92,7 @@ flowchart LR
 | Samba-Legacy *(optional)* | SMB1-Freigabe für PS2/OPL (D19) | Host, `:1445` |
 | Docker CE + Compose | Container-Laufzeit | Host |
 | Caddy | Reverse Proxy, HTTPS | Container, `:80/:443` |
-| Dockge | Stacks verwalten | Container |
+| Arcane | Stacks verwalten | Container |
 | Homepage | Startseite mit allen Diensten und Status | Container |
 | docker-socket-proxy | Nur-Lese-Zugriff auf Docker für Homepage, Dozzle und Beszel | Container |
 
@@ -184,7 +184,7 @@ Grundsatz: **Nichts ist aus dem Internet erreichbar.** Zugriff gibt es nur aus d
 | Firewall | nftables, Default **drop** eingehend. Erlaubt aus LAN und VPN: 22, 53, 80, 443, 445, 9090 (+ 3702 TCP/UDP für wsdd2, 5355 UDP für LLMNR). Port 1445 (SMB1) nur aus dem LAN, nie per VPN, auf Wunsch nur von der PS2-IP |
 | SMB1 | Nur in der getrennten Legacy-Instanz (D19), nur der PS2-Ordner, eigenes Konto `ps2` ohne Shell und mit eigenem Passwort |
 | Docker vs. Firewall | Container-Ports nur an `127.0.0.1`, Zugriff ausschließlich über Caddy (Host-Netzwerk). Zusätzlich verwirft eine forward-Regel neue DNAT-Verbindungen aus LAN/VPN zu Containern, damit auch ein versehentlich auf `0.0.0.0` veröffentlichter Port zu bleibt. Eigene nftables-Tabelle, nie `flush ruleset` (S4) |
-| Docker-Socket | Homepage, Dozzle und Beszel nur über **socket-proxy (read-only)**. Dockge braucht den vollen Socket, ist root-gleich und deshalb nur hinter Caddy aus dem LAN erreichbar |
+| Docker-Socket | Homepage, Dozzle und Beszel nur über **socket-proxy (read-only)**. Arcane braucht den vollen Socket, ist root-gleich und deshalb nur hinter Caddy aus dem LAN erreichbar |
 | SSH | nur Schlüssel (`ssh_authorized_keys` in der Config), kein Root-Login, Passwort-Login nach der Einrichtung aus |
 | Brute-Force | fail2ban für SSH (optional, Default an) |
 | Konten | Root gesperrt, ein Admin mit sudo, eigenes Samba-Passwort |
@@ -261,7 +261,8 @@ aunserver/
 ├── stacks/
 │   ├── proxy/                   # caddy
 │   ├── dns/                     # adguard
-│   ├── dashboard/               # homepage, dockge, socket-proxy
+│   ├── socket-proxy/            # Nur-Lese-Zugriff auf Docker
+│   ├── dashboard/               # homepage, arcane
 │   ├── monitoring/              # beszel, scrutiny, dozzle, ntfy, uptime-kuma
 │   └── media/                   # prowlarr, sabnzbd, *arr, bazarr, recyclarr, emby
 ├── dev/
@@ -314,11 +315,17 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 
 **Befunde:** `smbd` übernimmt geänderte `smb ports` nur bei Neustart, nicht bei reload (Port 139 blieb offen). `cockpit-file-sharing` zieht mehr NFS-Dienste mit als in S1 gesehen (Port 2049 und RPC-Ports), jetzt alle maskiert. wsdd2 nutzt TCP 3702 (nicht 5357). Gerätenamen wechseln auch zwischen zwei Boots derselben VM (`sdb` → `sda`).
 
-### M4 – Plattform-Stacks
-- [ ] proxy, dns, dashboard, monitoring
-- [ ] Homepage zeigt alle Dienste mit Status, Beszel alarmiert per ntfy
+### M4 – Plattform-Stacks ✅
+- [x] socket-proxy, proxy (Caddy), dns (AdGuard), dashboard (Homepage, Arcane), monitoring (Beszel, Scrutiny, Dozzle, ntfy, optional Uptime Kuma)
+- [x] Zugangsdaten automatisch erzeugt (`/etc/aunserver/secrets/`), Übersicht in `/etc/aunserver/zugaenge.txt`
+- [x] AdGuard, Beszel (Benutzer, System, Alarme, ntfy) und Cockpit hinter Caddy ohne Klicks eingerichtet
+- [x] Renovate erkennt alle Image-Tags der Stacks
 
-**Abnahme:** Alle Dienste unter `https://<app>.<domain>` erreichbar, Testalarm kommt aufs Handy.
+**Abnahme (VM, 2026-10-18):** DNS löst `nas.home.arpa` und `*.nas.home.arpa` auf die NAS-IP auf, Werbung → `0.0.0.0` ✅. Stammzertifikat per HTTP abholbar, alle Apps per HTTPS mit dieser CA ✅. Dozzle/Scrutiny nur mit Web-Passwort ✅. Socket-Proxy: lesen 200, Container stoppen 403 ✅. Cockpit-WebSocket über Caddy und direkt über `:9090`, fremder Origin 403 ✅. **Alarmkette:** Scrutiny-Test → ntfy ✅; Beszel-Agent gestoppt → nach 2 min „Connection to nas is down“ über ntfy, nach Start „is up“ ✅. Reboot: alle 10 Container zurück ✅. Zweiter Lauf `changed=0` ✅.
+
+**Offen:** Push aufs Handy (siehe O8) · Testalarm auf echtem Handy.
+
+**Befunde:** socket-proxy braucht `/tmp` als tmpfs bei `read_only`. `docker.sock:ro` schützt nicht vor API-Schreibzugriffen (Beszel-Beispiel). Cockpit `Origins` ersetzt die Standardregel (direkter Zugriff war sonst kaputt). Beszel: Erstbenutzer hat Rolle `user` und bekommt dann keine Alarme an interne Ziele; Einstellungen werden beim Anlegen durch Vorgaben ersetzt; Fehler landen nur im internen Log (`/api/logs`), nicht auf der Konsole. Arcane-Erstzugang `arcane`/`arcane-admin` mit erzwungenem Wechsel (Quellcode geprüft).
 
 ### M5 – Medien-Stack
 - [ ] **Vorher: Compose-Dateien für Recommendarr und PS2GameManager beim Nutzer erfragen** (eigene Apps)
@@ -381,6 +388,7 @@ Entschieden am 2026-10-17: Media-Server, Ort der Configs, lokale Domain und Hard
 | O3 | Mehrere Datenplatten? | V1: eine Datenplatte. V2 optional: mergerfs (Pool) + SnapRAID (Parität) |
 | O5 | Zentrales Login vor allen Apps? | V1 nein (Apps haben eigene Anmeldung), V2 TinyAuth |
 | O6 | Bücher/Hörbücher? | Audiobookshelf optional |
+| O8 | Push aufs Handy | Lokales ntfy ist nur im LAN/VPN erreichbar und braucht auf dem Handy die eigene CA. Alternativen: ntfy-App mit Tailscale, oder Alarme zusätzlich an ntfy.sh mit geheimem Thema (Inhalte verlassen das Heimnetz) |
 
 ## 12. Risiken
 

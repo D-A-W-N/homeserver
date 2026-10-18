@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+# AdGuard Home im Host-Netzwerk (Port 53, echte Client-IPs); Oberfläche nur auf 127.0.0.1 (S3).
+name: dns
+services:
+  adguard:
+    image: {{ stacks_images.adguard }}
+    container_name: adguard
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - {{ appdata_dir }}/adguard/work:/opt/adguardhome/work
+      - {{ appdata_dir }}/adguard/conf:/opt/adguardhome/conf

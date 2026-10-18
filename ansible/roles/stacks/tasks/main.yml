@@ -1,0 +1,89 @@
+---
+# Plattform-Stacks (M4). Vorlagen liegen unter stacks/<name>/ im Repo und werden nach
+# {{ stacks_dir }}/<name>/ gerendert. Eigene Stacks in Arcane fasst Ansible nicht an (D8).
+
+- name: Host-Ports der Container sind eindeutig
+  ansible.builtin.assert:
+    that: stacks_ports.values() | list | unique | length == stacks_ports.values() | list | length
+    fail_msg: "Doppelte Ports in stacks_ports: {{ stacks_ports }}"
+    quiet: true
+
+# --- Zugangsdaten -------------------------------------------------------------
+
+- name: Ordner für Zugangsdaten
+  ansible.builtin.file:
+    path: "{{ stacks_secrets_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+# Einmal erzeugt, danach aus der Datei gelesen (Ansible läuft lokal auf dem NAS)
+- name: Zugangsdaten erzeugen bzw. lesen
+  ansible.builtin.set_fact:
+    stacks_web_password: "{{ lookup('ansible.builtin.password', stacks_secrets_dir ~ '/web_password length=20 chars=ascii_letters,digits') }}"
+    stacks_arcane_encryption_key: "{{ lookup('ansible.builtin.password', stacks_secrets_dir ~ '/arcane_encryption_key length=32 chars=ascii_letters,digits') }}"
+    stacks_arcane_jwt_secret: "{{ lookup('ansible.builtin.password', stacks_secrets_dir ~ '/arcane_jwt_secret length=48 chars=ascii_letters,digits') }}"
+  no_log: true
+
+- name: Zugangsdaten nur für root lesbar
+  ansible.builtin.file:
+    path: "{{ stacks_secrets_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: [web_password, arcane_encryption_key, arcane_jwt_secret]
+
+- name: Passwort-Hash für Caddy (Basic Auth vor Logs und Platten)
+  ansible.builtin.shell: |
+    set -o pipefail
+    umask 077
+    docker run --rm -i {{ stacks_images.caddy }} caddy hash-password < {{ stacks_secrets_dir }}/web_password \
+      > {{ stacks_secrets_dir }}/web_password.bcrypt.tmp
+    mv {{ stacks_secrets_dir }}/web_password.bcrypt.tmp {{ stacks_secrets_dir }}/web_password.bcrypt
+  args:
+    executable: /bin/bash
+    creates: "{{ stacks_secrets_dir }}/web_password.bcrypt"
+
+- name: Passwort-Hash lesen
+  ansible.builtin.slurp:
+    src: "{{ stacks_secrets_dir }}/web_password.bcrypt"
+  register: stacks_web_password_hash_raw
+  no_log: true
+
+- name: Passwort-Hash merken
+  ansible.builtin.set_fact:
+    stacks_web_password_hash: "{{ stacks_web_password_hash_raw.content | b64decode | trim }}"
+  no_log: true
+
+# --- Gemeinsames ---------------------------------------------------------------
+
+- name: Gemeinsames Docker-Netz
+  ansible.builtin.shell: docker network inspect {{ stacks_network }} >/dev/null 2>&1 || { docker network create {{ stacks_network }} && echo erstellt; }
+  register: stacks_network_result
+  changed_when: "'erstellt' in stacks_network_result.stdout"
+
+- name: Ordner für Stacks
+  ansible.builtin.file:
+    path: "{{ stacks_dir }}"
+    state: directory
+    owner: root
+    group: docker
+    mode: "0750"
+
+- name: Plattform-Stacks ausrollen
+  ansible.builtin.include_tasks: "{{ item }}.yml"
+  loop:
+    - socket-proxy
+    - proxy
+    - dns
+    - dashboard
+    - monitoring
+
+- name: Übersicht der Zugänge
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../stacks/zugaenge.txt.j2"
+    dest: /etc/aunserver/zugaenge.txt
+    owner: root
+    group: root
+    mode: "0600"

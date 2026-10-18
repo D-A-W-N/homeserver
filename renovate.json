@@ -4,10 +4,24 @@
   "timezone": "Europe/Berlin",
   "schedule": ["before 6am on monday"],
   "labels": ["abhängigkeiten"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Container-Images der Stacks (ansible/roles/stacks/defaults/main.yml)",
+      "managerFilePatterns": ["/^ansible/roles/stacks/defaults/main\\.yml$/"],
+      "matchStrings": ["\\n\\s+[a-z_]+: (?<depName>[a-z0-9.-]+\\/[a-z0-9._\\/-]+):(?<currentValue>[A-Za-z0-9._-]+)"],
+      "datasourceTemplate": "docker"
+    }
+  ],
   "packageRules": [
     {
       "matchManagers": ["github-actions"],
       "groupName": "GitHub Actions"
+    },
+    {
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["major"],
+      "labels": ["abhängigkeiten", "major"]
     }
   ]
 }

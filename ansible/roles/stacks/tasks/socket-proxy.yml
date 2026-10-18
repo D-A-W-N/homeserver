@@ -1,0 +1,6 @@
+---
+- name: Stack socket-proxy
+  ansible.builtin.include_tasks: deploy.yml
+  vars:
+    stack_name: socket-proxy
+    stack_files: [compose.yaml]

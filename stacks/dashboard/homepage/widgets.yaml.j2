@@ -1,0 +1,15 @@
+# {{ ansible_managed }}
+- resources:
+    label: System
+    cpu: true
+    memory: true
+    cputemp: true
+    uptime: true
+- resources:
+    label: Daten
+    disk: {{ data_mount }}
+- datetime:
+    text_size: md
+    format:
+      dateStyle: long
+      timeStyle: short

@@ -1,0 +1,49 @@
+# {{ ansible_managed }}
+name: dashboard
+services:
+  homepage:
+    image: {{ stacks_images.homepage }}
+    container_name: homepage
+    restart: unless-stopped
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: {{ stacks_hosts.homepage }}.{{ domain }}
+      PUID: "{{ puid }}"
+      PGID: "{{ pgid }}"
+      TZ: {{ timezone }}
+    volumes:
+      - {{ appdata_dir }}/homepage:/app/config
+      - {{ data_mount }}:{{ data_mount }}:ro
+    ports:
+      - 127.0.0.1:{{ stacks_ports.homepage }}:3000
+    networks: [{{ stacks_network }}]
+
+  # Verwaltung der Stacks unter {{ stacks_dir }}. Eigene Stacks hier anlegen, die von
+  # aunserver mitgelieferten werden bei jedem Playbook-Lauf aus dem Repo überschrieben.
+  arcane:
+    image: {{ stacks_images.arcane }}
+    container_name: arcane
+    restart: unless-stopped
+    environment:
+      APP_URL: https://{{ stacks_hosts.arcane }}.{{ domain }}
+      ENCRYPTION_KEY: {{ stacks_arcane_encryption_key }}
+      JWT_SECRET: {{ stacks_arcane_jwt_secret }}
+      PROJECTS_DIRECTORY: {{ stacks_dir }}
+      TRUSTED_PROXIES: 127.0.0.0/8,172.16.0.0/12
+      TZ: {{ timezone }}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - {{ appdata_dir }}/arcane:/app/data
+      - {{ stacks_dir }}:{{ stacks_dir }}
+    ports:
+      - 127.0.0.1:{{ stacks_ports.arcane }}:3552
+    cgroup: host
+    healthcheck:
+      test: ["CMD", "./arcane", "health", "--timeout", "2s"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+
+networks:
+  {{ stacks_network }}:
+    external: true

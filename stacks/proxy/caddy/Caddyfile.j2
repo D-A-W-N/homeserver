@@ -1,0 +1,74 @@
+# {{ ansible_managed }}
+{
+	# eigene CA für alle Seiten (D17); Stammzertifikat unter http://{{ domain }}/ca.crt
+	local_certs
+}
+
+(geschuetzt) {
+	basic_auth {
+		{{ admin_user }} {{ stacks_web_password_hash }}
+	}
+}
+
+# Stammzertifikat per HTTP abholbar, damit Geräte ohne installierte CA es laden können
+http://{{ domain }} {
+	handle /ca.crt {
+		root * /data/caddy/pki/authorities/local
+		rewrite * /root.crt
+		header Content-Type application/x-x509-ca-cert
+		file_server
+	}
+	handle {
+		redir https://{{ stacks_hosts.homepage }}.{{ domain }}{uri}
+	}
+}
+
+{{ domain }} {
+	redir https://{{ stacks_hosts.homepage }}.{{ domain }}{uri}
+}
+
+{{ stacks_hosts.homepage }}.{{ domain }} {
+	reverse_proxy 127.0.0.1:{{ stacks_ports.homepage }}
+}
+
+{{ stacks_hosts.arcane }}.{{ domain }} {
+	reverse_proxy 127.0.0.1:{{ stacks_ports.arcane }}
+}
+
+{{ stacks_hosts.beszel }}.{{ domain }} {
+	reverse_proxy 127.0.0.1:{{ stacks_ports.beszel }}
+}
+
+{{ stacks_hosts.dozzle }}.{{ domain }} {
+	import geschuetzt
+	reverse_proxy 127.0.0.1:{{ stacks_ports.dozzle }}
+}
+
+{{ stacks_hosts.scrutiny }}.{{ domain }} {
+	import geschuetzt
+	reverse_proxy 127.0.0.1:{{ stacks_ports.scrutiny }}
+}
+
+{{ stacks_hosts.ntfy }}.{{ domain }} {
+	reverse_proxy 127.0.0.1:{{ stacks_ports.ntfy }}
+}
+{% if apps.adguard | bool %}
+
+{{ stacks_hosts.adguard }}.{{ domain }} {
+	reverse_proxy 127.0.0.1:{{ stacks_ports.adguard_ui }}
+}
+{% endif %}
+{% if apps.uptime_kuma | bool %}
+
+{{ stacks_hosts.uptime_kuma }}.{{ domain }} {
+	reverse_proxy 127.0.0.1:{{ stacks_ports.uptime_kuma }}
+}
+{% endif %}
+
+{{ stacks_hosts.cockpit }}.{{ domain }} {
+	reverse_proxy https://127.0.0.1:9090 {
+		transport http {
+			tls_insecure_skip_verify
+		}
+	}
+}

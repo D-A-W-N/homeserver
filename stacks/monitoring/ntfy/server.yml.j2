@@ -1,0 +1,8 @@
+# {{ ansible_managed }}
+base-url: "https://{{ stacks_hosts.ntfy }}.{{ domain }}"
+listen-http: ":80"
+behind-proxy: true
+cache-file: /var/cache/ntfy/cache.db
+cache-duration: "24h"
+# Für Push auf iOS nötig; leitet nur eine Weckmeldung über ntfy.sh, nicht den Inhalt
+upstream-base-url: "https://ntfy.sh"

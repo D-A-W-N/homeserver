@@ -1,0 +1,32 @@
+# {{ ansible_managed }}
+# Nur-Lese-Zugriff auf die Docker-API für Homepage, Dozzle und den Beszel-Agenten.
+# Arcane bekommt den Socket direkt (braucht Schreibzugriff, wäre über den Proxy ebenso root-gleich).
+name: socket-proxy
+services:
+  socket-proxy:
+    image: {{ stacks_images.socket_proxy }}
+    container_name: socket-proxy
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1
+      EVENTS: 1
+      IMAGES: 1
+      INFO: 1
+      NETWORKS: 1
+      PING: 1
+      VERSION: 1
+      VOLUMES: 1
+      POST: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      # für den Beszel-Agenten im Host-Netzwerk
+      - 127.0.0.1:{{ stacks_ports.socket_proxy }}:2375
+    networks: [{{ stacks_network }}]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: [/run, /tmp]
+
+networks:
+  {{ stacks_network }}:
+    external: true
