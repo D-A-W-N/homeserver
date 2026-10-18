@@ -42,7 +42,7 @@ SABnzbd, Bazarr{{ ', Recommendarr' if apps.recommendarr | bool else '' }}{{ ', P
   Noch einzutragen: Usenet-Server in SABnzbd, Indexer in Prowlarr, Bibliotheken in Emby
 
 Ohne Anmeldung (nur aus LAN/VPN erreichbar)
-  ntfy          https://{{ stacks_hosts.ntfy }}.{{ domain }}   (Themen: smart, beszel)
+  ntfy          https://{{ stacks_hosts.ntfy }}.{{ domain }}   (Themen: smart, beszel, backup, updates)
 
 {% if apps.tailscale | bool %}
 Fernzugriff (Tailscale){{ '' if network_tailscale_state | default('') == 'Running' else '  – noch nicht angemeldet: sudo tailscale up' }}
