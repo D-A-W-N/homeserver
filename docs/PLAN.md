@@ -352,11 +352,16 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 
 **Befunde:** Erste Fassung formatierte vor den übrigen Fragen (Abbruch hätte eine gelöschte, nicht eingerichtete Platte hinterlassen). Ohne gesetztes `TERM` kann whiptail nicht zeichnen (Skript bricht dann sauber ab). GitHub-Actions ohne `shell: bash` laufen ohne `pipefail` (`| tee` überdeckte Fehler). Mit `live-restore` laufen Container weiter, wenn Docker gestoppt wird.
 
-### M7 – USB-Installer *(parallel ab M1/S2)*
-- [ ] `select-disk.sh`, `preseed.cfg.in`, `build-iso.sh` (SHA256, `md5sum.txt`, UEFI und BIOS)
-- [ ] Testmatrix in der VM (siehe 10)
+### M7 – USB-Installer ✅
+- [x] `installer/build-iso.sh`: aus dem offiziellen Debian-13-netinst-ISO (SHA256 gegen die Debian-Prüfsummen geprüft) ein ISO mit Bootmenü-Eintrag „aunserver installieren“ (UEFI und BIOS), Preseed, Plattenauswahl und dem Repo als Archiv; `md5sum.txt` wird fortgeschrieben. Ohne xorriso baut es automatisch in einem Debian-13-Container
+- [x] Installation entpackt das Repo nach `/opt/aunserver`; Login-Hinweis aufs Setup, solange `/etc/aunserver/config.yml` fehlt
+- [x] `--dev`: Dev-ISO für Tests (keine Rückfragen, SSH-Schlüssel, Menü startet nach 5 s)
+- [x] CI: Dev-ISO bauen, davon in KVM installieren (UEFI und BIOS parallel), Repo/Login-Hinweis/Firmware prüfen, `aunserver-setup` zweimal
+- [x] `release.yml`: Tag `v*` → ISO + SHA256 als Release-Datei
 
-**Abnahme:** Vom Stick zum fertigen NAS ohne Eingriff außer Benutzer, Passwort, Plattenbestätigung und Setup-Dialog. Die Datenplatte wird in keinem Szenario angefasst.
+**Abnahme (VM, 2026-10-18):** md5sum.txt fehlerfrei; UEFI und BIOS starten den eigenen Eintrag, installieren auf die SSD, Datenplatte unberührt; **BIOS: GRUB im MBR der Systemplatte**, Datenplatte ohne Partitionstabelle; Boot von Platte in beiden Modi; `/opt/aunserver` vorhanden, Login-Hinweis bei echter Anmeldung ✅.
+
+**Befunde:** Debian startet im BIOS-Menü nach 30 s ohne Tastendruck die Sprachausgabe-Installation (`ontimeout` in `spkgtk.cfg`) → entfernt, Menüpunkt bleibt. `git archive` packt mit umask 002 → `tar.umask=022`. Ein BIOS-Lauf scheiterte einmal an einem beschädigten Kernel-Paket beim Entpacken (lzma-Fehler, Download war prüfsummengesichert); Wiederholung fehlerfrei, vermutlich Folge des vollen `/tmp` kurz zuvor → CI testet BIOS bei jeder Änderung mit. Testumgebung: `/tmp` ist ein 16-GB-tmpfs, VM-Platten gehören nach `.vm/`.
 
 ### M8 – Fernzugriff und Backup
 - [ ] Rolle `network` (Tailscale/WireGuard)
@@ -367,7 +372,7 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 
 ### M9 – Release
 - [ ] `release.yml`: ISO bei Tag bauen, als Release-Asset
-- [ ] Renovate für Image-Tags
+- [ ] Renovate-App für das Repo aktivieren (Konfiguration liegt bereit; ohne die App kommen keine Update-PRs)
 - [ ] `docs/BETRIEB.md`
 - [ ] Umstellung des echten NAS (vorher Configs des Altsystems sichern)
 - [ ] Abnahme auf dem echten Server: Freigabe per Klick in Cockpit anlegen und von Windows erreichen; PS2 mit OPL über die SMB1-Freigabe (Port in OPL auf 1445, sonst Fallback zweite IP, S5)

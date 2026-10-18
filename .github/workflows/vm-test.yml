@@ -1,6 +1,7 @@
 ---
-# Ende-zu-Ende-Test: Debian 13 per Preseed in einer KVM-VM installieren, Playbook zweimal
-# ausführen, der zweite Lauf darf nichts ändern. Dieselben Skripte wie lokal (dev/).
+# Ende-zu-Ende-Test wie mit dem USB-Stick: Dev-ISO bauen, davon in einer KVM-VM installieren
+# (UEFI und BIOS), aunserver-setup formatiert die leere Datenplatte und richtet alles ein;
+# der zweite Lauf darf nichts ändern. Dieselben Skripte wie lokal (installer/, dev/).
 name: vm-test
 "on":
   pull_request:
@@ -20,7 +21,14 @@ concurrency:
 jobs:
   vm:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { firmware: uefi, scenario: "1" }
+          - { firmware: bios, scenario: "2" }
+    name: vm (${{ matrix.firmware }})
     defaults:
       run:
         # ausdrücklich bash: dann mit "-eo pipefail", sonst überdeckt "| tee" Fehlschläge
@@ -40,7 +48,7 @@ jobs:
       - name: Werkzeuge installieren
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf libarchive-tools e2fsprogs rsync
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf libarchive-tools e2fsprogs rsync xorriso
 
       - name: Name des aktuellen Debian-ISOs
         id: iso
@@ -61,18 +69,29 @@ jobs:
       - name: SSH-Schlüssel
         run: ssh-keygen -q -t ed25519 -N '' -f ~/.ssh/id_ed25519
 
-      # Szenario 1: SSD + leere HDD, also genau der Zustand nach der Installation vom Stick
-      - name: Debian automatisch installieren
-        run: dev/vm-test.sh autoinstall 1 --headless < /dev/null > "$RUNNER_TEMP/install.log" 2>&1
+      - name: Dev-ISO bauen
+        run: installer/build-iso.sh --dev --dev-key ~/.ssh/id_ed25519.pub --out .vm/aunserver-dev.iso
+
+      # SSD + leere HDD, also genau der Zustand nach der Installation vom Stick; das Repo kommt aus dem ISO
+      - name: Vom ISO installieren (${{ matrix.firmware }})
+        run: |
+          dev/vm-test.sh install ${{ matrix.scenario }} --iso .vm/aunserver-dev.iso --headless \
+            < /dev/null > "$RUNNER_TEMP/install.log" 2>&1
 
       - name: Installiertes System starten
         run: |
-          dev/vm-test.sh boot 1 --headless < /dev/null > "$RUNNER_TEMP/boot.log" 2>&1 &
+          dev/vm-test.sh boot ${{ matrix.scenario }} --headless < /dev/null > "$RUNNER_TEMP/boot.log" 2>&1 &
           opts="-p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=3"
           timeout 300 bash -c "until ssh $opts nasadmin@localhost true 2>/dev/null; do sleep 5; done"
 
-      - name: Repo in die VM kopieren
-        run: SYNC_ONLY=1 dev/vm-ansible.sh
+      - name: Installation prüfen (Repo, Login-Hinweis, Firmware)
+        run: |
+          ssh_vm() { ssh -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost "$@"; }
+          ssh_vm -n "test -x /opt/aunserver/bin/aunserver-setup"
+          # Repo gehört root und ist nicht gruppenbeschreibbar (git archive mit tar.umask=022)
+          test "$(ssh_vm -n "stat -c '%a %U' /opt/aunserver")" = "755 root"
+          printf 'exit\n' | ssh_vm -tt 2>&1 | tr -d '\r' | grep "aunserver ist installiert"
+          if [ "${{ matrix.firmware }}" = uefi ]; then ssh_vm -n "test -d /sys/firmware/efi"; else ssh_vm -n "test ! -d /sys/firmware/efi"; fi
 
       - name: aunserver-setup, erster Lauf (formatiert die Datenplatte)
         run: |
