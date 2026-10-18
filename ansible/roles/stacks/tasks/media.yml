@@ -263,3 +263,103 @@
   ansible.builtin.command: docker exec recyclarr recyclarr sync
   when: stacks_recyclarr_config.changed # noqa no-handler
   changed_when: true
+
+# --- Bazarr (Untertitel) -----------------------------------------------------------
+# Verbindung zu Sonarr/Radarr und ein Sprachprofil "Deutsch + Englisch". Untertitel-Anbieter
+# (z. B. OpenSubtitles-Konto) trägt der Nutzer selbst ein.
+
+- name: Warten, bis Bazarr seine Konfiguration angelegt hat
+  ansible.builtin.wait_for:
+    path: "{{ appdata_dir }}/bazarr/config/config.yaml"
+    search_regex: "apikey: \\w+"
+    timeout: 300
+
+- name: Bazarr-Konfiguration lesen
+  ansible.builtin.slurp:
+    src: "{{ appdata_dir }}/bazarr/config/config.yaml"
+  register: stacks_bazarr_config_raw
+  no_log: true
+
+- name: Bazarr-API-Schlüssel merken
+  ansible.builtin.set_fact:
+    stacks_bazarr_key: "{{ (stacks_bazarr_config_raw.content | b64decode | from_yaml).auth.apikey }}"
+  no_log: true
+
+- name: Bazarr-Einstellungen und Sprachprofile lesen
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports.bazarr }}/api/{{ item }}"
+    headers: { X-API-KEY: "{{ stacks_bazarr_key }}" }
+  loop: [system/settings, system/languages/profiles]
+  register: stacks_bazarr_state
+  until: stacks_bazarr_state is succeeded
+  retries: 30
+  delay: 3
+  no_log: true
+
+- name: Bazarr mit Sonarr und Radarr verbinden
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports.bazarr }}/api/system/settings"
+    method: POST
+    headers:
+      X-API-KEY: "{{ stacks_bazarr_key }}"
+      Content-Type: application/x-www-form-urlencoded
+    body: "{{ stacks_bazarr_form | map('map', 'urlencode') | map('join', '=') | join('&') }}"
+    status_code: [200, 204]
+  vars:
+    stacks_bazarr_form:
+      - [settings-general-use_sonarr, "true"]
+      - [settings-sonarr-ip, sonarr]
+      - [settings-sonarr-port, "8989"]
+      - [settings-sonarr-base_url, /]
+      - [settings-sonarr-apikey, "{{ stacks_arr_keys.sonarr }}"]
+      - [settings-general-use_radarr, "true"]
+      - [settings-radarr-ip, radarr]
+      - [settings-radarr-port, "7878"]
+      - [settings-radarr-base_url, /]
+      - [settings-radarr-apikey, "{{ stacks_arr_keys.radarr }}"]
+    stacks_bazarr_settings: "{{ stacks_bazarr_state.results[0].json }}"
+  when: >-
+    not stacks_bazarr_settings.general.use_sonarr
+    or not stacks_bazarr_settings.general.use_radarr
+    or stacks_bazarr_settings.sonarr.ip != 'sonarr'
+    or stacks_bazarr_settings.radarr.ip != 'radarr'
+    or stacks_bazarr_settings.sonarr.apikey != stacks_arr_keys.sonarr
+    or stacks_bazarr_settings.radarr.apikey != stacks_arr_keys.radarr
+  changed_when: true
+  no_log: true
+
+# Achtung: Bazarr löscht beim Speichern alle Profile, die nicht mitgeschickt werden.
+# Deshalb nur anlegen, solange es noch keines gibt; danach gehören die Profile dem Nutzer.
+- name: Bazarr-Sprachprofil "Deutsch + Englisch" (nur beim ersten Mal)
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports.bazarr }}/api/system/settings"
+    method: POST
+    headers:
+      X-API-KEY: "{{ stacks_bazarr_key }}"
+      Content-Type: application/x-www-form-urlencoded
+    body: "{{ stacks_bazarr_form | map('map', 'urlencode') | map('join', '=') | join('&') }}"
+    status_code: [200, 204]
+  vars:
+    stacks_bazarr_lang_item: { forced: "False", hi: "False", audio_exclude: "False", audio_only_include: "False" }
+    stacks_bazarr_profile:
+      - profileId: 1
+        name: Deutsch + Englisch
+        cutoff: null
+        items:
+          - "{{ stacks_bazarr_lang_item | combine({'id': 1, 'language': 'de'}) }}"
+          - "{{ stacks_bazarr_lang_item | combine({'id': 2, 'language': 'en'}) }}"
+        mustContain: []
+        mustNotContain: []
+        originalFormat: false
+        tag: null
+    stacks_bazarr_form:
+      - [languages-enabled, de]
+      - [languages-enabled, en]
+      - [languages-profiles, "{{ stacks_bazarr_profile | to_json }}"]
+      - [settings-general-serie_default_enabled, "true"]
+      - [settings-general-serie_default_profile, "1"]
+      - [settings-general-movie_default_enabled, "true"]
+      - [settings-general-movie_default_profile, "1"]
+  when: stacks_bazarr_state.results[1].json | length == 0
+  changed_when: true
+  no_log: true
