@@ -34,13 +34,32 @@
         group: root
         mode: "0700"
 
+    # fstab selbst pflegen statt ansible.posix.mount (Deprecation, siehe Rolle storage)
     - name: Backup-Platte in fstab (nofail, damit das NAS auch ohne sie startet)
-      ansible.posix.mount:
-        path: "{{ backup_mount }}"
-        src: "LABEL={{ backup.disk_label }}"
-        fstype: auto
-        opts: defaults,nofail,x-systemd.device-timeout=10s
-        state: "{{ 'mounted' if backup_disk.stdout_lines | length == 1 else 'present' }}"
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: '^\S+\s+{{ backup_mount | regex_escape }}\s'
+        line: "LABEL={{ backup.disk_label }} {{ backup_mount }} auto defaults,nofail,x-systemd.device-timeout=10s 0 0"
+      register: backup_fstab
+
+    - name: Systemd liest die geänderte fstab ein
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+      when: backup_fstab.changed # noqa no-handler
+
+    - name: Ist die Backup-Platte eingehängt?
+      ansible.builtin.command: findmnt --noheadings --mountpoint {{ backup_mount }}
+      register: backup_findmnt
+      changed_when: false
+      failed_when: false
+
+    - name: Backup-Platte einhängen
+      ansible.builtin.command: # noqa command-instead-of-module
+        argv: [mount, "{{ backup_mount }}"]
+      when:
+        - backup_disk.stdout_lines | length == 1
+        - backup_findmnt.rc != 0
+      changed_when: true
 
     - name: Hinweis, wenn die Backup-Platte fehlt
       ansible.builtin.debug:
