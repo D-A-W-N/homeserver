@@ -310,7 +310,7 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 
 **Abnahme (VM, 2026-10-18):** Von außen durch die Firewall getestet: SMB3-Schreiben als Admin ✅, SMB1 an 445 abgelehnt ✅, Gast abgelehnt ✅, `ps2` an der Hauptinstanz abgelehnt ✅, SMB1-Schreiben als `ps2` in `DVD/` ✅, SMB3 an 1445 abgelehnt ✅, Admin an der PS2-Instanz abgelehnt ✅. Neue Registry-Freigabe (wie Cockpit) sofort erreichbar und vom nächsten Playbook-Lauf unberührt ✅. Nach Reboot lauschen nur 22, 445, 1445, 3702, 5355, 9090 ✅. **Testmatrix 7:** ohne Datenplatte Boot in 18 s, Status `running`, Docker und PS2-Instanz aus, SSH/Cockpit an, leerer Mountpoint selbst für root schreibgeschützt ✅; mit Platte kommt alles von selbst zurück ✅.
 
-**Offen:** Freigabe per Klick in der echten Cockpit-Oberfläche anlegen (Mechanismus `net conf` ist getestet) · PS2 mit OPL (S5).
+**Auf dem echten Server testen (M9):** Freigabe per Klick in Cockpit (Mechanismus `net conf` ist getestet) · PS2 mit OPL (S5).
 
 **Befunde:** `smbd` übernimmt geänderte `smb ports` nur bei Neustart, nicht bei reload (Port 139 blieb offen). `cockpit-file-sharing` zieht mehr NFS-Dienste mit als in S1 gesehen (Port 2049 und RPC-Ports), jetzt alle maskiert. wsdd2 nutzt TCP 3702 (nicht 5357). Gerätenamen wechseln auch zwischen zwei Boots derselben VM (`sdb` → `sda`).
 
@@ -350,6 +350,7 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 - [ ] Renovate für Image-Tags
 - [ ] `docs/BETRIEB.md`
 - [ ] Umstellung des echten NAS (vorher Configs des Altsystems sichern)
+- [ ] Abnahme auf dem echten Server: Freigabe per Klick in Cockpit anlegen und von Windows erreichen; PS2 mit OPL über die SMB1-Freigabe (Port in OPL auf 1445, sonst Fallback zweite IP, S5)
 
 ```
 M0 → M1 ─┬→ M2 → M3 → M4 → M5 → M6 ─┬→ M8 → M9
