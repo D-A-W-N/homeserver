@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# aunserver-update – NAS auf den aktuellen Stand von GitHub (Branch main) bringen (Plan, M9).
+#
+# Vergleicht den installierten Commit (Datei COMMIT, von git archive eingetragen) mit main,
+# zeigt die Änderungen, sichert vorher per Backup, tauscht /opt/aunserver aus und führt
+# aunserver-setup aus. Der vorige Stand bleibt als /opt/aunserver.prev für --rollback.
+set -euo pipefail
+
+REPO=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+GH_REPO=${AUNSERVER_GH_REPO:-D-A-W-N/homeserver}
+BRANCH=${AUNSERVER_BRANCH:-main}
+API=https://api.github.com/repos/$GH_REPO
+STATE_DIR=/var/lib/aunserver
+PREV=$REPO.prev
+
+usage() {
+  cat <<USAGE
+Verwendung: sudo ${0##*/} [Optionen]
+
+Ohne Optionen: Änderungen anzeigen, nachfragen, Backup, aktualisieren, Setup ausführen.
+
+  --check           nur prüfen (Rückgabe 0: aktuell, 10: Update verfügbar)
+  --notify URL      mit --check: bei neuem Stand einmalig per ntfy melden (z. B. http://127.0.0.1:3050/updates)
+  --yes             ohne Rückfrage aktualisieren
+  --no-backup       vorher kein Backup
+  --rollback        zum vorigen Stand ($PREV) zurück und Setup ausführen
+  -h, --help        diese Hilfe
+USAGE
+}
+
+die() { echo "Fehler: $*" >&2; exit 1; }
+info() { echo "== $*"; }
+
+CHECK=0 NOTIFY="" YES=0 BACKUP=1 ROLLBACK=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --check) CHECK=1 ;;
+    --notify) NOTIFY=${2:?}; shift ;;
+    --yes) YES=1 ;;
+    --no-backup) BACKUP=0 ;;
+    --rollback) ROLLBACK=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) die "Unbekannte Option: $1 (siehe --help)" ;;
+  esac
+  shift
+done
+[ "$(id -u)" = 0 ] || die "Bitte mit sudo ausführen: sudo $0"
+
+# installierter Commit; in einem Git-Checkout steht dort noch der Platzhalter
+local_commit() {
+  local c
+  c=$(cut -d' ' -f1 "$REPO/COMMIT" 2>/dev/null || true)
+  [[ "$c" =~ ^[0-9a-f]{40}$ ]] && echo "$c"
+  return 0
+}
+
+api() { curl -fsSL --max-time 30 -H "Accept: application/vnd.github+json" "$API/$1"; }
+
+remote_commit() { api "commits/$BRANCH" | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])'; }
+
+# Liste der Änderungen (erste Zeile jeder Commit-Nachricht, ohne Merge-Commits)
+changes() { # changes ALT NEU
+  api "compare/$1...$2" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+msgs = [c["commit"]["message"].splitlines()[0] for c in d.get("commits", []) if len(c.get("parents", [])) < 2]
+print("\n".join("  - " + m for m in msgs) or "  (keine Beschreibung)")
+'
+}
+
+run_setup() {
+  info "Gleiche das System ab (aunserver-setup)"
+  "$REPO/bin/aunserver-setup" --yes
+}
+
+if [ "$ROLLBACK" = 1 ]; then
+  [ -d "$PREV" ] || die "Kein voriger Stand vorhanden ($PREV)."
+  info "Zurück zum vorigen Stand"
+  rm -rf "$REPO.rollback"
+  mv "$REPO" "$REPO.rollback" && mv "$PREV" "$REPO" && mv "$REPO.rollback" "$PREV"
+  run_setup
+  exit 0
+fi
+
+LOCAL=$(local_commit)
+REMOTE=$(remote_commit) || die "GitHub nicht erreichbar ($API)."
+
+if [ -z "$LOCAL" ]; then
+  echo "Installierter Stand unbekannt (Entwicklungsstand ohne COMMIT), aktuell auf GitHub: ${REMOTE:0:7}"
+  [ "$CHECK" = 1 ] && exit 0
+elif [ "$LOCAL" = "$REMOTE" ]; then
+  echo "Aktuell (${LOCAL:0:7})."
+  exit 0
+else
+  echo "Neuer Stand verfügbar: ${LOCAL:0:7} → ${REMOTE:0:7}"
+  CHANGES=$(changes "$LOCAL" "$REMOTE" || echo "  (Änderungen nicht abrufbar)")
+  echo "$CHANGES"
+  if [ "$CHECK" = 1 ]; then
+    if [ -n "$NOTIFY" ] && [ "$(cat "$STATE_DIR/update-gemeldet" 2>/dev/null)" != "$REMOTE" ]; then
+      curl -fsS --max-time 15 -H "Title: Update für $(hostname) verfügbar" -H "Tags: package" \
+        -d "$CHANGES
+Installieren: sudo aunserver-update" "$NOTIFY" >/dev/null
+      install -d -m 0755 "$STATE_DIR"
+      echo "$REMOTE" > "$STATE_DIR/update-gemeldet"
+    fi
+    exit 10
+  fi
+fi
+
+if [ "$YES" = 0 ]; then
+  [ -t 0 ] || die "Ohne Terminal nur mit --yes."
+  read -r -p "Jetzt aktualisieren? [j/N] " a
+  [[ "$a" =~ ^[jJyY] ]] || die "Abgebrochen."
+fi
+
+if [ "$BACKUP" = 1 ] && systemctl is-enabled --quiet aunserver-backup.timer 2>/dev/null; then
+  info "Backup vor dem Update"
+  systemctl start aunserver-backup.service || die "Backup fehlgeschlagen (journalctl -u aunserver-backup); Update abgebrochen. Ohne Backup: --no-backup"
+fi
+
+info "Lade ${REMOTE:0:7} von GitHub"
+umask 022
+NEW=$REPO.new
+rm -rf "$NEW"
+mkdir -p "$NEW"
+curl -fsSL --max-time 300 "https://codeload.github.com/$GH_REPO/tar.gz/$REMOTE" \
+  | tar -xz --no-same-owner --strip-components=1 -C "$NEW" || die "Download fehlgeschlagen."
+[ -x "$NEW/bin/aunserver-setup" ] && [ -f "$NEW/ansible/site.yml" ] || die "Download unvollständig."
+
+rm -rf "$PREV"
+mv "$REPO" "$PREV"
+mv "$NEW" "$REPO"
+info "Neuer Stand liegt in $REPO (vorher: $PREV)"
+if ! run_setup; then
+  echo "Das Setup ist fehlgeschlagen. Zurück zum vorigen Stand: sudo aunserver-update --rollback" >&2
+  exit 1
+fi
+rm -f "$STATE_DIR/update-gemeldet"
+info "Update fertig (${REMOTE:0:7})."

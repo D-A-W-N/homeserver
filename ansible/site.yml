@@ -34,6 +34,7 @@
     - network
     - stacks
     - backup
+    - update
 
   post_tasks:
     # am Ende, damit auch das Backup-Passwort und der Tailscale-Zustand drinstehen
