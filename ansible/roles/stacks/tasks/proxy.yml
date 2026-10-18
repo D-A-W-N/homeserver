@@ -1,0 +1,7 @@
+---
+- name: Stack proxy (Caddy)
+  ansible.builtin.include_tasks: deploy.yml
+  vars:
+    stack_name: proxy
+    stack_files: [compose.yaml, caddy/Caddyfile]
+    stack_restart: [caddy]

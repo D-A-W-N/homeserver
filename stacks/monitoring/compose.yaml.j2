@@ -1,0 +1,96 @@
+# {{ ansible_managed }}
+name: monitoring
+services:
+  beszel:
+    image: {{ stacks_images.beszel }}
+    container_name: beszel
+    restart: unless-stopped
+    environment:
+      APP_URL: https://{{ stacks_hosts.beszel }}.{{ domain }}
+      USER_EMAIL: {{ stacks_beszel_email }}
+      USER_PASSWORD: {{ stacks_web_password }}
+    volumes:
+      - {{ appdata_dir }}/beszel/data:/beszel_data
+      - {{ appdata_dir }}/beszel/socket:/beszel_socket
+    ports:
+      - 127.0.0.1:{{ stacks_ports.beszel }}:8090
+    networks: [{{ stacks_network }}]   # erreicht ntfy für Alarme
+
+  # Host-Netzwerk für echte Host-Werte; Docker nur lesend über den Socket-Proxy
+  # (":ro" am docker.sock schützt nicht vor Schreibzugriffen über die API)
+  beszel-agent:
+    image: {{ stacks_images.beszel_agent }}
+    container_name: beszel-agent
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      LISTEN: /beszel_socket/beszel.sock
+      KEY: "{{ stacks_beszel_pubkey }}"
+      DOCKER_HOST: tcp://127.0.0.1:{{ stacks_ports.socket_proxy }}
+    volumes:
+      - {{ appdata_dir }}/beszel/socket:/beszel_socket
+      - {{ appdata_dir }}/beszel/agent:/var/lib/beszel-agent
+      - {{ data_mount }}:/extra-filesystems/daten:ro
+
+  scrutiny:
+    image: {{ stacks_images.scrutiny }}
+    container_name: scrutiny
+    restart: unless-stopped
+    cap_add:
+      - SYS_RAWIO
+{% if stacks_scrutiny_devices | select('search', 'nvme') | list | length > 0 %}
+      - SYS_ADMIN
+{% endif %}
+    environment:
+      SCRUTINY_NOTIFY_URLS: ntfy://ntfy:80/smart?scheme=http
+    volumes:
+      - /run/udev:/run/udev:ro
+      - {{ appdata_dir }}/scrutiny/config:/opt/scrutiny/config
+      - {{ appdata_dir }}/scrutiny/influxdb:/opt/scrutiny/influxdb
+    devices:
+{% for d in stacks_scrutiny_devices %}
+      - {{ d }}
+{% endfor %}
+    ports:
+      - 127.0.0.1:{{ stacks_ports.scrutiny }}:8080
+    networks: [{{ stacks_network }}]
+
+  dozzle:
+    image: {{ stacks_images.dozzle }}
+    container_name: dozzle
+    restart: unless-stopped
+    environment:
+      DOCKER_HOST: tcp://socket-proxy:2375
+      DOZZLE_NO_ANALYTICS: "true"
+    ports:
+      - 127.0.0.1:{{ stacks_ports.dozzle }}:8080
+    networks: [{{ stacks_network }}]
+
+  ntfy:
+    image: {{ stacks_images.ntfy }}
+    container_name: ntfy
+    restart: unless-stopped
+    command: serve
+    environment:
+      TZ: {{ timezone }}
+    volumes:
+      - ./ntfy:/etc/ntfy:ro
+      - {{ appdata_dir }}/ntfy/cache:/var/cache/ntfy
+    ports:
+      - 127.0.0.1:{{ stacks_ports.ntfy }}:80
+    networks: [{{ stacks_network }}]
+{% if apps.uptime_kuma | bool %}
+
+  uptime-kuma:
+    image: {{ stacks_images.uptime_kuma }}
+    container_name: uptime-kuma
+    restart: unless-stopped
+    volumes:
+      - {{ appdata_dir }}/uptime-kuma:/app/data
+    ports:
+      - 127.0.0.1:{{ stacks_ports.uptime_kuma }}:3001
+{% endif %}
+
+networks:
+  {{ stacks_network }}:
+    external: true

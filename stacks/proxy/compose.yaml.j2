@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+# Caddy im Host-Netzwerk: einziger Zugang zu den Web-Apps (Spike S3/S4).
+name: proxy
+services:
+  caddy:
+    image: {{ stacks_images.caddy }}
+    container_name: caddy
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./caddy:/etc/caddy:ro
+      - {{ appdata_dir }}/caddy/data:/data
+      - {{ appdata_dir }}/caddy/config:/config

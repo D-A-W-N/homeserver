@@ -1,0 +1,60 @@
+# {{ ansible_managed }}
+- Verwaltung:
+    - Cockpit:
+        href: https://{{ stacks_hosts.cockpit }}.{{ domain }}
+        description: System, Platten, Updates, Samba-Freigaben
+        icon: cockpit.png
+    - Arcane:
+        href: https://{{ stacks_hosts.arcane }}.{{ domain }}
+        description: Docker-Stacks verwalten
+        icon: mdi-docker
+        server: lokal
+        container: arcane
+    - Stammzertifikat:
+        href: http://{{ domain }}/ca.crt
+        description: Einmal pro Gerät installieren, dann gibt es keine Zertifikatswarnungen mehr
+        icon: mdi-certificate
+
+- Überwachung:
+    - Beszel:
+        href: https://{{ stacks_hosts.beszel }}.{{ domain }}
+        description: CPU, RAM, Netz, Temperaturen, Container, Alarme
+        icon: beszel.png
+        server: lokal
+        container: beszel
+    - Scrutiny:
+        href: https://{{ stacks_hosts.scrutiny }}.{{ domain }}
+        description: Gesundheit der Festplatten (SMART)
+        icon: scrutiny.png
+        server: lokal
+        container: scrutiny
+    - Dozzle:
+        href: https://{{ stacks_hosts.dozzle }}.{{ domain }}
+        description: Container-Logs
+        icon: dozzle.png
+        server: lokal
+        container: dozzle
+    - ntfy:
+        href: https://{{ stacks_hosts.ntfy }}.{{ domain }}
+        description: Benachrichtigungen
+        icon: ntfy.png
+        server: lokal
+        container: ntfy
+{% if apps.uptime_kuma | bool %}
+    - Uptime Kuma:
+        href: https://{{ stacks_hosts.uptime_kuma }}.{{ domain }}
+        description: Erreichbarkeit der Dienste
+        icon: uptime-kuma.png
+        server: lokal
+        container: uptime-kuma
+{% endif %}
+{% if apps.adguard | bool %}
+
+- Netzwerk:
+    - AdGuard Home:
+        href: https://{{ stacks_hosts.adguard }}.{{ domain }}
+        description: DNS und Werbeblocker fürs Heimnetz
+        icon: adguard-home.png
+        server: lokal
+        container: adguard
+{% endif %}

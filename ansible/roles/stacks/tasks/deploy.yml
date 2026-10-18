@@ -1,0 +1,52 @@
+---
+# Einen Stack ausrollen.
+# Variablen: stack_name, stack_files (Liste von Dateinamen unter stacks/<name>/, ohne .j2;
+# "compose.yaml" muss dabei sein), stack_restart (Dienste, die bei geänderten
+# Zusatzdateien neu starten), stack_extra_changed (true = Dateien außerhalb des
+# Stack-Ordners wurden geändert, stack_restart trotzdem neu starten).
+
+- name: "Stack-Ordner: {{ stack_name }}"
+  ansible.builtin.file:
+    path: "{{ stacks_dir }}/{{ stack_name }}"
+    state: directory
+    owner: root
+    group: docker
+    mode: "0750"
+
+# Konfigurationsdateien liegen in Unterordnern, die als Ordner gemountet werden:
+# ein Einzeldatei-Mount sieht neue Versionen nicht (Spike S3)
+- name: "Unterordner: {{ stack_name }}"
+  ansible.builtin.file:
+    path: "{{ stacks_dir }}/{{ stack_name }}/{{ item }}"
+    state: directory
+    owner: root
+    group: docker
+    mode: "0750"
+  loop: "{{ stack_files | select('search', '/') | map('dirname') | unique | list }}"
+
+- name: "Stack-Dateien: {{ stack_name }}"
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../stacks/{{ stack_name }}/{{ item }}.j2"
+    dest: "{{ stacks_dir }}/{{ stack_name }}/{{ item }}"
+    owner: root
+    group: docker
+    mode: "0640"
+  loop: "{{ stack_files }}"
+  register: stacks_templates
+
+- name: "Stack starten: {{ stack_name }}"
+  community.docker.docker_compose_v2:
+    project_src: "{{ stacks_dir }}/{{ stack_name }}"
+    state: present
+    pull: missing
+    remove_orphans: true
+
+- name: "Nach Konfigurationsänderung neu starten: {{ stack_name }}"
+  community.docker.docker_compose_v2:
+    project_src: "{{ stacks_dir }}/{{ stack_name }}"
+    state: restarted
+    services: "{{ stack_restart }}"
+  when:
+    - stack_restart | default([]) | length > 0
+    - (stacks_templates.results | rejectattr('item', 'equalto', 'compose.yaml') | selectattr('changed') | list | length > 0)
+      or (stack_extra_changed | default(false) | bool)

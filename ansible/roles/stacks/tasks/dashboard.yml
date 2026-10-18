@@ -1,0 +1,24 @@
+---
+- name: Konfigurationsordner für Homepage
+  ansible.builtin.file:
+    path: "{{ appdata_dir }}/homepage"
+    state: directory
+    owner: "{{ admin_user }}"
+    group: "{{ admin_user }}"
+    mode: "0750"
+
+# Homepage liest die Dateien bei jedem Aufruf neu, ein Neustart ist nicht nötig
+- name: Homepage-Konfiguration
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../stacks/dashboard/homepage/{{ item }}.j2"
+    dest: "{{ appdata_dir }}/homepage/{{ item }}"
+    owner: "{{ admin_user }}"
+    group: "{{ admin_user }}"
+    mode: "0640"
+  loop: [settings.yaml, services.yaml, widgets.yaml, docker.yaml, bookmarks.yaml]
+
+- name: Stack dashboard (Homepage, Arcane)
+  ansible.builtin.include_tasks: deploy.yml
+  vars:
+    stack_name: dashboard
+    stack_files: [compose.yaml]

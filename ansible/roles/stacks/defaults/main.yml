@@ -1,0 +1,51 @@
+---
+# Images mit festen Tags (geprüft am 2026-10-18). Renovate meldet Updates.
+stacks_images:
+  caddy: docker.io/library/caddy:2.11.7
+  adguard: docker.io/adguard/adguardhome:v0.107.79
+  socket_proxy: docker.io/tecnativa/docker-socket-proxy:v0.5.0
+  homepage: ghcr.io/gethomepage/homepage:v2.6.0
+  arcane: ghcr.io/getarcaneapp/arcane:v2.16.1
+  beszel: docker.io/henrygd/beszel:0.21.0
+  beszel_agent: docker.io/henrygd/beszel-agent:0.21.0
+  scrutiny: ghcr.io/analogj/scrutiny:v0.9.5-omnibus
+  dozzle: docker.io/amir20/dozzle:v11.3.2
+  ntfy: docker.io/binwiederhier/ntfy:v2.31.1
+  uptime_kuma: docker.io/louislam/uptime-kuma:2.5.6
+
+# Ports der Container auf dem Host, nur an 127.0.0.1 gebunden; Zugriff über Caddy.
+# Caddy (80/443) und AdGuard (53, UI 8083) laufen im Host-Netzwerk.
+stacks_ports:
+  socket_proxy: 2375
+  arcane: 3552
+  homepage: 3010
+  dozzle: 3020
+  beszel: 3030
+  scrutiny: 3040
+  ntfy: 3050
+  uptime_kuma: 3060
+  adguard_ui: 8083
+
+# Subdomains unter {{ domain }}
+stacks_hosts:
+  homepage: home
+  arcane: arcane
+  dozzle: logs
+  beszel: monitor
+  scrutiny: disks
+  ntfy: ntfy
+  uptime_kuma: status
+  adguard: adguard
+  cockpit: cockpit
+
+stacks_secrets_dir: /etc/aunserver/secrets
+stacks_network: aunserver
+
+# Alarme in Beszel (Wert, Minuten); Benachrichtigung per ntfy, Thema "beszel"
+stacks_beszel_alerts:
+  - { name: Status, value: 0, min: 2 }
+  - { name: CPU, value: 90, min: 10 }
+  - { name: Memory, value: 90, min: 10 }
+  - { name: Disk, value: 90, min: 1 }
+  - { name: Temperature, value: 80, min: 5 }
+stacks_beszel_webhook: ntfy://ntfy:80/beszel?scheme=http

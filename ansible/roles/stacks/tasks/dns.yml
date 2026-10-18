@@ -1,0 +1,85 @@
+---
+- name: AdGuard Home
+  when: apps.adguard | bool
+  block:
+    - name: Stack dns (AdGuard Home)
+      ansible.builtin.include_tasks: deploy.yml
+      vars:
+        stack_name: dns
+        stack_files: [compose.yaml]
+
+    # Beim ersten Start läuft der Einrichtungsassistent auf Port 3000 (alle Schnittstellen).
+    # Danach liegt die Oberfläche auf 127.0.0.1:{{ stacks_ports.adguard_ui }} (S3).
+    - name: Ist AdGuard schon eingerichtet?
+      ansible.builtin.uri:
+        url: http://127.0.0.1:{{ stacks_ports.adguard_ui }}/control/status
+        user: "{{ admin_user }}"
+        password: "{{ stacks_web_password }}"
+        force_basic_auth: true
+      register: stacks_adguard_configured
+      failed_when: false
+      no_log: true
+
+    - name: Auf den Einrichtungsassistenten warten
+      ansible.builtin.uri:
+        url: http://127.0.0.1:3000/control/install/get_addresses
+      register: stacks_adguard_wizard
+      until: stacks_adguard_wizard is succeeded
+      retries: 30
+      delay: 2
+      when: stacks_adguard_configured.status | default(0) != 200
+
+    - name: AdGuard-Assistent per API abschließen
+      ansible.builtin.uri:
+        url: http://127.0.0.1:3000/control/install/configure
+        method: POST
+        body_format: json
+        body:
+          web: { ip: 127.0.0.1, port: "{{ stacks_ports.adguard_ui }}" }
+          dns: { ip: 0.0.0.0, port: 53 }
+          username: "{{ admin_user }}"
+          password: "{{ stacks_web_password }}"
+        status_code: 200
+      when: stacks_adguard_configured.status | default(0) != 200
+      changed_when: true
+      no_log: true
+
+    - name: Warten, bis die Oberfläche auf dem neuen Port antwortet
+      ansible.builtin.uri:
+        url: http://127.0.0.1:{{ stacks_ports.adguard_ui }}/control/status
+        user: "{{ admin_user }}"
+        password: "{{ stacks_web_password }}"
+        force_basic_auth: true
+      register: stacks_adguard_status
+      until: stacks_adguard_status is succeeded
+      retries: 15
+      delay: 2
+      no_log: true
+
+    - name: Vorhandene DNS-Umschreibungen lesen
+      ansible.builtin.uri:
+        url: http://127.0.0.1:{{ stacks_ports.adguard_ui }}/control/rewrite/list
+        user: "{{ admin_user }}"
+        password: "{{ stacks_web_password }}"
+        force_basic_auth: true
+        return_content: true
+      register: stacks_adguard_rewrites
+      no_log: true
+
+    - name: Namen des NAS und aller Apps auf seine IP zeigen lassen
+      ansible.builtin.uri:
+        url: http://127.0.0.1:{{ stacks_ports.adguard_ui }}/control/rewrite/add
+        method: POST
+        user: "{{ admin_user }}"
+        password: "{{ stacks_web_password }}"
+        force_basic_auth: true
+        body_format: json
+        body: { domain: "{{ item }}", answer: "{{ ansible_facts.default_ipv4.address }}", enabled: true }
+      loop: ["{{ domain }}", "*.{{ domain }}"]
+      when: >-
+        stacks_adguard_rewrites.json | default([])
+        | selectattr('domain', 'equalto', item)
+        | selectattr('answer', 'equalto', ansible_facts.default_ipv4.address)
+        | list | length == 0
+      changed_when: true
+      no_log: true

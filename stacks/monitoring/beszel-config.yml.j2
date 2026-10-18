@@ -1,0 +1,7 @@
+# {{ ansible_managed }}
+# Wird beim Start des Beszel-Hubs mit der Systemliste abgeglichen.
+systems:
+  - name: {{ hostname }}
+    host: /beszel_socket/beszel.sock
+    users:
+      - {{ stacks_beszel_email }}

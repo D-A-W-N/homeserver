@@ -1,0 +1,163 @@
+---
+- name: Datenordner für das Monitoring
+  ansible.builtin.file:
+    path: "{{ appdata_dir }}/{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  loop:
+    - beszel
+    - beszel/data
+    - beszel/socket
+    - beszel/agent
+    - scrutiny
+    - scrutiny/config
+    - scrutiny/influxdb
+    - ntfy
+    - ntfy/cache
+    - uptime-kuma
+
+# Beszel ohne Klicks: Schlüsselpaar des Hubs selbst erzeugen (der Hub lädt
+# beszel_data/id_ed25519, falls vorhanden), System per config.yml anlegen.
+- name: Schlüsselpaar für Beszel
+  ansible.builtin.command: ssh-keygen -q -t ed25519 -N "" -C beszel-hub -f {{ appdata_dir }}/beszel/data/id_ed25519
+  args:
+    creates: "{{ appdata_dir }}/beszel/data/id_ed25519"
+
+- name: Öffentlichen Schlüssel für den Agenten lesen
+  ansible.builtin.slurp:
+    src: "{{ appdata_dir }}/beszel/data/id_ed25519.pub"
+  register: stacks_beszel_pubkey_raw
+
+- name: Werte für das Monitoring
+  ansible.builtin.set_fact:
+    stacks_beszel_pubkey: "{{ stacks_beszel_pubkey_raw.content | b64decode | trim }}"
+    stacks_beszel_email: "{{ admin_user }}@{{ domain }}"
+    # alle festen Platten (ohne USB-Sticks, CD-Laufwerke und virtuelle Geräte)
+    stacks_scrutiny_devices: >-
+      {{ ansible_facts.devices | dict2items
+         | rejectattr('key', 'match', '^(loop|ram|sr|zram|dm-|md|fd|nbd)')
+         | selectattr('value.removable', 'equalto', '0')
+         | map(attribute='key') | map('regex_replace', '^', '/dev/') | sort | list }}
+
+- name: Systeme für Beszel (beim Start des Hubs abgeglichen)
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../stacks/monitoring/beszel-config.yml.j2"
+    dest: "{{ appdata_dir }}/beszel/data/config.yml"
+    owner: root
+    group: root
+    mode: "0640"
+  register: stacks_beszel_config
+
+- name: Stack monitoring
+  ansible.builtin.include_tasks: deploy.yml
+  vars:
+    stack_name: monitoring
+    stack_files: [compose.yaml, ntfy/server.yml]
+    stack_restart: "{{ ['ntfy'] + (['beszel'] if stacks_beszel_config.changed else []) }}"
+    stack_extra_changed: "{{ stacks_beszel_config.changed }}"
+
+# Alarme und Benachrichtigungsziel über die Beszel-API setzen (sonst nur per Klick möglich).
+# Beszel stellt Alarme an interne Ziele (ntfy://ntfy) nur zu, wenn der Besitzer die Rolle
+# "admin" hat; der per USER_EMAIL angelegte Benutzer ist "user" (M4-Test). Die Rolle setzt
+# der Superuser, den Beszel mit denselben Zugangsdaten anlegt.
+- name: Beszel-Anmeldung (Benutzer und Superuser)
+  ansible.builtin.uri:
+    url: http://127.0.0.1:{{ stacks_ports.beszel }}/api/collections/{{ item }}/auth-with-password
+    method: POST
+    body_format: json
+    body: { identity: "{{ stacks_beszel_email }}", password: "{{ stacks_web_password }}" }
+  loop: [users, _superusers]
+  register: stacks_beszel_auth
+  until: stacks_beszel_auth is succeeded
+  retries: 20
+  delay: 3
+  no_log: true
+
+- name: Beszel-Zugänge merken
+  ansible.builtin.set_fact:
+    stacks_beszel_user: "{{ stacks_beszel_auth.results[0].json.record }}"
+    stacks_beszel_admin_token: "{{ stacks_beszel_auth.results[1].json.token }}"
+  no_log: true
+
+- name: Beszel-Benutzer ist Admin (sonst keine Alarme an ntfy)
+  ansible.builtin.uri:
+    url: http://127.0.0.1:{{ stacks_ports.beszel }}/api/collections/users/records/{{ stacks_beszel_user.id }}
+    method: PATCH
+    headers: { Authorization: "{{ stacks_beszel_admin_token }}" }
+    body_format: json
+    body: { role: admin }
+  when: stacks_beszel_user.role | default('') != 'admin'
+  changed_when: true
+  no_log: true
+
+- name: Beszel-Einstellungen, Systeme und Alarme lesen
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports.beszel }}/api/collections/{{ item }}"
+    headers: { Authorization: "{{ stacks_beszel_admin_token }}" }
+  loop:
+    - "user_settings/records?filter=(user='{{ stacks_beszel_user.id }}')"
+    - systems/records?perPage=200
+    - alerts/records?perPage=500
+  register: stacks_beszel_state
+  no_log: true
+
+# Beim Anlegen ersetzt Beszel die mitgeschickten Einstellungen durch seine Vorgaben
+# (E-Mail an den Benutzer, kein Webhook). Deshalb: anlegen, neu lesen, dann setzen (M4-Test).
+- name: Beszel-Einstellungen anlegen (gibt es erst nach dem ersten Öffnen der Oberfläche)
+  ansible.builtin.uri:
+    url: http://127.0.0.1:{{ stacks_ports.beszel }}/api/collections/user_settings/records
+    method: POST
+    headers: { Authorization: "{{ stacks_beszel_admin_token }}" }
+    body_format: json
+    body: { user: "{{ stacks_beszel_user.id }}", settings: {} }
+  when: stacks_beszel_state.results[0].json['items'] | length == 0
+  changed_when: true
+  no_log: true
+
+- name: Beszel-Einstellungen lesen
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports.beszel }}/api/collections/user_settings/records?filter=(user='{{ stacks_beszel_user.id }}')"
+    headers: { Authorization: "{{ stacks_beszel_admin_token }}" }
+  register: stacks_beszel_settings_raw
+  no_log: true
+
+# Nur ntfy, keine E-Mail: ohne Mailserver scheitert der Versand und blockiert den Alarm nicht,
+# erzeugt aber Fehler im Log
+- name: Beszel benachrichtigt über ntfy
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports.beszel }}/api/collections/user_settings/records/{{ stacks_beszel_settings.id }}"
+    method: PATCH
+    headers: { Authorization: "{{ stacks_beszel_admin_token }}" }
+    body_format: json
+    body:
+      settings: "{{ stacks_beszel_settings.settings | combine(stacks_beszel_wanted) }}"
+  vars:
+    stacks_beszel_settings: "{{ stacks_beszel_settings_raw.json['items'][0] }}"
+    stacks_beszel_wanted:
+      emails: []
+      webhooks: "{{ ((stacks_beszel_settings.settings.webhooks | default([])) + [stacks_beszel_webhook]) | unique }}"
+  when: >-
+    (stacks_beszel_settings.settings.emails | default([]) | length > 0)
+    or (stacks_beszel_webhook not in (stacks_beszel_settings.settings.webhooks | default([])))
+  changed_when: true
+  no_log: true
+
+- name: Beszel-Alarme anlegen (nur fehlende)
+  ansible.builtin.uri:
+    url: http://127.0.0.1:{{ stacks_ports.beszel }}/api/beszel/user-alerts
+    method: POST
+    headers: { Authorization: "{{ stacks_beszel_auth.results[0].json.token }}" }
+    body_format: json
+    body:
+      name: "{{ item.name }}"
+      value: "{{ item.value }}"
+      min: "{{ item.min }}"
+      systems: "{{ stacks_beszel_state.results[1].json['items'] | map(attribute='id') | list }}"
+      overwrite: false
+  loop: "{{ stacks_beszel_alerts }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.name not in (stacks_beszel_state.results[2].json['items'] | map(attribute='name') | list)
+  changed_when: true

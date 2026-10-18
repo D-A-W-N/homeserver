@@ -47,6 +47,10 @@
       # Von aunserver verwaltet (Ansible), Änderungen werden überschrieben.
       [WebService]
       LoginTitle={{ hostname }} (aunserver)
+      # Origins ERSETZT die Standardregel (nur eigene Adresse), deshalb stehen hier beide Wege:
+      # über Caddy und direkt über :9090 als Rettungsweg, falls Docker/Caddy nicht laufen (M4-Test)
+      Origins = https://cockpit.{{ domain }} https://{{ ansible_facts.default_ipv4.address }}:9090 https://{{ hostname }}:9090 https://{{ domain }}:9090
+      ProtocolHeader = X-Forwarded-Proto
     owner: root
     group: root
     mode: "0644"

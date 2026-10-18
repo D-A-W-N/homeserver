@@ -1,0 +1,35 @@
+aunserver – Zugänge für {{ hostname }}
+{{ '=' * (24 + hostname | length) }}
+Nur für root lesbar. Erzeugt vom Playbook, Passwörter stehen in {{ stacks_secrets_dir }}/.
+
+Voraussetzungen im Heimnetz
+  - Router: DNS-Server auf {{ ansible_facts.default_ipv4.address }} stellen (AdGuard Home)
+  - Jedes Gerät: Stammzertifikat einmal installieren: http://{{ domain }}/ca.crt
+
+Startseite      https://{{ stacks_hosts.homepage }}.{{ domain }}
+
+Mit Systemkonto ({{ admin_user }} + Login-Passwort)
+  Cockpit       https://{{ stacks_hosts.cockpit }}.{{ domain }}   (direkt: https://{{ ansible_facts.default_ipv4.address }}:9090)
+
+Mit Web-Passwort (Benutzer {{ admin_user }}, Passwort: {{ stacks_web_password }})
+{% if apps.adguard | bool %}
+  AdGuard       https://{{ stacks_hosts.adguard }}.{{ domain }}
+{% endif %}
+  Dozzle        https://{{ stacks_hosts.dozzle }}.{{ domain }}
+  Scrutiny      https://{{ stacks_hosts.scrutiny }}.{{ domain }}
+  Beszel        https://{{ stacks_hosts.beszel }}.{{ domain }}   (Benutzer: {{ admin_user }}@{{ domain }})
+
+Eigenes Konto beim ersten Aufruf festlegen
+  Arcane        https://{{ stacks_hosts.arcane }}.{{ domain }}   (Erstanmeldung: arcane / arcane-admin, Arcane erzwingt danach ein neues Passwort)
+{% if apps.uptime_kuma | bool %}
+  Uptime Kuma   https://{{ stacks_hosts.uptime_kuma }}.{{ domain }}
+{% endif %}
+
+Ohne Anmeldung (nur aus LAN/VPN erreichbar)
+  ntfy          https://{{ stacks_hosts.ntfy }}.{{ domain }}   (Themen: smart, beszel)
+
+Samba
+  Freigaben     \\{{ hostname }}\media, \\{{ hostname }}\shares  (Benutzer {{ admin_user }}, Samba-Passwort)
+{% if samba_legacy.enabled | bool %}
+  PS2/OPL       SMB1, Port {{ samba_legacy.port }}, Freigabe {{ samba_legacy.shares | map(attribute='name') | join(', ') }}, Benutzer ps2
+{% endif %}
