@@ -1,0 +1,2 @@
+---
+storage_mount_opts: defaults,nofail,x-systemd.device-timeout=10s

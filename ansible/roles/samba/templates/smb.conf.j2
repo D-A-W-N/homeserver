@@ -1,0 +1,23 @@
+# {{ ansible_managed }}
+# Globale Einstellungen. Freigaben stehen in der Samba-Registry und werden in Cockpit
+# (File Sharing) gepflegt. Den Knopf "Import configuration from smb.conf" dort NICHT
+# benutzen: er ersetzt diese Datei. Getestet in Spike S1.
+[global]
+   workgroup = WORKGROUP
+   server string = {{ hostname }}
+   server role = standalone server
+   server min protocol = SMB3
+   server signing = mandatory
+   map to guest = never
+   disable netbios = yes
+   smb ports = 445
+   load printers = no
+   printing = bsd
+   printcap name = /dev/null
+   map archive = no
+   create mask = 0664
+   directory mask = 2775
+   log file = /var/log/samba/log.%m
+   max log size = 1000
+   logging = file
+   include = registry

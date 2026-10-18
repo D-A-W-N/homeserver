@@ -61,6 +61,8 @@ jobs:
           admin_user: nasadmin
           ssh_authorized_keys:
             - $(cat ~/.ssh/id_ed25519.pub)
+          samba_password: ci-test-123
+          samba_legacy_password: ci-ps2-123
           samba_legacy:
             enabled: true
             port: 1445
@@ -70,12 +72,13 @@ jobs:
                 path: games/ps2
           EOF
 
+      # Szenario 8: SSD + HDD mit Label AUNDATA (das Formatieren übernimmt später aunserver-setup)
       - name: Debian automatisch installieren
-        run: dev/vm-test.sh autoinstall 1 --headless < /dev/null > "$RUNNER_TEMP/install.log" 2>&1
+        run: dev/vm-test.sh autoinstall 8 --headless < /dev/null > "$RUNNER_TEMP/install.log" 2>&1
 
       - name: Installiertes System starten
         run: |
-          dev/vm-test.sh boot 1 --headless < /dev/null > "$RUNNER_TEMP/boot.log" 2>&1 &
+          dev/vm-test.sh boot 8 --headless < /dev/null > "$RUNNER_TEMP/boot.log" 2>&1 &
           opts="-p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=3"
           timeout 300 bash -c "until ssh $opts nasadmin@localhost true 2>/dev/null; do sleep 5; done"
 

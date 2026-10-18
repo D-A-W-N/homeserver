@@ -1,0 +1,59 @@
+---
+- name: Cockpit aus den Backports installieren
+  ansible.builtin.apt:
+    name: "{{ cockpit_packages }}"
+    default_release: trixie-backports
+    state: present
+
+- name: Ablage für Plugin-Pakete
+  ansible.builtin.file:
+    path: /var/cache/aunserver
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Plugin-Pakete laden (SHA256 geprüft)
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    dest: "/var/cache/aunserver/{{ item.url | basename }}"
+    checksum: "sha256:{{ item.sha256 }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ cockpit_plugins }}"
+  loop_control:
+    label: "{{ item.name }} {{ item.version }}"
+
+- name: Plugins installieren
+  ansible.builtin.apt:
+    deb: "/var/cache/aunserver/{{ item.url | basename }}"
+  loop: "{{ cockpit_plugins }}"
+  loop_control:
+    label: "{{ item.name }} {{ item.version }}"
+
+- name: Mitinstallierte NFS-Dienste abschalten
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+    masked: true
+  loop: "{{ cockpit_masked_units }}"
+
+- name: Cockpit-Anmeldeseite
+  ansible.builtin.copy:
+    dest: /etc/cockpit/cockpit.conf
+    content: |
+      # Von aunserver verwaltet (Ansible), Änderungen werden überschrieben.
+      [WebService]
+      LoginTitle={{ hostname }} (aunserver)
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Cockpit neu starten
+
+- name: Cockpit lauscht auf Port 9090
+  ansible.builtin.systemd_service:
+    name: cockpit.socket
+    enabled: true
+    state: started

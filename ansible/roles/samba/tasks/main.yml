@@ -1,0 +1,90 @@
+---
+- name: Samba installieren
+  ansible.builtin.apt:
+    name: "{{ ['samba', 'samba-common-bin'] + (['wsdd2'] if samba_wsdd | bool else []) }}"
+    state: present
+
+# Globale Einstellungen in der Datei (von Ansible verwaltet), Freigaben in der Registry
+# (von Cockpit verwaltet, D6). Getestet in Spike S1.
+- name: Samba-Grundkonfiguration
+  ansible.builtin.template:
+    src: smb.conf.j2
+    dest: /etc/samba/smb.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: testparm -s %s
+  notify: Samba neu starten
+
+- name: Kein NetBIOS (nmbd aus)
+  ansible.builtin.systemd_service:
+    name: nmbd.service
+    state: stopped
+    enabled: false
+    masked: true
+
+- name: Samba läuft
+  ansible.builtin.systemd_service:
+    name: smbd.service
+    enabled: true
+    state: started
+
+- name: NAS in der Windows-Netzwerkumgebung (WS-Discovery)
+  ansible.builtin.systemd_service:
+    name: wsdd2.service
+    enabled: true
+    state: started
+  when: samba_wsdd | bool
+
+- name: Vorhandene Freigaben in der Registry lesen
+  ansible.builtin.command: net conf listshares
+  register: samba_registry_shares
+  changed_when: false
+
+- name: Start-Freigaben anlegen (nur wenn noch nicht vorhanden, danach pflegt Cockpit sie)
+  ansible.builtin.shell: |
+    set -e
+    net conf addshare {{ item.name | quote }} {{ (data_mount ~ '/' ~ item.path) | quote }} writeable=y guest_ok=n
+    net conf setparm {{ item.name | quote }} "valid users" {{ admin_user | quote }}
+  loop: "{{ samba_initial_shares }}"
+  when: item.name not in samba_registry_shares.stdout_lines
+  changed_when: true
+
+- name: Samba-Konto des Admins prüfen
+  ansible.builtin.command: pdbedit -L -u {{ admin_user | quote }}
+  register: samba_admin_account
+  changed_when: false
+  failed_when: false
+
+- name: Samba-Passwort des Admins setzen (nur wenn noch kein Konto existiert)
+  ansible.builtin.shell: |
+    set -o pipefail
+    printf '%s\n%s\n' "$PW" "$PW" | smbpasswd -s -a {{ admin_user | quote }}
+  args:
+    executable: /bin/bash
+  environment:
+    PW: "{{ samba_password }}"
+  no_log: true
+  changed_when: true
+  when:
+    - samba_admin_account.rc != 0
+    - samba_password is defined
+
+- name: SMB1-Instanz für PS2/OPL
+  ansible.builtin.include_tasks: legacy.yml
+  when: samba_legacy.enabled | bool
+
+- name: Gibt es eine SMB1-Instanz von früher?
+  ansible.builtin.stat:
+    path: /etc/systemd/system/smbd-legacy.service
+  register: samba_legacy_unit
+  when: not samba_legacy.enabled | bool
+
+- name: SMB1-Instanz abschalten, wenn nicht mehr gewünscht
+  ansible.builtin.systemd_service:
+    name: smbd-legacy.service
+    state: stopped
+    enabled: false
+  when:
+    - not samba_legacy.enabled | bool
+    - samba_legacy_unit.stat.exists

@@ -27,4 +27,7 @@
   roles:
     - base
     - security
+    - storage
     - docker
+    - cockpit
+    - samba
