@@ -1,0 +1,21 @@
+# {{ ansible_managed }}
+# Eigene App des Nutzers. Der Entrypoint wechselt per "setpriv --clear-groups" auf genau
+# PUID:PGID. PGID ist die Gruppe ps2share, damit die App auch Dateien bearbeiten kann, die
+# die PS2 per SMB1 angelegt hat; UMASK 002 hält neue Dateien für die Gruppe beschreibbar.
+name: ps2
+services:
+  ps2gamemanager:
+    image: {{ stacks_images.ps2gamemanager }}
+    container_name: ps2gamemanager
+    restart: unless-stopped
+    environment:
+      PUID: "{{ puid }}"
+      PGID: "{{ stacks_ps2_gid }}"
+      UMASK: "002"
+      TZ: {{ timezone }}
+    volumes:
+      # Datenplatte; welche Ordner Spiele, Eingang und Memory Cards sind, wählt man in der App
+      - {{ data_mount }}:/nas
+      - {{ appdata_dir }}/ps2gamemanager:/config
+    ports:
+      - 127.0.0.1:{{ stacks_ports.ps2gamemanager }}:8420

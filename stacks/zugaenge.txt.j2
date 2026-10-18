@@ -25,6 +25,22 @@ Eigenes Konto beim ersten Aufruf festlegen
   Uptime Kuma   https://{{ stacks_hosts.uptime_kuma }}.{{ domain }}
 {% endif %}
 
+Medien (Prowlarr, Sonarr, Radarr, Lidarr: Benutzer {{ admin_user }} + Web-Passwort;
+SABnzbd, Bazarr{{ ', Recommendarr' if apps.recommendarr | bool else '' }}{{ ', PS2GameManager' if apps.ps2gamemanager | bool else '' }}: Passwortabfrage des Browsers, ebenfalls Web-Passwort)
+{% for app in ['prowlarr', 'sonarr', 'radarr', 'lidarr', 'sabnzbd', 'bazarr'] %}
+  {{ '%-13s' | format(app | capitalize) }} https://{{ stacks_hosts[app] }}.{{ domain }}
+{% endfor %}
+{% if apps.emby | bool %}
+  Emby          https://{{ stacks_hosts.emby }}.{{ domain }}   (Fernseher/Apps: http://{{ ansible_facts.default_ipv4.address }}:8096; Konto beim ersten Aufruf anlegen)
+{% endif %}
+{% if apps.recommendarr | bool %}
+  Recommendarr  https://{{ stacks_hosts.recommendarr }}.{{ domain }}
+{% endif %}
+{% if apps.ps2gamemanager | bool %}
+  PS2GameMgr    https://{{ stacks_hosts.ps2gamemanager }}.{{ domain }}
+{% endif %}
+  Noch einzutragen: Usenet-Server in SABnzbd, Indexer in Prowlarr, Bibliotheken in Emby
+
 Ohne Anmeldung (nur aus LAN/VPN erreichbar)
   ntfy          https://{{ stacks_hosts.ntfy }}.{{ domain }}   (Themen: smart, beszel)
 

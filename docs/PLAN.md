@@ -327,12 +327,20 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 
 **Befunde:** socket-proxy braucht `/tmp` als tmpfs bei `read_only`. `docker.sock:ro` schützt nicht vor API-Schreibzugriffen (Beszel-Beispiel). Cockpit `Origins` ersetzt die Standardregel (direkter Zugriff war sonst kaputt). Beszel: Erstbenutzer hat Rolle `user` und bekommt dann keine Alarme an interne Ziele; Einstellungen werden beim Anlegen durch Vorgaben ersetzt; Fehler landen nur im internen Log (`/api/logs`), nicht auf der Konsole. Arcane-Erstzugang `arcane`/`arcane-admin` mit erzwungenem Wechsel (Quellcode geprüft).
 
-### M5 – Medien-Stack
-- [ ] **Vorher: Compose-Dateien für Recommendarr und PS2GameManager beim Nutzer erfragen** (eigene Apps)
-- [ ] Stack `media`, Recyclarr mit TRaSH-Profilen
-- [ ] Hardlink-Test (Download → Bibliothek liefert Linkzähler 2)
+### M5 – Medien-Stack ✅
+- [x] Compose-Dateien für Recommendarr und PS2GameManager vom Nutzer übernommen (feste Versionen, Ports nur an 127.0.0.1)
+- [x] Stack `media` (Prowlarr, SABnzbd, Sonarr, Radarr, Lidarr, Bazarr, Recyclarr, Emby, Recommendarr) und Stack `ps2` (PS2GameManager)
+- [x] Apps per API verbunden: SABnzbd-Ordner/Kategorien, Anmeldung (Admin + Web-Passwort), Bibliotheksordner, SABnzbd als Download-Client, Sonarr/Radarr/Lidarr in Prowlarr
+- [x] Recyclarr mit TRaSH „[German] HD Bluray + WEB“ (Deutsch + DL, 1080p), **x265 (HD) +500** (Wunsch: platzsparend)
+- [x] Hardlink-Test (Download → Bibliothek liefert Linkzähler 2)
 
-**Abnahme:** Testdownload landet automatisch, umbenannt und per Hardlink in der Bibliothek, Emby zeigt ihn an und spielt ihn per Direct Play ab.
+**Abnahme (VM, 2026-10-18):** Verbindungstests Sonarr/Radarr/Lidarr → SABnzbd 200, Prowlarr-Anwendungen 200, Bibliotheksordner erreichbar, API ohne Schlüssel 401 ✅. Profile mit x265 +500, German DL 11000, German 10000 ✅. Hardlink 2 ✅. PS2GameManager läuft als `1000:ps2share` mit umask 002; App und SMB1-Konto `ps2` können die Dateien des jeweils anderen bearbeiten ✅. HTTPS: Servarr-Apps mit eigener Anmeldung, SABnzbd/Bazarr/PS2GameManager/Recommendarr (kein eigenes Login, Auskunft des Nutzers) mit Web-Passwort ✅. Abspielgerät Kodi spielt HEVC direkt ab (x265-Bonus passt). Reboot: 20/20 Container ✅. Zweiter Lauf `changed=0` ✅.
+
+**Von Hand (bewusst):** Usenet-Server in SABnzbd, Indexer in Prowlarr, Emby-Konto und Bibliotheken.
+**Bazarr:** per API mit Sonarr/Radarr verbunden (SignalR live), Sprachprofil „Deutsch + Englisch“ als Standard für neue Serien/Filme; wird nur angelegt, solange kein Profil existiert (Bazarr löscht beim Speichern nicht mitgeschickte Profile). Untertitel-Anbieter trägt der Nutzer ein.
+**Offen:** Testdownload mit echtem Usenet-Zugang auf dem echten Server.
+
+**Befunde:** Emby 4.11.x sind Vorabversionen, Prowlarr/Bazarr-Tags „latest“ sind Nightly/Develop → stabile Releases über die GitHub-Releases von linuxserver ermittelt. SABnzbd: Die eingebauten Kategorien `tv`/`movies` verloren nach der Einrichtung ihren Ordner wieder (CI und lokal nachgestellt, neu angelegte Kategorien blieben stabil) → eigene Kategorien `sonarr`/`radarr`/`lidarr` mit Ordnern `tv`/`movies`/`music`, danach kontrollierter Neustart und Prüfung, dass gespeichert ist. Kategorien mit Ordner nur gezielt abfragbar (`get_config&section=categories&keyword=<Name>`), Löschen per API nicht möglich. Grenze: Bekommt SABnzbd einen neuen API-Schlüssel, werden bestehende Download-Clients nicht angepasst. `community.docker` 4.7.0 (Debian) erzeugt eine Deprecation-Warnung (`warnings` an `exit_json`), relevant erst ab ansible-core 2.23. `host_whitelist` kommt als Liste. Der Entrypoint von PS2GameManager `chown`t `/config` auf PUID:PGID. x265 bei 1080p: in der deutschen TRaSH-Wertung neutral (0), nicht geblockt. Hinweis: x265 braucht HEVC-fähige Abspielgeräte, der A4-5000 kann HEVC nicht umwandeln.
 
 ### M6 – Ersteinrichtung `aunserver-setup`
 - [ ] Dialog, Plattenauswahl mit Sicherheitsabfrage, Single-Disk-Modus, App-Auswahl

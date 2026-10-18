@@ -65,6 +65,43 @@ http://{{ domain }} {
 }
 {% endif %}
 
+# --- Medien (M5) ---
+{% for app in ['prowlarr', 'sonarr', 'radarr', 'lidarr'] %}
+{{ stacks_hosts[app] }}.{{ domain }} {
+	reverse_proxy 127.0.0.1:{{ stacks_ports[app] }}
+}
+
+{% endfor %}
+# ohne eigene, automatisch setzbare Anmeldung: Passwort in Caddy
+{% for app in ['sabnzbd', 'bazarr'] %}
+{{ stacks_hosts[app] }}.{{ domain }} {
+	import geschuetzt
+	reverse_proxy 127.0.0.1:{{ stacks_ports[app] }}
+}
+
+{% endfor %}
+{% if apps.emby | bool %}
+{{ stacks_hosts.emby }}.{{ domain }} {
+	reverse_proxy 127.0.0.1:{{ stacks_ports.emby }}
+}
+
+{% endif %}
+{% if apps.recommendarr | bool %}
+# eigene App ohne Login: Passwort in Caddy
+{{ stacks_hosts.recommendarr }}.{{ domain }} {
+	import geschuetzt
+	reverse_proxy 127.0.0.1:{{ stacks_ports.recommendarr }}
+}
+
+{% endif %}
+{% if apps.ps2gamemanager | bool %}
+# hat Schreibzugriff auf die ganze Datenplatte: Passwort in Caddy
+{{ stacks_hosts.ps2gamemanager }}.{{ domain }} {
+	import geschuetzt
+	reverse_proxy 127.0.0.1:{{ stacks_ports.ps2gamemanager }}
+}
+
+{% endif %}
 {{ stacks_hosts.cockpit }}.{{ domain }} {
 	reverse_proxy https://127.0.0.1:9090 {
 		transport http {

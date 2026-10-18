@@ -1,0 +1,28 @@
+---
+- name: PS2GameManager
+  when: apps.ps2gamemanager | bool
+  block:
+    - name: Gruppe für den PS2-Ordner bestimmen
+      ansible.builtin.getent:
+        database: group
+        key: "{{ 'ps2share' if samba_legacy.enabled | bool else admin_user }}"
+
+    - name: Gruppe merken
+      ansible.builtin.set_fact:
+        stacks_ps2_gid: "{{ getent_group[samba_legacy.enabled | bool | ternary('ps2share', admin_user)][1] }}"
+
+    # Der Entrypoint der App übergibt /config per chown an PUID:PGID; dieselbe Gruppe
+    # setzen, sonst ändern sich die Rechte bei jedem Lauf hin und her (M5-Test)
+    - name: Konfigurationsordner für PS2GameManager
+      ansible.builtin.file:
+        path: "{{ appdata_dir }}/ps2gamemanager"
+        state: directory
+        owner: "{{ admin_user }}"
+        group: "{{ stacks_ps2_gid }}"
+        mode: "0750"
+
+    - name: Stack ps2
+      ansible.builtin.include_tasks: deploy.yml
+      vars:
+        stack_name: ps2
+        stack_files: [compose.yaml]

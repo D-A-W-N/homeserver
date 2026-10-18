@@ -9,7 +9,7 @@
       "customType": "regex",
       "description": "Container-Images der Stacks (ansible/roles/stacks/defaults/main.yml)",
       "managerFilePatterns": ["/^ansible/roles/stacks/defaults/main\\.yml$/"],
-      "matchStrings": ["\\n\\s+[a-z_]+: (?<depName>[a-z0-9.-]+\\/[a-z0-9._\\/-]+):(?<currentValue>[A-Za-z0-9._-]+)"],
+      "matchStrings": ["\\n\\s+[a-z0-9_]+: (?<depName>[a-z0-9.-]+\\/[a-z0-9._\\/-]+):(?<currentValue>[A-Za-z0-9._-]+)"],
       "datasourceTemplate": "docker"
     }
   ],

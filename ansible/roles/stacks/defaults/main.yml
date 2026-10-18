@@ -12,6 +12,19 @@ stacks_images:
   dozzle: docker.io/amir20/dozzle:v11.3.2
   ntfy: docker.io/binwiederhier/ntfy:v2.31.1
   uptime_kuma: docker.io/louislam/uptime-kuma:2.5.6
+  # Medien (M5): linuxserver-Images, stabile Releases (keine nightly/develop-Tags)
+  prowlarr: ghcr.io/linuxserver/prowlarr:2.6.5.5623-ls163
+  sabnzbd: ghcr.io/linuxserver/sabnzbd:5.1.3-ls277
+  sonarr: ghcr.io/linuxserver/sonarr:4.0.20.3014-ls329
+  radarr: ghcr.io/linuxserver/radarr:6.4.4.10685-ls321
+  lidarr: ghcr.io/linuxserver/lidarr:3.1.0.4875-ls43
+  bazarr: ghcr.io/linuxserver/bazarr:v1.6.2-ls368
+  recyclarr: ghcr.io/recyclarr/recyclarr:8.8.0
+  # 4.10 ist die stabile Version; 4.11.x sind Vorabversionen (Stand 2026-10-18)
+  emby: docker.io/emby/embyserver:4.10.1.0
+  # eigene Apps des Nutzers
+  recommendarr: ghcr.io/d-a-w-n/recommendarr:v2.11.3
+  ps2gamemanager: ghcr.io/d-a-w-n/ps2gamemanager:2.3.0
 
 # Ports der Container auf dem Host, nur an 127.0.0.1 gebunden; Zugriff über Caddy.
 # Caddy (80/443) und AdGuard (53, UI 8083) laufen im Host-Netzwerk.
@@ -25,6 +38,16 @@ stacks_ports:
   ntfy: 3050
   uptime_kuma: 3060
   adguard_ui: 8083
+  prowlarr: 3100
+  sabnzbd: 3101
+  sonarr: 3102
+  radarr: 3103
+  lidarr: 3104
+  bazarr: 3105
+  recommendarr: 3107
+  ps2gamemanager: 3108
+  # Emby läuft im Host-Netzwerk auf 8096 (Fernseher/Apps direkt per HTTP, Discovery)
+  emby: 8096
 
 # Subdomains unter {{ domain }}
 stacks_hosts:
@@ -37,6 +60,15 @@ stacks_hosts:
   uptime_kuma: status
   adguard: adguard
   cockpit: cockpit
+  prowlarr: prowlarr
+  sabnzbd: sabnzbd
+  sonarr: sonarr
+  radarr: radarr
+  lidarr: lidarr
+  bazarr: bazarr
+  emby: emby
+  recommendarr: recommendarr
+  ps2gamemanager: ps2
 
 stacks_secrets_dir: /etc/aunserver/secrets
 stacks_network: aunserver
@@ -49,3 +81,17 @@ stacks_beszel_alerts:
   - { name: Disk, value: 90, min: 1 }
   - { name: Temperature, value: 80, min: 5 }
 stacks_beszel_webhook: ntfy://ntfy:80/beszel?scheme=http
+
+# Recyclarr: TRaSH-Vorlage "[German] HD Bluray + WEB" (Deutsch + DL, 1080p) mit x265-Bonus.
+# Skala des Profils: Deutsch 10000, DL +1000, Qualitätsstufen 1700-2900. +500 bevorzugt x265
+# zwischen ähnlichen Releases, ohne DL oder deutlich bessere Releases zu überstimmen.
+stacks_recyclarr_x265_score: 500
+
+# Servarr-Apps, die per API verbunden werden (Bibliotheksordner, SABnzbd-Kategorie).
+# Eigene Kategorienamen statt SABnzbds Standard-Kategorien tv/movies: deren Ordner gingen
+# im Test nach der Einrichtung wieder verloren, neu angelegte Kategorien blieben stabil (M5).
+# Download-Ordner: complete/<root> (tv, movies, music) wie im Datenlayout.
+stacks_arr_apps:
+  - { name: sonarr, api: v3, port: 8989, root: tv, category_field: tvCategory, category: sonarr }
+  - { name: radarr, api: v3, port: 7878, root: movies, category_field: movieCategory, category: radarr }
+  - { name: lidarr, api: v1, port: 8686, root: music, category_field: musicCategory, category: lidarr }

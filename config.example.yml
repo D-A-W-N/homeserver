@@ -14,6 +14,8 @@ apps:
   wireguard: false
   uptime_kuma: false
   emby: true
+  recommendarr: true
+  ps2gamemanager: true
 
 # SMB1 für PS2/OPL (getrennte Samba-Instanz, nur SMB1, eigener Benutzer ps2)
 samba_legacy:

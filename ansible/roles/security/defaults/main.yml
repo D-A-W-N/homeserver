@@ -8,3 +8,7 @@ security_vpn_tcp_ports: [22, 53, 80, 443, 445, 9090]
 security_vpn_udp_ports: [53, 443]
 
 security_fail2ban: true
+
+# Emby im Host-Netzwerk: Web/Apps und Discovery, nur LAN (nicht VPN)
+security_emby_tcp_ports: [8096]
+security_emby_udp_ports: [7359]

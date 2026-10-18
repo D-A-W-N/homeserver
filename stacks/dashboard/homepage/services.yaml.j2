@@ -48,6 +48,40 @@
         server: lokal
         container: uptime-kuma
 {% endif %}
+
+- Medien:
+{% if apps.emby | bool %}
+    - Emby:
+        href: https://{{ stacks_hosts.emby }}.{{ domain }}
+        description: Filme, Serien, Musik
+        icon: emby.png
+        server: lokal
+        container: emby
+{% endif %}
+{% for app, text in [('sonarr', 'Serien'), ('radarr', 'Filme'), ('lidarr', 'Musik'), ('prowlarr', 'Indexer'), ('sabnzbd', 'Usenet-Downloads'), ('bazarr', 'Untertitel')] %}
+    - {{ app | capitalize if app != 'sabnzbd' else 'SABnzbd' }}:
+        href: https://{{ stacks_hosts[app] }}.{{ domain }}
+        description: {{ text }}
+        icon: {{ app }}.png
+        server: lokal
+        container: {{ app }}
+{% endfor %}
+{% if apps.recommendarr | bool %}
+    - Recommendarr:
+        href: https://{{ stacks_hosts.recommendarr }}.{{ domain }}
+        description: Empfehlungen (eigene App)
+        icon: mdi-star-shooting
+        server: lokal
+        container: recommendarr
+{% endif %}
+{% if apps.ps2gamemanager | bool %}
+    - PS2GameManager:
+        href: https://{{ stacks_hosts.ps2gamemanager }}.{{ domain }}
+        description: PS2-Spiele für OPL (eigene App)
+        icon: mdi-sony-playstation
+        server: lokal
+        container: ps2gamemanager
+{% endif %}
 {% if apps.adguard | bool %}
 
 - Netzwerk:
