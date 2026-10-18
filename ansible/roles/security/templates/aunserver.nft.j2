@@ -35,6 +35,11 @@ table inet aunserver {
 {% if samba_legacy.enabled | bool %}
 		ip saddr @ps2_clients tcp dport {{ samba_legacy.port }} accept
 {% endif %}
+{% if apps.emby | bool %}
+		ip saddr @lan4 tcp dport { {{ security_emby_tcp_ports | join(', ') }} } accept
+		ip saddr @lan4 udp dport { {{ security_emby_udp_ports | join(', ') }} } accept
+		ip6 saddr @lan6 tcp dport { {{ security_emby_tcp_ports | join(', ') }} } accept
+{% endif %}
 		iifname "tailscale0" tcp dport { {{ security_vpn_tcp_ports | join(', ') }} } accept
 		iifname "tailscale0" udp dport { {{ security_vpn_udp_ports | join(', ') }} } accept
 	}

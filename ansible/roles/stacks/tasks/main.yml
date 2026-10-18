@@ -79,6 +79,8 @@
     - dns
     - dashboard
     - monitoring
+    - media
+    - ps2
 
 - name: Übersicht der Zugänge
   ansible.builtin.template:

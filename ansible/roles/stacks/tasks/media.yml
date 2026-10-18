@@ -1,0 +1,265 @@
+---
+# Medien-Stack (M5). Ausrollen, dann die Apps über ihre APIs miteinander verbinden:
+# SABnzbd-Ordner und -Kategorien, Anmeldung, Bibliotheksordner, SABnzbd als Download-Client,
+# Prowlarr kennt Sonarr/Radarr/Lidarr, Recyclarr bekommt die API-Schlüssel.
+# Von Hand bleibt: Usenet-Server (SABnzbd), Indexer (Prowlarr), Bibliotheken und Konto (Emby).
+
+- name: Konfigurationsordner der Medien-Apps
+  ansible.builtin.file:
+    path: "{{ appdata_dir }}/{{ item }}"
+    state: directory
+    owner: "{{ admin_user }}"
+    group: "{{ admin_user }}"
+    mode: "0750"
+  loop: [prowlarr, sabnzbd, sonarr, radarr, lidarr, bazarr, recyclarr, emby]
+
+- name: Konfigurationsordner für Recommendarr (Image läuft fest als UID 1000)
+  ansible.builtin.file:
+    path: "{{ appdata_dir }}/recommendarr"
+    state: directory
+    owner: "1000"
+    group: "1000"
+    mode: "0750"
+  when: apps.recommendarr | bool
+
+- name: Stack media
+  ansible.builtin.include_tasks: deploy.yml
+  vars:
+    stack_name: media
+    stack_files: [compose.yaml]
+
+# --- API-Schlüssel ---------------------------------------------------------------
+
+- name: Warten, bis die Apps ihre Konfiguration mit API-Schlüssel angelegt haben
+  ansible.builtin.wait_for:
+    path: "{{ appdata_dir }}/{{ item.file }}"
+    search_regex: "{{ item.regex }}"
+    timeout: 300
+  loop:
+    - { file: sonarr/config.xml, regex: "<ApiKey>" }
+    - { file: radarr/config.xml, regex: "<ApiKey>" }
+    - { file: lidarr/config.xml, regex: "<ApiKey>" }
+    - { file: prowlarr/config.xml, regex: "<ApiKey>" }
+    - { file: sabnzbd/sabnzbd.ini, regex: "^api_key = \\w+" }
+  loop_control:
+    label: "{{ item.file }}"
+
+- name: Konfigurationsdateien lesen
+  ansible.builtin.slurp:
+    src: "{{ appdata_dir }}/{{ item }}"
+  loop: [sonarr/config.xml, radarr/config.xml, lidarr/config.xml, prowlarr/config.xml, sabnzbd/sabnzbd.ini]
+  register: stacks_arr_configs
+  no_log: true
+
+- name: API-Schlüssel merken
+  ansible.builtin.set_fact:
+    stacks_arr_keys:
+      sonarr: "{{ (stacks_arr_configs.results[0].content | b64decode | regex_search('<ApiKey>(\\w+)</ApiKey>', '\\1'))[0] }}"
+      radarr: "{{ (stacks_arr_configs.results[1].content | b64decode | regex_search('<ApiKey>(\\w+)</ApiKey>', '\\1'))[0] }}"
+      lidarr: "{{ (stacks_arr_configs.results[2].content | b64decode | regex_search('<ApiKey>(\\w+)</ApiKey>', '\\1'))[0] }}"
+      prowlarr: "{{ (stacks_arr_configs.results[3].content | b64decode | regex_search('<ApiKey>(\\w+)</ApiKey>', '\\1'))[0] }}"
+      sabnzbd: "{{ (stacks_arr_configs.results[4].content | b64decode | regex_search('(?m)^api_key = (\\w+)', '\\1'))[0] }}"
+  no_log: true
+
+# --- SABnzbd ---------------------------------------------------------------------
+
+- name: Warten, bis SABnzbd antwortet
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports.sabnzbd }}/api?mode=get_config&output=json&apikey={{ stacks_arr_keys.sabnzbd }}"
+  register: stacks_sab_config
+  until: stacks_sab_config is succeeded
+  retries: 30
+  delay: 3
+  no_log: true
+
+# Ordner nach TRaSH; host_whitelist für den Zugriff über Caddy und von Sonarr/Radarr ("sabnzbd")
+- name: SABnzbd-Ordner und erlaubte Hostnamen
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports.sabnzbd }}/api?mode=set_config&output=json&section=misc\
+      &keyword={{ item.key }}&value={{ item.value | urlencode }}&apikey={{ stacks_arr_keys.sabnzbd }}"
+  loop: "{{ stacks_sab_misc | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  vars:
+    stacks_sab_misc:
+      download_dir: /data/usenet/incomplete
+      complete_dir: /data/usenet/complete
+      host_whitelist: "{{ stacks_hosts.sabnzbd }}.{{ domain }}, sabnzbd"
+  # host_whitelist kommt als Liste zurück
+  when: >-
+    (stacks_sab_config.json.config.misc[item.key] | join(', ')
+     if stacks_sab_config.json.config.misc[item.key] is not string
+     else stacks_sab_config.json.config.misc[item.key]) != item.value
+  changed_when: true
+  no_log: true
+
+# Die API liefert Kategorien nur ohne Ordner; SABnzbd speichert sie erst nach einer Änderung
+# in der sabnzbd.ini. Deshalb gegen die Datei prüfen und über die API setzen (M5-Test).
+- name: SABnzbd-Kategorien (Unterordner von complete)
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports.sabnzbd }}/api?mode=set_config&output=json&section=categories\
+      &name={{ item }}&dir={{ item }}&apikey={{ stacks_arr_keys.sabnzbd }}"
+  loop: [tv, movies, music]
+  when: >-
+    stacks_arr_configs.results[4].content | b64decode
+    is not search('(?m)^\\[\\[' ~ item ~ '\\]\\]\\n(?:[^\\[\\n].*\\n)*?dir = ' ~ item ~ '$')
+  changed_when: true
+  no_log: true
+
+# --- Sonarr, Radarr, Lidarr, Prowlarr ----------------------------------------------
+
+- name: Apps antworten über die API
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports[item.name] }}/api/{{ item.api }}/system/status"
+    headers: { X-Api-Key: "{{ stacks_arr_keys[item.name] }}" }
+  loop: "{{ stacks_arr_apps + [{'name': 'prowlarr', 'api': 'v1'}] }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: stacks_arr_status
+  until: stacks_arr_status is succeeded
+  retries: 40
+  delay: 3
+
+- name: Anmeldung der Apps lesen
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports[item.name] }}/api/{{ item.api }}/config/host"
+    headers: { X-Api-Key: "{{ stacks_arr_keys[item.name] }}" }
+  loop: "{{ stacks_arr_apps + [{'name': 'prowlarr', 'api': 'v1'}] }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: stacks_arr_host
+
+- name: Anmeldung per Formular mit Admin und Web-Passwort
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports[item.item.name] }}/api/{{ item.item.api }}/config/host"
+    method: PUT
+    headers: { X-Api-Key: "{{ stacks_arr_keys[item.item.name] }}" }
+    body_format: json
+    body: "{{ item.json | combine(stacks_arr_auth) }}"
+    status_code: [200, 202]
+  vars:
+    stacks_arr_auth:
+      authenticationMethod: forms
+      authenticationRequired: enabled
+      username: "{{ admin_user }}"
+      password: "{{ stacks_web_password }}"
+      passwordConfirmation: "{{ stacks_web_password }}"
+  loop: "{{ stacks_arr_host.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: item.json.authenticationMethod != 'forms' or item.json.username | default('') != admin_user
+  changed_when: true
+  no_log: true
+
+- name: Bibliotheksordner lesen
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports[item.name] }}/api/{{ item.api }}/rootfolder"
+    headers: { X-Api-Key: "{{ stacks_arr_keys[item.name] }}" }
+  loop: "{{ stacks_arr_apps }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: stacks_arr_roots
+
+- name: Profile von Lidarr lesen (für den Bibliotheksordner nötig)
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports.lidarr }}/api/v1/{{ item }}"
+    headers: { X-Api-Key: "{{ stacks_arr_keys.lidarr }}" }
+  loop: [qualityprofile, metadataprofile]
+  register: stacks_lidarr_profiles
+
+- name: Bibliotheksordner anlegen
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports[item.item.name] }}/api/{{ item.item.api }}/rootfolder"
+    method: POST
+    headers: { X-Api-Key: "{{ stacks_arr_keys[item.item.name] }}" }
+    body_format: json
+    body: >-
+      {{ {'path': '/data/media/' ~ item.item.root}
+         if item.item.name != 'lidarr' else
+         {'name': 'Musik', 'path': '/data/media/' ~ item.item.root,
+          'defaultQualityProfileId': stacks_lidarr_profiles.results[0].json[0].id,
+          'defaultMetadataProfileId': stacks_lidarr_profiles.results[1].json[0].id,
+          'defaultMonitorOption': 'all', 'defaultNewItemMonitorOption': 'all', 'defaultTags': []} }}
+    status_code: [200, 201]
+  loop: "{{ stacks_arr_roots.results }}"
+  loop_control:
+    label: "{{ item.item.name }}: /data/media/{{ item.item.root }}"
+  when: ('/data/media/' ~ item.item.root) not in (item.json | map(attribute='path') | map('regex_replace', '/$', '') | list)
+  changed_when: true
+
+- name: Download-Clients lesen
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports[item.name] }}/api/{{ item.api }}/downloadclient"
+    headers: { X-Api-Key: "{{ stacks_arr_keys[item.name] }}" }
+  loop: "{{ stacks_arr_apps }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: stacks_arr_clients
+
+- name: Schema der Download-Clients lesen
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports[item.name] }}/api/{{ item.api }}/downloadclient/schema"
+    headers: { X-Api-Key: "{{ stacks_arr_keys[item.name] }}" }
+  loop: "{{ stacks_arr_apps }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: stacks_arr_client_schema
+
+- name: SABnzbd als Download-Client eintragen
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports[item.0.item.name] }}/api/{{ item.0.item.api }}/downloadclient"
+    method: POST
+    headers: { X-Api-Key: "{{ stacks_arr_keys[item.0.item.name] }}" }
+    body_format: json
+    body: >-
+      {{ item.1.json | arr_from_schema('Sabnzbd',
+           {'host': 'sabnzbd', 'port': 8080, 'apiKey': stacks_arr_keys.sabnzbd, item.0.item.category_field: item.0.item.category},
+           name='SABnzbd', enable=true) }}
+    status_code: [200, 201]
+  loop: "{{ stacks_arr_clients.results | zip(stacks_arr_client_schema.results) | list }}"
+  loop_control:
+    label: "{{ item.0.item.name }}"
+  when: "'SABnzbd' not in (item.0.json | map(attribute='name') | list)"
+  changed_when: true
+  no_log: true
+
+- name: Anwendungen in Prowlarr lesen
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports.prowlarr }}/api/v1/{{ item }}"
+    headers: { X-Api-Key: "{{ stacks_arr_keys.prowlarr }}" }
+  loop: [applications, applications/schema]
+  register: stacks_prowlarr_apps
+
+- name: Sonarr, Radarr und Lidarr in Prowlarr eintragen (Indexer werden synchronisiert)
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports.prowlarr }}/api/v1/applications"
+    method: POST
+    headers: { X-Api-Key: "{{ stacks_arr_keys.prowlarr }}" }
+    body_format: json
+    body: >-
+      {{ stacks_prowlarr_apps.results[1].json | arr_from_schema(item.name | capitalize,
+           {'prowlarrUrl': 'http://prowlarr:9696', 'baseUrl': 'http://' ~ item.name ~ ':' ~ item.port, 'apiKey': stacks_arr_keys[item.name]},
+           name=item.name | capitalize, syncLevel='fullSync') }}
+    status_code: [200, 201]
+  loop: "{{ stacks_arr_apps }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: (item.name | capitalize) not in (stacks_prowlarr_apps.results[0].json | map(attribute='name') | list)
+  changed_when: true
+  no_log: true
+
+# --- Recyclarr ---------------------------------------------------------------------
+
+- name: Recyclarr-Konfiguration (enthält API-Schlüssel)
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../stacks/media/recyclarr/recyclarr.yml.j2"
+    dest: "{{ appdata_dir }}/recyclarr/recyclarr.yml"
+    owner: "{{ admin_user }}"
+    group: "{{ admin_user }}"
+    mode: "0600"
+  register: stacks_recyclarr_config
+
+- name: Qualitätsprofile sofort synchronisieren (danach täglich durch Recyclarr selbst)
+  ansible.builtin.command: docker exec recyclarr recyclarr sync
+  when: stacks_recyclarr_config.changed # noqa no-handler
+  changed_when: true

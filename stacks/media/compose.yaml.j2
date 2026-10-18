@@ -1,0 +1,135 @@
+# {{ ansible_managed }}
+# Servarr-Stack nach TRaSH Guides: ein Dateisystem unter /data, damit Hardlinks und
+# sofortige Verschiebungen funktionieren (Plan, Abschnitt 5).
+name: media
+
+x-arr-env: &arr-env
+  PUID: "{{ puid }}"
+  PGID: "{{ pgid }}"
+  UMASK: "002"
+  TZ: {{ timezone }}
+
+services:
+  prowlarr:
+    image: {{ stacks_images.prowlarr }}
+    container_name: prowlarr
+    restart: unless-stopped
+    environment: *arr-env
+    volumes:
+      - {{ appdata_dir }}/prowlarr:/config
+    ports:
+      - 127.0.0.1:{{ stacks_ports.prowlarr }}:9696
+
+  sabnzbd:
+    image: {{ stacks_images.sabnzbd }}
+    container_name: sabnzbd
+    restart: unless-stopped
+    environment: *arr-env
+    volumes:
+      - {{ appdata_dir }}/sabnzbd:/config
+      - {{ data_mount }}/usenet:/data/usenet
+    ports:
+      - 127.0.0.1:{{ stacks_ports.sabnzbd }}:8080
+
+  sonarr:
+    image: {{ stacks_images.sonarr }}
+    container_name: sonarr
+    restart: unless-stopped
+    environment: *arr-env
+    volumes:
+      - {{ appdata_dir }}/sonarr:/config
+      - {{ data_mount }}:/data
+    ports:
+      - 127.0.0.1:{{ stacks_ports.sonarr }}:8989
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8989/ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  radarr:
+    image: {{ stacks_images.radarr }}
+    container_name: radarr
+    restart: unless-stopped
+    environment: *arr-env
+    volumes:
+      - {{ appdata_dir }}/radarr:/config
+      - {{ data_mount }}:/data
+    ports:
+      - 127.0.0.1:{{ stacks_ports.radarr }}:7878
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:7878/ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  lidarr:
+    image: {{ stacks_images.lidarr }}
+    container_name: lidarr
+    restart: unless-stopped
+    environment: *arr-env
+    volumes:
+      - {{ appdata_dir }}/lidarr:/config
+      - {{ data_mount }}:/data
+    ports:
+      - 127.0.0.1:{{ stacks_ports.lidarr }}:8686
+
+  bazarr:
+    image: {{ stacks_images.bazarr }}
+    container_name: bazarr
+    restart: unless-stopped
+    environment: *arr-env
+    volumes:
+      - {{ appdata_dir }}/bazarr:/config
+      - {{ data_mount }}/media:/data/media
+    ports:
+      - 127.0.0.1:{{ stacks_ports.bazarr }}:6767
+
+  # Synchronisiert Qualitätsprofile nach TRaSH (täglich); Konfiguration schreibt Ansible,
+  # sobald Sonarr und Radarr ihre API-Schlüssel erzeugt haben
+  recyclarr:
+    image: {{ stacks_images.recyclarr }}
+    container_name: recyclarr
+    restart: unless-stopped
+    user: "{{ puid }}:{{ pgid }}"
+    environment:
+      TZ: {{ timezone }}
+      CRON_SCHEDULE: "@daily"
+    volumes:
+      - {{ appdata_dir }}/recyclarr:/config
+{% if apps.emby | bool %}
+
+  # Host-Netzwerk: Fernseher/Apps verbinden sich direkt per http://<NAS>:8096 und finden
+  # Emby per Discovery (UDP 7359); die Firewall gibt beides nur im LAN frei
+  emby:
+    image: {{ stacks_images.emby }}
+    container_name: emby
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      UID: "{{ puid }}"
+      GID: "{{ pgid }}"
+      TZ: {{ timezone }}
+    volumes:
+      - {{ appdata_dir }}/emby:/config
+      - {{ data_mount }}/media:/data/media
+{% endif %}
+{% if apps.recommendarr | bool %}
+
+  # Eigene App des Nutzers; läuft im Image fest als "node" (UID 1000)
+  recommendarr:
+    image: {{ stacks_images.recommendarr }}
+    container_name: recommendarr
+    restart: unless-stopped
+    depends_on:
+      radarr:
+        condition: service_healthy
+      sonarr:
+        condition: service_healthy
+    volumes:
+      - {{ appdata_dir }}/recommendarr:/data
+    ports:
+      - 127.0.0.1:{{ stacks_ports.recommendarr }}:3000
+{% endif %}

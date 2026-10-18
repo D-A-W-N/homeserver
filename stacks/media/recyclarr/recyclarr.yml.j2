@@ -1,0 +1,47 @@
+# {{ ansible_managed }}
+# Grundlage: TRaSH-Vorlage "[German] HD Bluray + WEB" (recyclarr/config-templates),
+# Wunsch des Nutzers: Deutsch + DL, 1080p, x265 bevorzugt (platzsparend).
+# "Golden Rule HD" bewusst weggelassen: sie fügt "x265 (HD)" mit 0 Punkten hinzu und
+# würde mit dem Bonus unten kollidieren.
+
+sonarr:
+  sonarr:
+    base_url: http://sonarr:8989
+    api_key: {{ stacks_arr_keys.sonarr }}
+    delete_old_custom_formats: true
+    quality_definition:
+      type: series
+    quality_profiles:
+      - trash_id: dca7e5e9e99c703bcbdaaa471dd40e98  # [German] HD Bluray + WEB
+        reset_unmatched_scores:
+          enabled: true
+    custom_format_groups:
+      add:
+        - trash_id: 6f0872eebfc95b1f93474b7ac866ced0  # [Unwanted] Unwanted Formats German
+    custom_formats:
+      - trash_ids:
+          - 47435ece6b99a0b477caf360e79ba0bb  # x265 (HD)
+        assign_scores_to:
+          - trash_id: dca7e5e9e99c703bcbdaaa471dd40e98
+            score: {{ stacks_recyclarr_x265_score }}
+
+radarr:
+  radarr:
+    base_url: http://radarr:7878
+    api_key: {{ stacks_arr_keys.radarr }}
+    delete_old_custom_formats: true
+    quality_definition:
+      type: movie
+    quality_profiles:
+      - trash_id: 2b90e905c99490edc7c7a5787443748b  # [German] HD Bluray + WEB
+        reset_unmatched_scores:
+          enabled: true
+    custom_format_groups:
+      add:
+        - trash_id: 0ca61b4b233178d07113082a7acff72d  # [Unwanted] Unwanted Formats German
+    custom_formats:
+      - trash_ids:
+          - dc98083864ea246d05a42df0d05f81cc  # x265 (HD)
+        assign_scores_to:
+          - trash_id: 2b90e905c99490edc7c7a5787443748b
+            score: {{ stacks_recyclarr_x265_score }}
