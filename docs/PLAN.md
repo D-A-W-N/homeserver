@@ -363,12 +363,15 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 
 **Befunde:** Debian startet im BIOS-Menü nach 30 s ohne Tastendruck die Sprachausgabe-Installation (`ontimeout` in `spkgtk.cfg`) → entfernt, Menüpunkt bleibt. `git archive` packt mit umask 002 → `tar.umask=022`. Ein BIOS-Lauf scheiterte einmal an einem beschädigten Kernel-Paket beim Entpacken (lzma-Fehler, Download war prüfsummengesichert); Wiederholung fehlerfrei, vermutlich Folge des vollen `/tmp` kurz zuvor → CI testet BIOS bei jeder Änderung mit. Testumgebung: `/tmp` ist ein 16-GB-tmpfs, VM-Platten gehören nach `.vm/`.
 
-### M8 – Fernzugriff und Backup
-- [ ] Rolle `network` (Tailscale/WireGuard)
-- [ ] Rolle `backup` (restic: `/srv/appdata`, `/opt/stacks`, `/etc/aunserver`, Samba-Registry-Export; Ziel externe Platte oder Cloud) mit ntfy bei Fehler
-- [ ] Restore-Test in einer frischen VM
+### M8 – Fernzugriff und Backup ✅
+- [x] Rolle `network`: Tailscale aus der offiziellen Paketquelle (Schlüssel im Repo, Updates über unattended-upgrades), bietet nur die eigene IP als Route an (`<lan-ip>/32`), `--accept-dns=false`; Anmeldung per `tailscale_authkey` oder interaktiv mit Link am Ende des Setups; Firewall öffnet nur UDP 41641. Ein verbrauchter Key bricht das Setup nicht ab. WireGuard (D12) nicht umgesetzt, Tailscale reicht
+- [x] Rolle `backup`: restic sichert `/srv/appdata` (ohne Logs, Cover, Emby-Cache), `/opt/stacks`, `/etc/aunserver` (inkl. Schlüssel), Samba-`private` und die Samba-Registry (Export); App-Stacks werden dafür kurz angehalten. Ziel per `--backup-repo` (USB-Platte per Label mit `nofail`, sftp, rest …), täglicher Timer, Aufbewahrung 7/4/6, Fehler → ntfy-Thema `backup`. Passwort wird erzeugt und steht in der Zugangsübersicht
+- [x] `aunserver-backup snapshots | restore [ID]`; Neuinstallation: `aunserver-setup --restore` (fragt Ziel und Backup-Passwort ab), spielt nach der Einrichtung zurück und gleicht danach erneut ab
+- [x] CI: Setup mit Backup-Ziel, Backup ausführen, gelöschte Sonarr-Konfiguration zurückspielen
 
-**Abnahme:** Neuinstallation vom Stick + Restore ergibt dasselbe System mit allen Einstellungen.
+**Abnahme (VM, 2026-10-18):** Tailscale mit Auth-Key angemeldet, Route `10.0.2.15/32`, Zugangsübersicht korrekt; Backup 31 s, alle Container laufen danach wieder; kaputtes Ziel → ntfy-Meldung „Backup fehlgeschlagen“; Restore im selben System (Sonarr-Daten gelöscht → Tag zurück). **Frische Installation + `--restore`:** Sonarr-Tag, zusätzliche Samba-Freigabe und alle 20 Container zurück, danach changed=0 ✅. Auf dem echten Server offen: Route freigeben, DNS im Tailnet, ntfy-App am Handy.
+
+**Befunde:** Nach einer Neuinstallation erzeugte das Setup ein neues Backup-Passwort → `--backup-password`/`--restore`. Beim Zurückspielen müssen **alle** Stacks gestoppt sein, sonst behält AdGuard die Einstellungen im Speicher und schreibt sie zurück (Passwort passte nicht mehr). AdGuard-Einrichtung wird an `AdGuardHome.yaml` erkannt statt per HTTP (direkt nach einem Neustart antwortet noch kein Port). Zugangsübersicht las den Tailscale-Zustand vor der Anmeldung. Testumgebung: Unter Spiellast auf dem Host kamen in der VM beschädigte Dateien an (lzma-Fehler, falsche Prüfsummen); ohne Last fehlerfrei → vermutlich RAM/Takt des Hosts. `dev/vm-test.sh` kann dafür `CPU_MODEL` und `DRIVE_OPTS` setzen.
 
 ### M9 – Release
 - [ ] `release.yml`: ISO bei Tag bauen, als Release-Asset
@@ -406,7 +409,7 @@ Entschieden am 2026-10-17: Media-Server, Ort der Configs, lokale Domain und Hard
 | O3 | Mehrere Datenplatten? | V1: eine Datenplatte. V2 optional: mergerfs (Pool) + SnapRAID (Parität) |
 | O5 | Zentrales Login vor allen Apps? | V1 nein (Apps haben eigene Anmeldung), V2 TinyAuth |
 | O6 | Bücher/Hörbücher? | Audiobookshelf optional |
-| O8 | Push aufs Handy | Lokales ntfy ist nur im LAN/VPN erreichbar und braucht auf dem Handy die eigene CA. Alternativen: ntfy-App mit Tailscale, oder Alarme zusätzlich an ntfy.sh mit geheimem Thema (Inhalte verlassen das Heimnetz) |
+| O8 | Push aufs Handy | **Entschieden (M8): ntfy-App über Tailscale.** Lokales ntfy ist nur im LAN/VPN erreichbar und braucht auf dem Handy die eigene CA. Alternativen: ntfy-App mit Tailscale, oder Alarme zusätzlich an ntfy.sh mit geheimem Thema (Inhalte verlassen das Heimnetz) |
 
 ## 12. Risiken
 

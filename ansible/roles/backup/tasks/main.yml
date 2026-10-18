@@ -1,0 +1,125 @@
+---
+- name: Restic installieren
+  ansible.builtin.apt:
+    name: restic
+    state: present
+
+- name: Backup-Passwort erzeugen bzw. lesen (unbedingt zusätzlich außerhalb des NAS aufbewahren)
+  ansible.builtin.set_fact:
+    backup_password: "{{ lookup('ansible.builtin.password', '/etc/aunserver/secrets/restic_password length=32 chars=ascii_letters,digits') }}"
+  no_log: true
+
+- name: Backup-Passwort nur für root lesbar
+  ansible.builtin.file:
+    path: /etc/aunserver/secrets/restic_password
+    owner: root
+    group: root
+    mode: "0600"
+
+# --- USB-Platte als Ziel (optional) -------------------------------------------------
+- name: Backup-Platte per Label einhängen
+  when: backup.disk_label | length > 0
+  block:
+    - name: Backup-Platte suchen
+      ansible.builtin.command: blkid -t "LABEL={{ backup.disk_label }}" -o device
+      register: backup_disk
+      changed_when: false
+      failed_when: backup_disk.rc not in [0, 2]
+
+    - name: Mountpoint für die Backup-Platte
+      ansible.builtin.file:
+        path: "{{ backup_mount }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    # fstab selbst pflegen statt ansible.posix.mount (Deprecation, siehe Rolle storage)
+    - name: Backup-Platte in fstab (nofail, damit das NAS auch ohne sie startet)
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: '^\S+\s+{{ backup_mount | regex_escape }}\s'
+        line: "LABEL={{ backup.disk_label }} {{ backup_mount }} auto defaults,nofail,x-systemd.device-timeout=10s 0 0"
+      register: backup_fstab
+
+    - name: Systemd liest die geänderte fstab ein
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+      when: backup_fstab.changed # noqa no-handler
+
+    - name: Ist die Backup-Platte eingehängt?
+      ansible.builtin.command: findmnt --noheadings --mountpoint {{ backup_mount }}
+      register: backup_findmnt
+      changed_when: false
+      failed_when: false
+
+    - name: Backup-Platte einhängen
+      ansible.builtin.command: # noqa command-instead-of-module
+        argv: [mount, "{{ backup_mount }}"]
+      when:
+        - backup_disk.stdout_lines | length == 1
+        - backup_findmnt.rc != 0
+      changed_when: true
+
+    - name: Hinweis, wenn die Backup-Platte fehlt
+      ansible.builtin.debug:
+        msg: "Keine Platte mit Label {{ backup.disk_label }} angeschlossen; Backups schlagen fehl, bis sie da ist."
+      when: backup_disk.stdout_lines | length != 1
+
+# --- Skript und Zeitplan ------------------------------------------------------------
+- name: Restic-Umgebung (Repository, Passwortdatei, Zugangsdaten)
+  ansible.builtin.copy:
+    dest: /etc/aunserver/restic.env
+    content: |
+      # Von aunserver verwaltet (Ansible), Werte kommen aus config.yml (backup).
+      RESTIC_REPOSITORY={{ backup.repository | quote }}
+      RESTIC_PASSWORD_FILE=/etc/aunserver/secrets/restic_password
+      RESTIC_CACHE_DIR=/var/cache/restic
+      {% for k, v in backup.env.items() %}
+      {{ k }}={{ v | quote }}
+      {% endfor %}
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Backup-Skript
+  ansible.builtin.template:
+    src: aunserver-backup.j2
+    dest: /usr/local/sbin/aunserver-backup
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Systemd-Units für das Backup
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: [aunserver-backup.service, aunserver-backup.timer, aunserver-backup-fehler.service]
+  notify: Systemd neu laden
+
+- name: Units sofort bekannt machen
+  ansible.builtin.meta: flush_handlers
+
+- name: Täglicher Backup-Zeitplan (nur mit Ziel)
+  ansible.builtin.systemd_service:
+    name: aunserver-backup.timer
+    enabled: "{{ backup.repository | length > 0 }}"
+    state: "{{ 'started' if backup.repository | length > 0 else 'stopped' }}"
+
+- name: Repository anlegen, falls es fehlt
+  ansible.builtin.command: /usr/local/sbin/aunserver-backup init
+  register: backup_init
+  changed_when: "'created restic repository' in backup_init.stdout"
+  failed_when: false
+  when: backup.repository | length > 0
+
+- name: Hinweis, wenn das Repository nicht erreichbar ist
+  ansible.builtin.debug:
+    msg: "Backup-Repository nicht erreichbar ({{ backup.repository }}): {{ backup_init.stderr | default('') | trim }}"
+  when:
+    - backup.repository | length > 0
+    - backup_init.rc | default(0) != 0

@@ -1,0 +1,43 @@
+---
+# Debian-ISO für vm-test im Cache von main ablegen. Caches gelten pro Branch: PRs lesen den von
+# main mit, legen sonst aber jeder eine eigene Kopie (744 MB) an. Wöchentlich, damit ein neues
+# Debian-Punktrelease schon im Cache liegt, bevor der nächste PR es braucht.
+name: iso-cache
+"on":
+  push:
+    branches: [main]
+    paths:
+      - dev/vm-test.sh
+      - .github/workflows/iso-cache.yml
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  iso:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    env:
+      VM_DIR: ${{ github.workspace }}/.vm
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Name des aktuellen Debian-ISOs
+        id: iso
+        run: |
+          name=$(curl -fsSL https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA256SUMS \
+            | grep -oE 'debian-[0-9.]+-amd64-netinst\.iso$' | head -n1)
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - name: ISO aus dem Cache
+        uses: actions/cache@v6
+        with:
+          path: .vm/${{ steps.iso.outputs.name }}
+          key: iso-${{ steps.iso.outputs.name }}
+
+      - name: ISO laden und prüfen (nur wenn noch nicht im Cache)
+        run: dev/vm-test.sh fetch

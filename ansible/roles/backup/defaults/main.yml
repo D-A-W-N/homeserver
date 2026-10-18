@@ -1,0 +1,22 @@
+---
+backup_mount: /mnt/backup
+
+# Was gesichert wird: alles, was nicht aus dem Repo neu entsteht
+backup_paths:
+  - "{{ appdata_dir }}"
+  - "{{ stacks_dir }}"
+  - /etc/aunserver
+  - /var/lib/samba/private
+  - /var/lib/samba-legacy/private
+
+# Wiederbeschaffbar oder flüchtig
+backup_excludes:
+  - "{{ appdata_dir }}/*/logs"
+  - "{{ appdata_dir }}/*/MediaCover"
+  - "{{ appdata_dir }}/emby/cache"
+  - "{{ appdata_dir }}/emby/transcoding-temp"
+  - "{{ appdata_dir }}/emby/logs"
+  - "{{ appdata_dir }}/*/*.pid"
+
+# Für konsistente SQLite-Datenbanken während des Backups kurz anhalten (DNS und Caddy laufen weiter)
+backup_stop_stacks: [dashboard, monitoring, media, ps2]

@@ -10,15 +10,12 @@
 
     # Beim ersten Start läuft der Einrichtungsassistent auf Port 3000 (alle Schnittstellen).
     # Danach liegt die Oberfläche auf 127.0.0.1:{{ stacks_ports.adguard_ui }} (S3).
+    # An der Konfigurationsdatei erkennen statt per HTTP: direkt nach einem Neustart (z. B. nach dem
+    # Zurückspielen eines Backups) antwortet noch keiner der beiden Ports (M8-Test)
     - name: Ist AdGuard schon eingerichtet?
-      ansible.builtin.uri:
-        url: http://127.0.0.1:{{ stacks_ports.adguard_ui }}/control/status
-        user: "{{ admin_user }}"
-        password: "{{ stacks_web_password }}"
-        force_basic_auth: true
-      register: stacks_adguard_configured
-      failed_when: false
-      no_log: true
+      ansible.builtin.stat:
+        path: "{{ appdata_dir }}/adguard/conf/AdGuardHome.yaml"
+      register: stacks_adguard_conf
 
     - name: Auf den Einrichtungsassistenten warten
       ansible.builtin.uri:
@@ -27,7 +24,7 @@
       until: stacks_adguard_wizard is succeeded
       retries: 30
       delay: 2
-      when: stacks_adguard_configured.status | default(0) != 200
+      when: not stacks_adguard_conf.stat.exists
 
     - name: AdGuard-Assistent per API abschließen
       ansible.builtin.uri:
@@ -40,7 +37,7 @@
           username: "{{ admin_user }}"
           password: "{{ stacks_web_password }}"
         status_code: 200
-      when: stacks_adguard_configured.status | default(0) != 200
+      when: not stacks_adguard_conf.stat.exists
       changed_when: true
       no_log: true
 
@@ -52,7 +49,7 @@
         force_basic_auth: true
       register: stacks_adguard_status
       until: stacks_adguard_status is succeeded
-      retries: 15
+      retries: 30
       delay: 2
       no_log: true
 

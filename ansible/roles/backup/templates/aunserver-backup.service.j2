@@ -1,0 +1,15 @@
+# {{ ansible_managed }}
+[Unit]
+Description=aunserver: Backup der Einstellungen (restic)
+After=network-online.target docker.service
+Wants=network-online.target
+OnFailure=aunserver-backup-fehler.service
+{% if backup.disk_label %}
+RequiresMountsFor={{ backup_mount }}
+{% endif %}
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/aunserver-backup
+Nice=10
+IOSchedulingClass=idle

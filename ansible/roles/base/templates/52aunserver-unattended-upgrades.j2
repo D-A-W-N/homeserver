@@ -4,6 +4,7 @@ Unattended-Upgrade::Origins-Pattern {
         "origin=Debian,codename=${distro_codename}-updates";
         "origin=Debian Backports,codename=${distro_codename}-backports,label=Debian Backports";
         "origin=Docker,archive=${distro_codename},label=Docker CE";   // Docker-Repo hat kein codename-Feld
+        "origin=Tailscale,codename=${distro_codename}";
 };
 Unattended-Upgrade::Remove-Unused-Dependencies "true";
 Unattended-Upgrade::Automatic-Reboot "{{ base_auto_reboot | bool | lower }}";
