@@ -1,13 +1,16 @@
 ---
-# Beispiel für /etc/homeserver/config.yml (pro Maschine, nicht einchecken).
+# Beispiel für /etc/aunserver/config.yml (pro Maschine, nicht einchecken).
 # Alles hier überschreibt die Defaults aus ansible/group_vars/all.yml.
 hostname: nas
 admin_user: admin
 timezone: Europe/Berlin
-data_mount: /srv/data
-data_fs: ext4
+domain: nas.home.arpa
 ssh_authorized_keys: []
-shares:
-  - name: media
-    path: media
-stacks: [dockge, arr, emby, scrutiny, ps2gamemanager]
+#  - ssh-ed25519 AAAA... ich@laptop
+
+apps:
+  adguard: true
+  tailscale: true
+  wireguard: false
+  uptime_kuma: false
+  emby: true

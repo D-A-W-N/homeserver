@@ -1,5 +1,6 @@
+---
 name: lint
-on:
+"on":
   push:
   pull_request:
 permissions:
@@ -8,10 +9,10 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.13"
       - name: Werkzeuge installieren
         run: |
           sudo apt-get update
@@ -19,10 +20,10 @@ jobs:
           pip install -r requirements-dev.txt
       - name: shellcheck
         run: |
-          files=$(git ls-files 'bin/*' 'installer/*.sh' 'dev/*.sh')
-          if [ -n "$files" ]; then shellcheck $files; fi
+          mapfile -t files < <(git ls-files 'bin/*' 'installer/*.sh' 'dev/*.sh')
+          if [ "${#files[@]}" -gt 0 ]; then shellcheck "${files[@]}"; fi
       - name: yamllint
-        run: yamllint ansible config.example.yml .github
+        run: yamllint .
       - name: ansible-lint
         run: cd ansible && ansible-lint
       - name: Syntaxprüfung
@@ -30,7 +31,7 @@ jobs:
   secrets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v2

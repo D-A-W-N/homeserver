@@ -1,4 +1,8 @@
 ---
-profile: min
+# Strenges Profil von Anfang an, solange noch wenig Code existiert.
+profile: production
 exclude_paths:
   - .github/
+  - .venv/
+  - .vm/
+  - stacks/
