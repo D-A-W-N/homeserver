@@ -8,6 +8,7 @@ name: vm-test
       - ansible/**
       - installer/**
       - dev/**
+      - stacks/**
       - .github/workflows/vm-test.yml
   workflow_dispatch:
 permissions:
