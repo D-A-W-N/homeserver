@@ -103,7 +103,8 @@ jobs:
           ssh -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost \
             "printf '%s\n' aunserver | sudo -S -p '' /opt/aunserver/bin/aunserver-setup --yes \
                --data-disk $disk --format --confirm-disk $disk --hostname nas \
-               --ssh-key '$key' --samba-password ci-test-123 --ps2-password ci-ps2-123" < /dev/null \
+               --ssh-key '$key' --samba-password ci-test-123 --ps2-password ci-ps2-123 \
+               --backup-repo /var/backups/aunserver-ci" < /dev/null \
             | tee "$RUNNER_TEMP/run1.log"
 
       - name: aunserver-setup, zweiter Lauf (muss changed=0 melden)
@@ -113,6 +114,23 @@ jobs:
             | tee "$RUNNER_TEMP/run2.log"
           sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/run2.log" \
             | grep -E 'localhost +: ok=[0-9]+ +changed=0 +unreachable=0 +failed=0'
+
+      - name: Backup ausführen und Sicherung prüfen
+        run: |
+          ssh_vm() { ssh -n -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost "$@"; }
+          ssh_vm "printf '%s\n' aunserver | sudo -S -p '' systemctl start aunserver-backup.service"
+          ssh_vm "printf '%s\n' aunserver | sudo -S -p '' aunserver-backup snapshots" | tee "$RUNNER_TEMP/snapshots.log"
+          grep -q "aunserver" "$RUNNER_TEMP/snapshots.log"
+          # nach dem Backup laufen alle Container wieder
+          test "$(ssh_vm "docker ps --filter status=exited -q | wc -l")" = 0
+
+      - name: Wiederherstellung prüfen (gelöschte Sonarr-Konfiguration kommt zurück)
+        run: |
+          ssh_vm() { ssh -n -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost "$@"; }
+          ssh_vm "printf '%s\n' aunserver | sudo -S -p '' rm /srv/appdata/sonarr/config.xml"
+          ssh_vm "printf '%s\n' aunserver | sudo -S -p '' aunserver-backup restore"
+          ssh_vm "printf '%s\n' aunserver | sudo -S -p '' test -s /srv/appdata/sonarr/config.xml"
+          test "$(ssh_vm "docker ps --filter status=exited -q | wc -l")" = 0
 
       - name: Warnungen im Playbook
         if: always()

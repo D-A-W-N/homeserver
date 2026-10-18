@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+# Meldet ein fehlgeschlagenes Backup per ntfy (Thema "backup")
+[Unit]
+Description=aunserver: Backup fehlgeschlagen, Benachrichtigung
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/curl -fsS -H "Title: Backup fehlgeschlagen ({{ hostname }})" -H "Priority: high" -H "Tags: warning" \
+  -d "Das nächtliche Backup ist fehlgeschlagen. Details: journalctl -u aunserver-backup" \
+  http://127.0.0.1:{{ stacks_ports.ntfy }}/backup

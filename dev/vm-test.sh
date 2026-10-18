@@ -48,6 +48,9 @@ Umgebungsvariablen:
   SSH_PORT, HTTPS_PORT, COCKPIT_PORT   Weiterleitungen auf dem Host (Default: 2222, 8443, 9090)
   SSH_PUBKEY      Schlüssel für autoinstall (Default: ~/.ssh/id_ed25519.pub)
   NO_DATA=1       bei 'boot': ohne Datenplatte starten (Testmatrix 7)
+  CPU_MODEL       virtuelle CPU bei KVM (Standard: host), z. B. qemu64
+  DRIVE_OPTS      zusätzliche Optionen für die Platten, z. B. ",cache=none" (lokal traten mit
+                  QEMU 11.1/Kernel 7.1 vereinzelt beschädigte Dateien in der VM auf)
 
 Hinweise für den Installer-Test:
   - Preseed ohne ISO-Umbau (Spike S2): im Bootmenü 'e' bzw. Tab drücken und anhängen:
@@ -210,7 +213,8 @@ PY
 
   local args=(-m "$RAM" -smp 2 -device ahci,id=ahci
     -nic "user,hostfwd=tcp::${SSH_PORT:-2222}-:22,hostfwd=tcp::${HTTPS_PORT:-8443}-:443,hostfwd=tcp::${COCKPIT_PORT:-9090}-:9090")
-  [ -w /dev/kvm ] && args+=(-enable-kvm -cpu host)
+  # CPU_MODEL: z. B. qemu64 statt host (lokal mit Kernel 7.1/Ryzen 2700X beschädigte Daten in der VM)
+  [ -w /dev/kvm ] && args+=(-enable-kvm -cpu "${CPU_MODEL:-host}")
 
   if [ "$firmware" = uefi ]; then
     find_ovmf || die "OVMF nicht gefunden (Paket edk2-ovmf bzw. ovmf installieren)"
@@ -221,17 +225,17 @@ PY
 
   # Systemplatte (SSD: rotation_rate=1, NVMe meldet sich selbst als nicht rotierend)
   if [ "$sys" = nvme ]; then
-    args+=(-drive "if=none,id=sys,format=qcow2,file=$sys_img" -device nvme,drive=sys,serial=aunnvme0)
+    args+=(-drive "if=none,id=sys,format=qcow2,file=$sys_img${DRIVE_OPTS:-}" -device nvme,drive=sys,serial=aunnvme0)
   else
-    args+=(-drive "if=none,id=sys,format=qcow2,file=$sys_img" -device ide-hd,drive=sys,bus=ahci.0,rotation_rate=1,serial=aunsys0)
+    args+=(-drive "if=none,id=sys,format=qcow2,file=$sys_img${DRIVE_OPTS:-}" -device ide-hd,drive=sys,bus=ahci.0,rotation_rate=1,serial=aunsys0)
   fi
   # Datenplatte (HDD: rotation_rate=7200)
   case "$data" in
-    hdd) args+=(-drive "if=none,id=data,format=$data_fmt,file=$data_img" -device ide-hd,drive=data,bus=ahci.1,rotation_rate=7200,serial=aundata0) ;;
-    ssd) args+=(-drive "if=none,id=data,format=$data_fmt,file=$data_img" -device ide-hd,drive=data,bus=ahci.1,rotation_rate=1,serial=aundata0) ;;
+    hdd) args+=(-drive "if=none,id=data,format=$data_fmt,file=$data_img${DRIVE_OPTS:-}" -device ide-hd,drive=data,bus=ahci.1,rotation_rate=7200,serial=aundata0) ;;
+    ssd) args+=(-drive "if=none,id=data,format=$data_fmt,file=$data_img${DRIVE_OPTS:-}" -device ide-hd,drive=data,bus=ahci.1,rotation_rate=1,serial=aundata0) ;;
   esac
   # zweite HDD (ahci.2 bleibt für das CD-Laufwerk frei)
-  [ "$data2" = 1 ] && args+=(-drive "if=none,id=data2,format=qcow2,file=$data2_img" -device ide-hd,drive=data2,bus=ahci.3,rotation_rate=7200,serial=aundata1)
+  [ "$data2" = 1 ] && args+=(-drive "if=none,id=data2,format=qcow2,file=$data2_img${DRIVE_OPTS:-}" -device ide-hd,drive=data2,bus=ahci.3,rotation_rate=7200,serial=aundata1)
   if [ "$cmd" = install ]; then
     args+=(-drive "if=none,id=cd,media=cdrom,readonly=on,file=$iso" -device ide-cd,drive=cd,bus=ahci.2 -boot order=dc)
   elif [ "$cmd" = autoinstall ]; then

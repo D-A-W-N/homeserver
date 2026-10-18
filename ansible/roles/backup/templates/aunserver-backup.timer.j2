@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+[Unit]
+Description=aunserver: tägliches Backup der Einstellungen
+
+[Timer]
+OnCalendar={{ backup.schedule }}
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

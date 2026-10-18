@@ -1,0 +1,109 @@
+---
+# Fernzugriff per Tailscale (D12). Anmeldung entweder per tailscale_authkey (config.yml) oder
+# interaktiv: aunserver-setup zeigt am Ende den Anmeldelink.
+
+- name: Tailscale
+  when: apps.tailscale | bool
+  block:
+    - name: Tailscale-Repo-Schlüssel (im Repo hinterlegt, Fingerabdruck 2596 A99E … 957F 5868)
+      ansible.builtin.copy:
+        src: tailscale.gpg
+        dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Tailscale-Paketquelle
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/tailscale.sources
+        content: |
+          # Von aunserver verwaltet (Ansible), Änderungen werden überschrieben.
+          Types: deb
+          URIs: https://pkgs.tailscale.com/stable/debian
+          Suites: trixie
+          Components: main
+          Signed-By: /usr/share/keyrings/tailscale-archive-keyring.gpg
+        owner: root
+        group: root
+        mode: "0644"
+      register: network_tailscale_repo
+
+    - name: Paketlisten nach neuer Tailscale-Quelle aktualisieren
+      ansible.builtin.apt:
+        update_cache: true
+      when: network_tailscale_repo.changed # noqa no-handler
+
+    - name: Tailscale installieren
+      ansible.builtin.apt:
+        name: tailscale
+        state: present
+
+    - name: Tailscale läuft
+      ansible.builtin.systemd_service:
+        name: tailscaled.service
+        enabled: true
+        state: started
+
+    - name: Angebotene Route bestimmen
+      ansible.builtin.set_fact:
+        network_routes: >-
+          {{ network_tailscale_routes if network_tailscale_routes | length > 0
+             else [ansible_facts.default_ipv4.address ~ '/32'] }}
+
+    - name: Zustand von Tailscale lesen
+      ansible.builtin.command: tailscale status --json
+      register: network_tailscale_status
+      changed_when: false
+      failed_when: false
+
+    - name: Zustand merken
+      ansible.builtin.set_fact:
+        network_tailscale_state: "{{ (network_tailscale_status.stdout | from_json).BackendState | default('Unbekannt') }}"
+
+    - name: Mit Auth-Key anmelden (nur wenn noch nicht angemeldet)
+      ansible.builtin.command:
+        argv:
+          - tailscale
+          - up
+          - "--auth-key={{ tailscale_authkey }}"
+          - "--hostname={{ hostname }}"
+          - "--advertise-routes={{ network_routes | join(',') }}"
+          - --accept-dns=false
+      when:
+        - network_tailscale_state == 'NeedsLogin'
+        - tailscale_authkey is defined
+      register: network_tailscale_up
+      changed_when: network_tailscale_up.rc == 0
+      # ein verbrauchter Key (z. B. aus einer zurückgespielten config.yml) darf das Setup nicht abbrechen
+      failed_when: false
+      no_log: true
+
+    - name: Hinweis, wenn die Anmeldung per Auth-Key fehlschlägt
+      ansible.builtin.debug:
+        msg: "Tailscale-Anmeldung per Auth-Key fehlgeschlagen (abgelaufen oder schon verbraucht?). Neu anmelden: sudo tailscale up"
+      when: network_tailscale_up.rc | default(0) != 0
+
+    # nach einer Anmeldung neu lesen, sonst meldet die Zugangsübersicht "nicht angemeldet" (M8-Test)
+    - name: Zustand nach der Anmeldung neu lesen
+      ansible.builtin.command: tailscale status --json
+      register: network_tailscale_status
+      changed_when: false
+      failed_when: false
+
+    - name: Neuen Zustand merken
+      ansible.builtin.set_fact:
+        network_tailscale_state: "{{ (network_tailscale_status.stdout | from_json).BackendState | default('Unbekannt') }}"
+
+    - name: Angebotene Route abgleichen (wenn angemeldet)
+      ansible.builtin.command: tailscale debug prefs
+      register: network_tailscale_prefs
+      changed_when: false
+      when: network_tailscale_state == 'Running'
+
+    - name: Route setzen
+      ansible.builtin.command:
+        argv: [tailscale, set, "--advertise-routes={{ network_routes | join(',') }}"]
+      when:
+        - network_tailscale_state == 'Running'
+        - (network_tailscale_prefs.stdout | from_json).AdvertiseRoutes | default([], true) | sort != network_routes | sort
+      changed_when: true

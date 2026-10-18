@@ -40,6 +40,10 @@ table inet aunserver {
 		ip saddr @lan4 udp dport { {{ security_emby_udp_ports | join(', ') }} } accept
 		ip6 saddr @lan6 tcp dport { {{ security_emby_tcp_ports | join(', ') }} } accept
 {% endif %}
+{% if apps.tailscale | bool %}
+		# Tailscale: direkte, verschlüsselte Verbindungen (sonst nur über langsamere Relays)
+		udp dport 41641 accept
+{% endif %}
 		iifname "tailscale0" tcp dport { {{ security_vpn_tcp_ports | join(', ') }} } accept
 		iifname "tailscale0" udp dport { {{ security_vpn_udp_ports | join(', ') }} } accept
 	}

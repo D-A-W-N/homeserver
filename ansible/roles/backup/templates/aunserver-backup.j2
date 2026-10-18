@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# Backup der Einstellungen mit restic (Plan, M8).
+#   aunserver-backup             sichern (täglich per Timer)
+#   aunserver-backup init        Repository anlegen, falls es fehlt
+#   aunserver-backup snapshots   Sicherungen auflisten
+#   aunserver-backup restore [ID]  Sicherung zurückspielen (Standard: latest)
+set -euo pipefail
+
+set -a
+# shellcheck disable=SC1091
+. /etc/aunserver/restic.env
+set +a
+
+STACKS=({% for s in backup_stop_stacks %}{{ s }} {% endfor %})
+PATHS=({% for p in backup_paths %}{{ p | quote }} {% endfor %})
+EXCLUDES=({% for e in backup_excludes %}--exclude={{ e | quote }} {% endfor %})
+
+stacks() { # stacks stop|start [Stack …]
+  local cmd=$1 s
+  shift
+  for s in "$@"; do
+    [ -f "{{ stacks_dir }}/$s/compose.yaml" ] || continue
+    docker compose -f "{{ stacks_dir }}/$s/compose.yaml" "$cmd" >/dev/null 2>&1 || true
+  done
+}
+
+repo_ready() { restic cat config >/dev/null 2>&1; }
+
+case "${1:-backup}" in
+  init)
+    repo_ready && { echo "Repository vorhanden: $RESTIC_REPOSITORY"; exit 0; }
+    restic init
+    ;;
+  snapshots)
+    restic snapshots
+    ;;
+  backup)
+    repo_ready || { echo "Repository nicht erreichbar oder nicht angelegt: $RESTIC_REPOSITORY" >&2; exit 1; }
+    # Samba-Freigaben stehen in der Registry (Cockpit): als Datei mitsichern
+    net conf list > /etc/aunserver/samba-registry.conf
+    trap 'stacks start "${STACKS[@]}"' EXIT
+    stacks stop "${STACKS[@]}"
+    restic backup --tag aunserver --one-file-system "${EXCLUDES[@]}" "${PATHS[@]}"
+    stacks start "${STACKS[@]}"
+    trap - EXIT
+    restic forget --tag aunserver --prune \
+      --keep-daily {{ backup.keep.daily }} --keep-weekly {{ backup.keep.weekly }} --keep-monthly {{ backup.keep.monthly }}
+    ;;
+  restore)
+    repo_ready || { echo "Repository nicht erreichbar: $RESTIC_REPOSITORY" >&2; exit 1; }
+    snap=${2:-latest}
+    echo "Spiele Sicherung $snap zurück (überschreibt: ${PATHS[*]})"
+    # alle Stacks anhalten: laufende Apps (z. B. AdGuard) behalten sonst ihre alten Einstellungen
+    # im Speicher und überschreiben die zurückgespielten (M8-Test)
+    mapfile -t ALL < <(find {{ stacks_dir }} -mindepth 2 -maxdepth 2 -name compose.yaml -printf '%h\n' | xargs -rn1 basename)
+    trap 'stacks start "${ALL[@]}"' EXIT
+    stacks stop "${ALL[@]}"
+    restic restore "$snap" --target / "${PATHS[@]/#/--include=}"
+    [ -s /etc/aunserver/samba-registry.conf ] && net conf import /etc/aunserver/samba-registry.conf
+    systemctl restart smbd
+    mapfile -t ALL < <(find {{ stacks_dir }} -mindepth 2 -maxdepth 2 -name compose.yaml -printf '%h\n' | xargs -rn1 basename)
+    stacks start "${ALL[@]}"
+    trap - EXIT
+    echo "Fertig. Danach einmal aunserver-setup ausführen, um alles abzugleichen."
+    ;;
+  *)
+    sed -n '3,8p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+esac

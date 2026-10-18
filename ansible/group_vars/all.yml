@@ -55,6 +55,17 @@ apps:
   recommendarr: true
   ps2gamemanager: true
 
+# Backup der Einstellungen mit restic (M8). repository: jedes restic-Ziel, z. B.
+#   /mnt/backup/aunserver          (USB-Platte, siehe disk_label)
+#   sftp:user@rechner:/pfad        (anderer Rechner per SSH-Schlüssel von root)
+#   s3:..., b2:..., rest:...       (Cloud; Zugangsdaten unter env)
+backup:
+  repository: ""            # leer = kein Backup
+  disk_label: ""            # z. B. AUNBACKUP: USB-Platte mit diesem Label wird unter /mnt/backup eingehängt
+  env: {}                   # zusätzliche Umgebungsvariablen für restic (z. B. B2_ACCOUNT_ID)
+  schedule: "*-*-* 03:30"
+  keep: { daily: 7, weekly: 4, monthly: 6 }
+
 # SMB1-Freigaben für PS2/OPL in einer getrennten Samba-Instanz (D19)
 samba_legacy:
   enabled: false

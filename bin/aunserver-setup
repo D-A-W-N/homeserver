@@ -35,6 +35,12 @@ Optionen (alle optional; was fehlt, wird gefragt bzw. bei --yes mit Standardwert
   --samba-password PW       Samba-Passwort des Admins
   --ps2-password PW         Passwort für die SMB1-Freigabe (aktiviert sie)
   --no-ps2                  keine SMB1-Freigabe für PS2/OPL
+  --tailscale / --no-tailscale   Fernzugriff per Tailscale (Standard: ja)
+  --tailscale-authkey KEY   Auth-Key statt Anmeldelink (tailscale.com → Settings → Keys)
+  --backup-repo ZIEL        restic-Repository fürs Backup, z. B. /mnt/backup/aunserver oder sftp:user@pc:/pfad
+  --backup-disk-label LABEL USB-Platte mit diesem Label unter /mnt/backup einhängen
+  --backup-password PW      Passwort eines vorhandenen Backups (sonst wird ein neues erzeugt)
+  --restore                 nach der Einrichtung das letzte Backup zurückspielen (Neuinstallation)
   --apps LISTE              kommagetrennt aus: adguard,emby,recommendarr,ps2gamemanager,uptime_kuma
                             (Standard: adguard,emby,recommendarr,ps2gamemanager)
   --no-playbook             nur Konfiguration schreiben (und ggf. formatieren)
@@ -49,6 +55,7 @@ info() { echo "== $*"; }
 # --- Parameter -------------------------------------------------------------------
 COLLECTED=0 FORMAT_TARGET="" YES=0 CONFIG_IN="" DATA_DISK="" FORMAT=0 CONFIRM_DISK="" SINGLE=0 HOST="" DOMAIN="" TZONE=""
 SSH_KEYS=() SAMBA_PW="" PS2_PW="" PS2=-1 APPS="" RUN_PLAYBOOK=1 RECONFIGURE=0
+TAILSCALE=-1 TS_AUTHKEY="" BACKUP_REPO="" BACKUP_LABEL="" BACKUP_ASKED=0 BACKUP_PW="" RESTORE=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --yes) YES=1 ;;
@@ -65,6 +72,13 @@ while [ $# -gt 0 ]; do
     --ps2-password) PS2_PW=${2:?}; PS2=1; shift ;;
     --no-ps2) PS2=0 ;;
     --apps) APPS=${2:?}; shift ;;
+    --tailscale) TAILSCALE=1 ;;
+    --no-tailscale) TAILSCALE=0 ;;
+    --tailscale-authkey) TS_AUTHKEY=${2:?}; TAILSCALE=1; shift ;;
+    --backup-repo) BACKUP_REPO=${2:?}; BACKUP_ASKED=1; shift ;;
+    --backup-disk-label) BACKUP_LABEL=${2:?}; shift ;;
+    --backup-password) BACKUP_PW=${2:?}; shift ;;
+    --restore) RESTORE=1 ;;
     --no-playbook) RUN_PLAYBOOK=0 ;;
     --reconfigure) RECONFIGURE=1 ;;
     -h|--help) usage; exit 0 ;;
@@ -240,6 +254,25 @@ collect() {
     else PS2=0; fi
   fi
 
+  if [ "$TAILSCALE" = -1 ]; then
+    TAILSCALE=1
+    if interactive && ! whiptail --title "$TITLE" --yesno "Fernzugriff per Tailscale einrichten?\n\nDamit erreichst du das NAS (und die Benachrichtigungen) von unterwegs, ohne Portfreigabe im Router. Ein kostenloses Konto auf tailscale.com reicht; den Anmeldelink zeigt das Setup am Ende." 13 74; then TAILSCALE=0; fi
+  fi
+
+  if [ "$BACKUP_ASKED" = 0 ] && interactive; then
+    BACKUP_REPO=$(whiptail --title "$TITLE" --inputbox "Backup-Ziel für die Einstellungen (restic-Repository), z. B.\n\n  /mnt/backup/aunserver      USB-Platte (Label unten angeben)\n  sftp:user@rechner:/pfad    anderer Rechner per SSH\n\nLeer lassen = später in $CONFIG eintragen." 15 78 3>&1 1>&2 2>&3) || die "Abgebrochen."
+    if [[ "$BACKUP_REPO" == /mnt/backup* ]] && [ -z "$BACKUP_LABEL" ]; then
+      BACKUP_LABEL=$(whiptail --title "$TITLE" --inputbox "Label der USB-Backup-Platte (wird unter /mnt/backup eingehängt):" 10 72 AUNBACKUP 3>&1 1>&2 2>&3) || die "Abgebrochen."
+    fi
+  fi
+  if [ -n "$BACKUP_REPO" ] && [ -z "$BACKUP_PW" ] && interactive \
+    && { [ "$RESTORE" = 1 ] || whiptail --title "$TITLE" --defaultno --yesno "Liegt an diesem Ziel schon ein Backup (z. B. nach einer Neuinstallation)?\n\nDann nach der Einrichtung zurückspielen: Einstellungen, Apps und Freigaben kommen aus dem Backup." 12 74; }; then
+    while [ -z "$BACKUP_PW" ]; do
+      BACKUP_PW=$(whiptail --title "$TITLE" --passwordbox "Passwort des vorhandenen Backups (steht in der alten Zugangsübersicht):" 10 72 3>&1 1>&2 2>&3) || die "Abgebrochen."
+    done
+    RESTORE=1
+  fi
+
   [ -n "$SAMBA_PW" ] || ask_password SAMBA_PW "die Samba-Freigaben ($ADMIN)"
   if [ "$PS2" = 1 ] && [ -z "$PS2_PW" ]; then
     ask_password PS2_PW "die PS2-Freigabe (Konto ps2; SMB1 überträgt es schwach geschützt, kein wichtiges Passwort verwenden)"
@@ -269,9 +302,16 @@ write_config() {
     fi
     echo "samba_password: $(yq "$SAMBA_PW")"
     [ "$PS2" = 1 ] && echo "samba_legacy_password: $(yq "$PS2_PW")"
+    [ -n "$TS_AUTHKEY" ] && echo "tailscale_authkey: $(yq "$TS_AUTHKEY")"
+    echo "backup:"
+    echo "  repository: $(yq "$BACKUP_REPO")"
+    echo "  disk_label: $(yq "$BACKUP_LABEL")"
+    echo "  env: {}"
+    echo "  schedule: '*-*-* 03:30'"
+    echo "  keep: { daily: 7, weekly: 4, monthly: 6 }"
     echo "apps:"
     echo "  adguard: $(app_on adguard)"
-    echo "  tailscale: false"
+    echo "  tailscale: $([ "$TAILSCALE" = 1 ] && echo true || echo false)"
     echo "  wireguard: false"
     echo "  uptime_kuma: $(app_on uptime_kuma)"
     echo "  emby: $(app_on emby)"
@@ -288,6 +328,19 @@ write_config() {
   )
   mv "$CONFIG.tmp" "$CONFIG"
   info "Konfiguration geschrieben: $CONFIG"
+}
+
+# Passwort eines vorhandenen Backups übernehmen; die Rolle backup erzeugt sonst ein neues
+write_backup_password() {
+  install -d -m 0700 "$CONFIG_DIR/secrets"
+  (umask 077; printf '%s\n' "$BACKUP_PW" > "$CONFIG_DIR/secrets/restic_password")
+}
+
+restore_backup() {
+  info "Spiele das letzte Backup zurück"
+  /usr/local/sbin/aunserver-backup restore latest || die "Zurückspielen fehlgeschlagen (Ziel und Backup-Passwort prüfen), Details oben."
+  info "Gleiche das System mit den zurückgespielten Einstellungen ab"
+  run_playbook
 }
 
 ensure_tools() {
@@ -307,6 +360,21 @@ run_playbook() {
   install -m 0600 /dev/null "$LOG"
   (cd "$REPO/ansible" && ansible-playbook -i localhost, -c local site.yml -e "@$CONFIG") 2>&1 | tee "$LOG"
   [ "${PIPESTATUS[0]}" = 0 ] || die "Das Playbook ist fehlgeschlagen, Details in $LOG. Danach erneut ausführen."
+}
+
+# Tailscale noch nicht angemeldet: Anmeldelink zeigen und warten (nur interaktiv)
+tailscale_login() {
+  command -v tailscale >/dev/null || return 0
+  tailscale status --json 2>/dev/null | grep -q '"BackendState": *"NeedsLogin"' || return 0
+  if ! interactive; then
+    info "Tailscale ist installiert, aber nicht angemeldet: sudo tailscale up (oder --tailscale-authkey)"
+    return 0
+  fi
+  local ip
+  ip=$(ip -4 route get 1.1.1.1 | awk '{for (i=1;i<=NF;i++) if ($i=="src") print $(i+1)}')
+  echo
+  info "Tailscale anmelden: den folgenden Link im Browser öffnen (wartet auf die Anmeldung)"
+  tailscale up --hostname="$(hostname)" --advertise-routes="$ip/32" --accept-dns=false || true
 }
 
 # --- Ablauf -------------------------------------------------------------------------
@@ -338,10 +406,16 @@ main() {
   fi
   [ -n "$FORMAT_TARGET" ] && format_disk "$FORMAT_TARGET"
   [ "$COLLECTED" = 1 ] && write_config
+  if [ "$RESTORE" = 1 ] && [ -z "$BACKUP_PW" ]; then
+    die "--restore braucht das Passwort des Backups (--backup-password) und das Ziel (--backup-repo)."
+  fi
+  [ -n "$BACKUP_PW" ] && write_backup_password
 
   [ "$RUN_PLAYBOOK" = 1 ] || { info "Playbook übersprungen (--no-playbook)."; exit 0; }
   run_playbook
+  [ "$RESTORE" = 1 ] && restore_backup
 
+  tailscale_login
   echo
   info "Fertig. Zugänge (auch später: sudo cat $CONFIG_DIR/zugaenge.txt):"
   echo

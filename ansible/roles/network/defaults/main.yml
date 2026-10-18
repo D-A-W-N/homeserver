@@ -1,0 +1,5 @@
+---
+# Route ins LAN, die das NAS im Tailnet anbietet. Standard: nur die eigene LAN-Adresse (/32).
+# So erreichen Geräte im VPN die NAS-Dienste unter ihren normalen Namen (AdGuard antwortet mit
+# der LAN-Adresse), aber nicht den Rest des Heimnetzes. Ganzes LAN: z. B. ["192.168.1.0/24"].
+network_tailscale_routes: []
