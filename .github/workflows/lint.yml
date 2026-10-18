@@ -8,6 +8,9 @@ permissions:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7

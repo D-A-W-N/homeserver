@@ -342,10 +342,15 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 
 **Befunde:** Emby 4.11.x sind Vorabversionen, Prowlarr/Bazarr-Tags „latest“ sind Nightly/Develop → stabile Releases über die GitHub-Releases von linuxserver ermittelt. SABnzbd: Die eingebauten Kategorien `tv`/`movies` verloren nach der Einrichtung ihren Ordner wieder (CI und lokal nachgestellt, neu angelegte Kategorien blieben stabil) → eigene Kategorien `sonarr`/`radarr`/`lidarr` mit Ordnern `tv`/`movies`/`music`, danach kontrollierter Neustart und Prüfung, dass gespeichert ist. Kategorien mit Ordner nur gezielt abfragbar (`get_config&section=categories&keyword=<Name>`), Löschen per API nicht möglich. Grenze: Bekommt SABnzbd einen neuen API-Schlüssel, werden bestehende Download-Clients nicht angepasst. `community.docker` 4.7.0 (Debian) erzeugt eine Deprecation-Warnung (`warnings` an `exit_json`), relevant erst ab ansible-core 2.23. `host_whitelist` kommt als Liste. Der Entrypoint von PS2GameManager `chown`t `/config` auf PUID:PGID. x265 bei 1080p: in der deutschen TRaSH-Wertung neutral (0), nicht geblockt. Hinweis: x265 braucht HEVC-fähige Abspielgeräte, der A4-5000 kann HEVC nicht umwandeln.
 
-### M6 – Ersteinrichtung `aunserver-setup`
-- [ ] Dialog, Plattenauswahl mit Sicherheitsabfrage, Single-Disk-Modus, App-Auswahl
+### M6 – Ersteinrichtung `aunserver-setup` ✅
+- [x] `bin/aunserver-setup`: Dialoge (whiptail) oder alle Antworten als Parameter (`--help`), schreibt `/etc/aunserver/config.yml` (0600), startet das Playbook, zeigt die Zugänge
+- [x] Datenplatte: Systemplatte, USB und Wechselmedien werden nie angeboten; Formatieren nur nach Eintippen des Gerätenamens und (im Dialog) einer Zusammenfassung; **formatiert wird erst, wenn alle Angaben vollständig sind**
+- [x] Wiederholbar: vorhandene `config.yml` und Platte mit Label `AUNDATA` werden weiterverwendet; Single-Disk-Modus
+- [x] CI testet den echten Weg: Szenario 1 (leere HDD) → Setup mit Parametern formatiert und richtet ein → zweiter Lauf `changed=0`
 
-**Abnahme:** Szenarien leere Platte, vorhandenes `AUNDATA`, zweiter Lauf und nur eine Platte bestanden.
+**Abnahme (VM, 2026-10-18):** Systemplatte als Datenplatte, falsche Bestätigung und fehlendes `--format` abgelehnt, Platte unverändert ✅. Fehlendes Passwort bricht ab, **bevor** formatiert wird ✅. Erster Lauf: Platte formatiert (GPT, ext4, 1 % Reserve), alles eingerichtet (20 Container) ✅; zweiter Lauf erkennt Konfiguration und Platte, `changed=0` ✅. Dialoge per pexpect durchgespielt: Abbruch mit Escape ändert nichts, zu kurzes Passwort wird abgelehnt, falsch eingetippter Gerätename ändert nichts, kompletter Weg bis zum Formatieren ✅. Setup-Log nur für root ✅.
+
+**Befunde:** Erste Fassung formatierte vor den übrigen Fragen (Abbruch hätte eine gelöschte, nicht eingerichtete Platte hinterlassen). Ohne gesetztes `TERM` kann whiptail nicht zeichnen (Skript bricht dann sauber ab). GitHub-Actions ohne `shell: bash` laufen ohne `pipefail` (`| tee` überdeckte Fehler). Mit `live-restore` laufen Container weiter, wenn Docker gestoppt wird.
 
 ### M7 – USB-Installer *(parallel ab M1/S2)*
 - [ ] `select-disk.sh`, `preseed.cfg.in`, `build-iso.sh` (SHA256, `md5sum.txt`, UEFI und BIOS)

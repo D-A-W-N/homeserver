@@ -4,6 +4,18 @@ Ein USB-Stick, der jederzeit ein fertiges NAS installiert: Debian 13, Docker mit
 
 > **Status:** M0 (Grundgerüst). Noch nichts lauffähig.
 
+## Einrichtung nach der Installation
+
+Nach der Installation vom USB-Stick per SSH (oder am Gerät) anmelden und ausführen:
+
+```bash
+sudo /opt/aunserver/bin/aunserver-setup
+```
+
+Das Skript fragt Datenplatte, Hostname, SSH-Schlüssel, Apps und Passwörter ab, formatiert die Datenplatte erst nach Eintippen ihres Gerätenamens und einer letzten Zusammenfassung und richtet dann alles ein (beim ersten Mal 10–20 Minuten). Am Ende zeigt es alle Zugänge (später: `sudo cat /etc/aunserver/zugaenge.txt`).
+
+Es ist jederzeit erneut ausführbar: Eine vorhandene Konfiguration (`/etc/aunserver/config.yml`) und Datenplatte (Label `AUNDATA`) werden weiterverwendet. Änderungen also in der `config.yml` vornehmen und das Skript erneut starten. Alle Antworten gehen auch als Parameter (`--help`).
+
 ## Dokumentation
 
 - [Projektplan](docs/PLAN.md): Ziele, Entscheidungen, Architektur, Meilensteine
