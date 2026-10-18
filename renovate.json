@@ -7,10 +7,19 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Container-Images der Stacks (ansible/roles/stacks/defaults/main.yml)",
+      "description": "Container-Images der Stacks",
       "managerFilePatterns": ["/^ansible/roles/stacks/defaults/main\\.yml$/"],
       "matchStrings": ["\\n\\s+[a-z0-9_]+: (?<depName>[a-z0-9.-]+\\/[a-z0-9._\\/-]+):(?<currentValue>[A-Za-z0-9._-]+)"],
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Emby veröffentlicht Betas mit normalen Versionsnummern auf Docker Hub; die GitHub-Releases markieren sie als Pre-release, die Renovate auslässt",
+      "managerFilePatterns": ["/^ansible/roles/stacks/defaults/main\\.yml$/"],
+      "matchStrings": ["\\n\\s+emby: docker\\.io/emby/embyserver:(?<currentValue>[0-9.]+)"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "MediaBrowser/Emby.Releases",
+      "versioningTemplate": "loose"
     }
   ],
   "packageRules": [
@@ -19,7 +28,25 @@
       "groupName": "GitHub Actions"
     },
     {
+      "description": "Emby nicht über Docker Hub aktualisieren (Betas dort nicht erkennbar), sondern über die GitHub-Releases (zweiter customManager). Renovate nutzt RE2 ohne Lookahead, daher hier statt im Muster",
       "matchDatasources": ["docker"],
+      "matchDepNames": ["docker.io/emby/embyserver"],
+      "enabled": false
+    },
+    {
+      "description": "ansible folgt der Version aus Debian 13 (Paket ansible 12.0.0), damit lokal und in der CI dasselbe läuft wie auf dem NAS",
+      "matchManagers": ["pip_requirements"],
+      "matchDepNames": ["ansible", "ansible-core"],
+      "enabled": false
+    },
+    {
+      "description": "Python in der CI bleibt bei 3.13: ansible-core 2.19 unterstützt nur bis 3.13",
+      "matchManagers": ["github-actions"],
+      "matchDepNames": ["python"],
+      "enabled": false
+    },
+    {
+      "matchDatasources": ["docker", "github-releases"],
       "matchUpdateTypes": ["major"],
       "labels": ["abhängigkeiten", "major"]
     }
