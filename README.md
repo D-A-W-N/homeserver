@@ -4,6 +4,18 @@ Ein USB-Stick, der jederzeit ein fertiges NAS installiert: Debian 13, Docker mit
 
 > **Status:** M0 (Grundgerüst). Noch nichts lauffähig.
 
+## USB-Stick erstellen
+
+Fertige ISOs hängen an jedem [Release](../../releases) (mit SHA256-Prüfsumme). Selbst bauen:
+
+```bash
+dev/vm-test.sh fetch          # aktuelles Debian-13-netinst-ISO laden und prüfen
+installer/build-iso.sh        # erzeugt aunserver-<version>.iso (ohne xorriso: automatisch per Docker)
+sudo dd if=aunserver-<version>.iso of=/dev/sdX bs=4M status=progress conv=fsync
+```
+
+Vom Stick booten (UEFI oder BIOS) und „aunserver installieren“ wählen. Gefragt werden nur Benutzername und Passwort; die Systemplatte wird erkannt und mit Modell, Größe und Seriennummer zur Bestätigung angezeigt, vor dem Partitionieren kommt immer noch eine Rückfrage. Platten mit Label `AUNDATA` und USB-Geräte werden nie angeboten.
+
 ## Einrichtung nach der Installation
 
 Nach der Installation vom USB-Stick per SSH (oder am Gerät) anmelden und ausführen:

@@ -1,0 +1,52 @@
+---
+# Bei jedem Tag v*: Installations-ISO bauen und als Release-Datei anhängen (Plan, M7/M9).
+name: release
+"on":
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  iso:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # für "git describe" (Version im Bootmenü)
+
+      - name: Werkzeuge installieren
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xorriso qemu-utils
+
+      - name: Debian-ISO laden und prüfen
+        run: dev/vm-test.sh fetch
+
+      - name: aunserver-ISO bauen
+        run: |
+          version=$(git describe --tags --always)
+          installer/build-iso.sh --out "aunserver-$version.iso"
+          sha256sum "aunserver-$version.iso" > "aunserver-$version.iso.sha256"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Release anlegen bzw. Dateien anhängen
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="Installations-ISO für den USB-Stick. Schreiben z. B. mit: sudo dd if=aunserver-$VERSION.iso of=/dev/sdX bs=4M status=progress conv=fsync"
+          gh release view "$VERSION" >/dev/null 2>&1 || gh release create "$VERSION" --title "aunserver $VERSION" --notes "$notes"
+          gh release upload "$VERSION" "aunserver-$VERSION.iso" "aunserver-$VERSION.iso.sha256" --clobber
+
+      - name: ISO als Artefakt (ohne Tag, z. B. manuell gestartet)
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        uses: actions/upload-artifact@v7
+        with:
+          name: aunserver-iso
+          path: aunserver-*.iso*
+          retention-days: 7
