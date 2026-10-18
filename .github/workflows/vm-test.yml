@@ -9,6 +9,7 @@ name: vm-test
       - installer/**
       - dev/**
       - stacks/**
+      - bin/**
       - .github/workflows/vm-test.yml
   workflow_dispatch:
 permissions:

@@ -75,7 +75,7 @@ done
 
 [ "$(id -u)" = 0 ] || die "Bitte mit sudo ausführen: sudo $0"
 ADMIN=${SUDO_USER:-}
-[ -n "$ADMIN" ] && [ "$ADMIN" != root ] || die "Bitte als Admin-Benutzer mit sudo starten, nicht als root."
+if [ -z "$ADMIN" ] || [ "$ADMIN" = root ]; then die "Bitte als Admin-Benutzer mit sudo starten, nicht als root."; fi
 id -nG "$ADMIN" | grep -qw sudo || die "$ADMIN ist nicht in der Gruppe sudo."
 
 # --- Dialoge -----------------------------------------------------------------------
@@ -332,7 +332,9 @@ main() {
   # Erst jetzt, wenn alles abgefragt und geprüft ist, wird die Platte formatiert:
   # ein Abbruch vorher lässt sie unverändert
   if [ -n "$FORMAT_TARGET" ] && interactive; then
-    whiptail --title "$TITLE" --yesno "Zusammenfassung:\n\n  Datenplatte:  /dev/$FORMAT_TARGET wird FORMATIERT ($(disk_info "$FORMAT_TARGET"))\n  Hostname:     $HOST\n  Adresse:      $DOMAIN\n  Apps:         ${APPS//,/, }\n  PS2-Freigabe: $([ "$PS2" = 1 ] && echo ja || echo nein)\n\nJetzt einrichten?" 16 78 || die "Abgebrochen, nichts wurde verändert."
+    local ps2_text=nein
+    [ "$PS2" = 1 ] && ps2_text=ja
+    whiptail --title "$TITLE" --yesno "Zusammenfassung:\n\n  Datenplatte:  /dev/$FORMAT_TARGET wird FORMATIERT ($(disk_info "$FORMAT_TARGET"))\n  Hostname:     $HOST\n  Adresse:      $DOMAIN\n  Apps:         ${APPS//,/, }\n  PS2-Freigabe: $ps2_text\n\nJetzt einrichten?" 16 78 || die "Abgebrochen, nichts wurde verändert."
   fi
   [ -n "$FORMAT_TARGET" ] && format_disk "$FORMAT_TARGET"
   [ "$COLLECTED" = 1 ] && write_config
