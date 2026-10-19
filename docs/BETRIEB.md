@@ -19,6 +19,8 @@ Einmalig nötig, damit die Namen wie `https://home.nas.home.arpa` funktionieren:
 
 Die IP des NAS sollte im Router fest zugewiesen sein (DHCP-Reservierung), sonst ändert sie sich irgendwann und die Namen zeigen ins Leere.
 
+**Rechner, die immer zu Hause sind** (z. B. der Desktop-PC), brauchen die Tailscale-Route zum NAS nicht: `sudo tailscale set --accept-routes=false` (Linux) bzw. in der App „Use Tailscale subnets“ aus. Sonst läuft auch zu Hause der ganze Verkehr zum NAS verschlüsselt über Tailscale, das bremst Samba-Kopien auf der schwachen NAS-CPU. Die Namen funktionieren trotzdem, den DNS liefert Tailscale weiter.
+
 Einstieg ist die Startseite `https://home.nas.home.arpa`, dort sind alle Apps verlinkt. **Cockpit** (`https://cockpit.nas.home.arpa`, direkt auch `https://<IP>:9090`) läuft auf dem Host und bleibt erreichbar, auch wenn Docker nicht läuft.
 
 ## Alltag
