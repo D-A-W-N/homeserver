@@ -41,7 +41,10 @@ http://{{ domain }} {
 
 {{ stacks_hosts.dozzle }}.{{ domain }} {
 	import geschuetzt
-	reverse_proxy 127.0.0.1:{{ stacks_ports.dozzle }}
+	reverse_proxy 127.0.0.1:{{ stacks_ports.dozzle }} {
+		# Dozzle (forward-proxy) übernimmt den bei Caddy angemeldeten Benutzer
+		header_up Remote-User {http.auth.user.id}
+	}
 }
 
 {{ stacks_hosts.scrutiny }}.{{ domain }} {

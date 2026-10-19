@@ -62,6 +62,10 @@ services:
     environment:
       DOCKER_HOST: tcp://socket-proxy:2375
       DOZZLE_NO_ANALYTICS: "true"
+      # Anmeldung macht Caddy (Web-Passwort) und reicht den Benutzer per Remote-User weiter
+      DOZZLE_AUTH_PROVIDER: forward-proxy
+    volumes:
+      - {{ appdata_dir }}/dozzle:/data
     ports:
       - 127.0.0.1:{{ stacks_ports.dozzle }}:8080
     networks: [{{ stacks_network }}]
