@@ -39,6 +39,8 @@ table inet aunserver {
 		ip saddr @lan4 tcp dport { {{ security_emby_tcp_ports | join(', ') }} } accept
 		ip saddr @lan4 udp dport { {{ security_emby_udp_ports | join(', ') }} } accept
 		ip6 saddr @lan6 tcp dport { {{ security_emby_tcp_ports | join(', ') }} } accept
+		# Emby-Apps unterwegs (und Geräte, die das NAS über die Tailscale-Route ansprechen)
+		iifname "tailscale0" tcp dport { {{ security_emby_tcp_ports | join(', ') }} } accept
 {% endif %}
 {% if apps.tailscale | bool %}
 		# Tailscale: direkte, verschlüsselte Verbindungen (sonst nur über langsamere Relays)
