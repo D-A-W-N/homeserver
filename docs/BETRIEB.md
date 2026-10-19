@@ -53,7 +53,7 @@ Auf dem Handy muss dafür das Stammzertifikat installiert sein (siehe Zugänge).
 
 Einmalig nach dem Setup im Tailscale-Konto:
 
-1. **Machines → nas → Edit route settings:** die angebotene Route (IP des NAS) freigeben.
+1. **Machines → nas → Edit route settings:** die angebotene Route (IP des NAS) freigeben. Im selben Menü **Disable key expiry** wählen, sonst meldet Tailscale das NAS nach 180 Tagen ab und der Fernzugriff ist weg.
 2. **DNS → Nameservers → Add nameserver → Custom:** die Tailscale-IP des NAS (`sudo tailscale ip -4`) eintragen und **Override local DNS** einschalten. Dann gelten die `….nas.home.arpa`-Namen auch unterwegs.
 3. **Handy:** Tailscale-App anmelden, Stammzertifikat installieren, ntfy-App einrichten.
 
