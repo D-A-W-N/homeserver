@@ -1,8 +1,8 @@
 # aunserver
 
-Ein USB-Stick, der jederzeit ein fertiges NAS installiert: Debian 13, Docker mit Verwaltung und Überwachung, Samba-Freigaben per Weboberfläche, Servarr-Medienstack (Usenet) mit Emby sowie Netzwerk-Apps (Caddy, AdGuard Home, Tailscale, Homepage).
+Ein USB-Stick, der jederzeit ein fertiges NAS installiert: Debian 13, Docker mit Verwaltung und Überwachung, Samba-Freigaben per Weboberfläche, Servarr-Medienstack (Usenet) mit Emby, Netzwerk-Apps (Caddy, AdGuard Home, Tailscale, Homepage), tägliches Backup der Einstellungen (restic) und Updates per Befehl.
 
-> **Status:** Funktionsumfang komplett (M0–M8), in VMs und CI getestet; Umzug auf das echte NAS steht an (M9).
+> **Status:** Läuft auf dem echten NAS (seit 2026-10-19, `v0.9.0` + Updates). Alle Meilensteine M0–M9 umgesetzt, in VMs und CI getestet; offen ist nur der Test mit der PS2 (OPL).
 
 ## USB-Stick erstellen
 
@@ -14,7 +14,7 @@ installer/build-iso.sh        # erzeugt aunserver-<version>.iso (ohne xorriso: a
 sudo dd if=aunserver-<version>.iso of=/dev/sdX bs=4M status=progress conv=fsync
 ```
 
-Vom Stick booten (UEFI oder BIOS) und „aunserver installieren“ wählen. Gefragt werden nur Benutzername und Passwort; die Systemplatte wird erkannt und mit Modell, Größe und Seriennummer zur Bestätigung angezeigt, vor dem Partitionieren kommt immer noch eine Rückfrage. Platten mit Label `AUNDATA` und USB-Geräte werden nie angeboten.
+Unter Windows mit Rufus im **DD-Modus** schreiben; Ventoy ist nicht getestet. Vom Stick booten (UEFI oder BIOS) und „aunserver installieren“ wählen. Gefragt werden nur Benutzername und Passwort; die Systemplatte wird erkannt und mit Modell, Größe und Seriennummer zur Bestätigung angezeigt, vor dem Partitionieren kommt immer noch eine Rückfrage. Platten mit Label `AUNDATA` und USB-Geräte werden nie angeboten.
 
 ## Einrichtung nach der Installation
 
@@ -34,8 +34,9 @@ Updates: Debian und Docker aktualisieren sich selbst; neue Stände von aunserver
 
 ## Dokumentation
 
-- [Betrieb](docs/BETRIEB.md): Zugänge, Updates, Backup und Wiederherstellung, Fehlersuche
-- [Projektplan](docs/PLAN.md): Ziele, Entscheidungen, Architektur, Meilensteine
+- [Betrieb](docs/BETRIEB.md): Zugänge, DNS ohne Router-Einstellung, Apps verbinden, Updates, Backup und Wiederherstellung, Fehlersuche
+- [Projektplan](docs/PLAN.md): Ziele, Entscheidungen, Architektur, Meilensteine mit Abnahme und Befunden
+- [Spikes](docs/spikes.md): Ergebnisse der Vorab-Tests (M1)
 
 ## Entwicklung
 

@@ -2,7 +2,7 @@
 
 Ein USB-Stick, der jederzeit ein fertiges NAS installiert: aktuelles Debian, Docker mit Verwaltung und Überwachung, Samba-Freigaben per Weboberfläche, Servarr-Medienstack (Usenet), Netzwerk-Apps und eine sichere Grundkonfiguration.
 
-Stand: 2026-10-17 · Status: Planung (Neustart, ersetzt das alte Konzept)
+Stand: 2026-10-19 · Status: im Betrieb auf dem echten NAS (`v0.9.0` + Updates), Abnahme bis auf PS2/OPL erledigt
 
 ---
 
@@ -40,11 +40,11 @@ Stand: 2026-10-17 · Status: Planung (Neustart, ersetzt das alte Konzept)
 | D5 | Verwaltungsoberfläche | **Cockpit** (System, Platten, Updates, Terminal) mit Plugins **file-sharing** (Samba), **navigator** (Dateien), **identities** (Benutzer) | Läuft auf dem Host und bleibt deshalb erreichbar, auch wenn Docker nicht läuft. |
 | D6 | Samba | **Weboberfläche ist führend** (Cockpit file-sharing, Samba-Registry). Ansible legt nur Grundkonfiguration und Start-Shares an und überschreibt danach nichts mehr | Gewünscht: „sehr leicht verwalten“. Wiederherstellbar durch Backup des Registry-Exports (`net conf list`). |
 | D7 | Docker-Verwaltung | **Arcane** (geändert am 2026-10-18, vorher Dockge) | Dockge ohne Release seit 03/2025; Arcane aktiv gepflegt, Compose-Stacks unter `/opt/stacks`, Logs, Ressourcen, Image-Updates. |
-| D8 | Stacks | Mitgelieferte Stacks rendert Ansible aus Vorlagen nach `/opt/stacks/<name>`. **Eigene Stacks** legst du frei in Dockge an, Ansible fasst sie nie an | Klare Grenze zwischen „gehört dem Projekt“ und „gehört dir“. |
+| D8 | Stacks | Mitgelieferte Stacks rendert Ansible aus Vorlagen nach `/opt/stacks/<name>`. **Eigene Stacks** legst du frei in Arcane an, Ansible fasst sie nie an | Klare Grenze zwischen „gehört dem Projekt“ und „gehört dir“. |
 | D9 | Monitoring | **Beszel** (Host und Container: CPU, RAM, Netz, Temperaturen, Alarme), **Scrutiny** (SMART), **Dozzle** (Logs), **ntfy** (Push-Benachrichtigung) | Alles leichtgewichtig, auch für schwache NAS-CPUs geeignet. |
 | D10 | Zugriff auf Web-Apps | **Caddy** als Reverse Proxy, alle Apps unter `https://<app>.<domain>`. Caddy und AdGuard laufen im **Host-Netzwerk**, alle anderen Container veröffentlichen Ports nur an `127.0.0.1` | Docker öffnet selbst keinen Port ins LAN, die Host-Firewall entscheidet allein (Spikes S3/S4). |
 | D11 | DNS | **AdGuard Home** als DNS für das Heimnetz, mit Rewrite `*.<domain>` → NAS-IP | Werbeblocker und lokale Namen in einem Dienst. |
-| D12 | Fernzugriff | **Tailscale** auf dem Host (Default) oder **WireGuard** (wg-easy), per Config wählbar | Tailscale braucht keine Portfreigabe, WireGuard bleibt ohne Drittanbieter. |
+| D12 | Fernzugriff | **Tailscale** auf dem Host. WireGuard (wg-easy) war als Alternative vorgesehen, ist aber nicht umgesetzt (`apps.wireguard` bleibt `false`) | Tailscale braucht keine Portfreigabe und verteilt auch den DNS (Split DNS für `nas.home.arpa`). |
 | D13 | Image-Versionen | **Feste Tags** in `group_vars`, **Renovate** erzeugt Update-PRs im Repo | Reproduzierbar, Updates bleiben trotzdem einfach. |
 | D14 | Sprache | Deutsch (Doku, Skriptausgaben, Kommentare) | wie bisher |
 | D15 | Media-Server | **Emby** | Wird heute schon genutzt. |
@@ -67,7 +67,7 @@ flowchart LR
     SET --> CFG["/etc/aunserver/config.yml"]
   end
   subgraph C["3 · Ansible"]
-    CFG --> R["base · security · storage · docker<br/>cockpit · samba · network · stacks · backup"]
+    CFG --> R["base · security · storage · docker<br/>cockpit · samba · network · stacks<br/>backup · update"]
   end
   R --> RUN["Laufendes NAS"]
 ```
@@ -120,15 +120,15 @@ flowchart LR
 | Recyclarr | Qualitätsprofile nach TRaSH Guides, automatisch synchronisiert |
 | Emby | Media-Server (Direct Play, Medienordner beschreibbar für Cover und Metadaten) |
 | Bücher *(optional)* | Readarr ist eingestellt; Audiobookshelf und/oder Calibre-Web als Ersatz, siehe O6 |
-| **Recommendarr** *(eigene App)* | Empfehlungen auf Basis von Sonarr/Radarr; Compose-Datei kommt vom Nutzer |
-| **PS2GameManager** *(eigene App)* | Verwaltung der PS2-Spiele im OPL-Ordner (`games/ps2`); Compose-Datei kommt vom Nutzer |
+| **Recommendarr** *(eigene App)* | Empfehlungen auf Basis von Sonarr/Radarr; Compose-Datei vom Nutzer übernommen |
+| **PS2GameManager** *(eigene App)* | Verwaltung der PS2-Spiele im OPL-Ordner (`games/ps2`); Compose-Datei vom Nutzer übernommen, eigener Stack `ps2`, zusätzlich im Netz `media_default` (für SABnzbd) |
 
 ### 4.4 Netzwerk
 
 | Dienst | Zweck |
 |---|---|
 | AdGuard Home | DNS fürs Heimnetz, Werbeblocker, lokale Namen |
-| Tailscale *oder* wg-easy | Fernzugriff ohne Portfreigabe; Tailscale nutzt AdGuard als DNS |
+| Tailscale | Fernzugriff ohne Portfreigabe; per Split DNS fragen Tailscale-Geräte AdGuard nach `nas.home.arpa` (Weg für Router ohne DNS-Einstellung) |
 | Caddy | siehe 4.1 |
 
 Jeder Dienst lässt sich in `config.yml` einzeln ein- und ausschalten:
@@ -182,16 +182,16 @@ Grundsatz: **Nichts ist aus dem Internet erreichbar.** Zugriff gibt es nur aus d
 
 | Bereich | Maßnahme |
 |---|---|
-| Firewall | nftables, Default **drop** eingehend. Erlaubt aus LAN und VPN: 22, 53, 80, 443, 445, 9090 (+ 3702 TCP/UDP für wsdd2, 5355 UDP für LLMNR). Port 1445 (SMB1) nur aus dem LAN, nie per VPN, auf Wunsch nur von der PS2-IP |
+| Firewall | nftables, Default **drop** eingehend. Aus dem LAN: 22, 53, 80, 443, 445, 9090 (+ 3702 TCP/UDP für wsdd2, 5355 UDP für LLMNR), Emby 8096 TCP und 7359 UDP. Über Tailscale (`tailscale0`): 22, 53, 80, 443, 445, 9090. Tailscale selbst: UDP 41641. Port 1445 (SMB1) nur aus dem LAN, nie per VPN, auf Wunsch nur von der PS2-IP |
 | SMB1 | Nur in der getrennten Legacy-Instanz (D19), nur der PS2-Ordner, eigenes Konto `ps2` ohne Shell und mit eigenem Passwort |
 | Docker vs. Firewall | Container-Ports nur an `127.0.0.1`, Zugriff ausschließlich über Caddy (Host-Netzwerk). Zusätzlich verwirft eine forward-Regel neue DNAT-Verbindungen aus LAN/VPN zu Containern, damit auch ein versehentlich auf `0.0.0.0` veröffentlichter Port zu bleibt. Eigene nftables-Tabelle, nie `flush ruleset` (S4) |
 | Docker-Socket | Homepage, Dozzle und Beszel nur über **socket-proxy (read-only)**. Arcane braucht den vollen Socket, ist root-gleich und deshalb nur hinter Caddy aus dem LAN erreichbar |
-| SSH | nur Schlüssel (`ssh_authorized_keys` in der Config), kein Root-Login, Passwort-Login nach der Einrichtung aus |
+| SSH | nur Schlüssel (`ssh_authorized_keys` in der Config), kein Root-Login; Passwort-Login nach der Einrichtung aus, sofern ein Schlüssel hinterlegt ist (sonst bleibt er an, Hinweis im Setup) |
 | Brute-Force | fail2ban für SSH (optional, Default an) |
 | Konten | Root gesperrt, ein Admin mit sudo, eigenes Samba-Passwort |
 | Samba | mindestens SMB3, Signing an, kein Gast-Zugriff, keine `configs`-Freigabe |
-| Web-Apps | HTTPS über Caddy. Alle \*arr-Apps mit eigener Anmeldung. Optional später zentrales Login (TinyAuth/Authelia), siehe O5 |
-| Updates | `unattended-upgrades` für Debian **und** Docker-Repo, Neustartfenster konfigurierbar (Default 04:00, nur bei Bedarf). Container-Updates per Renovate-PR bzw. bewusst in Dockge |
+| Web-Apps | HTTPS über Caddy. Servarr-Apps mit eigener Anmeldung (Admin + Web-Passwort); Apps ohne eigenes Login (SABnzbd, Bazarr, Dozzle, Scrutiny, Recommendarr, PS2GameManager) hinter Caddy-Passwort, Dozzle übernimmt den Benutzer (forward-proxy). Optional später zentrales Login (TinyAuth/Authelia), siehe O5 |
+| Updates | `unattended-upgrades` für Debian **und** Docker-Repo, Neustartfenster konfigurierbar (Default 04:00, nur bei Bedarf). Container-Images und aunserver selbst per Renovate-PR → `main` → `aunserver-update` (D20); nicht in Arcane aktualisieren, das nächste Setup würde zurückdrehen |
 | Secrets | nie im Repo; `config.yml`, `.env`, `*.secret` in `.gitignore`, gitleaks in der CI |
 | Kernel/System | AppArmor (Debian-Default) aktiv, `sysctl`-Baseline (z. B. `kernel.dmesg_restrict`, keine ICMP-Redirects) |
 | Supply Chain | Image-Tags gepinnt, Fremd-Repos (Docker, 45Drives, Tailscale) mit Schlüssel im Repo, keine `curl \| sh`-Installation |
@@ -204,10 +204,9 @@ Grundsatz: **Nichts ist aus dem Internet erreichbar.** Zugriff gibt es nur aus d
 
 - Preseed-Datei und Bootmenü-Eintrag „aunserver installieren“ (UEFI und BIOS),
 - `select-disk.sh` für die Plattenauswahl,
-- einer Kopie des Repos (Tag) unter `/aunserver`,
-- optional einer vorbereiteten `config.yml` für eine unbeaufsichtigte Einrichtung.
+- dem Repo als Archiv (`aunserver-installer/aunserver.tar.gz`, Commit in `COMMIT`).
 
-Danach schreibst du das ISO mit `dd`, Ventoy oder balenaEtcher auf den Stick. Später baut die CI das ISO automatisch bei jedem Release-Tag.
+Danach schreibst du das ISO mit `dd`, GNOME Disks, balenaEtcher oder Rufus (DD-Modus) auf den Stick; Ventoy ist nicht getestet. Fertige ISOs baut die CI bei jedem Release-Tag (`release.yml`).
 
 ### 7.2 Installation (am Gerät, Monitor und Tastatur einmalig nötig)
 
@@ -226,15 +225,18 @@ Ein Dialog (whiptail) direkt am Gerät oder per SSH, idempotent und jederzeit er
 3. Apps auswählen (Checkliste, Defaults wie in 4.4).
 4. `config.yml` schreiben, Ansible ausführen.
 5. Samba-Passwort setzen, Tailscale-Login-Link anzeigen.
-6. Zusammenfassung: Startseite `https://home.<domain>`, Cockpit `https://<ip>:9090`, DNS-Hinweis für den Router.
+6. Zugangsübersicht (`/etc/aunserver/zugaenge.txt`): Startseite `https://home.<domain>`, Cockpit `https://<ip>:9090`, DNS-Hinweis, Passwörter, Tailscale-Schritte, Backup.
 
-**Danach im Browser:** AdGuard als DNS im Router eintragen, Caddy-Stammzertifikat einmal auf den Geräten installieren (Link auf der Startseite), Indexer in Prowlarr, Usenet-Server in SABnzbd, Bibliotheken in Emby.
+Optional: Backup-Ziel (`--backup-repo`) und `--restore` für eine Neuinstallation aus einem vorhandenen Backup (M8).
+
+**Danach im Browser:** AdGuard als DNS im Router eintragen (oder Split DNS in Tailscale, siehe BETRIEB.md), Caddy-Stammzertifikat einmal auf den Geräten installieren (Link auf der Startseite), Indexer in Prowlarr, Usenet-Server in SABnzbd, Bibliotheken in Emby.
 
 ## 8. Repo-Struktur
 
 ```
 aunserver/
 ├── README.md
+├── COMMIT                       # git archive trägt den Commit ein (export-subst, D20)
 ├── config.example.yml
 ├── docs/
 │   ├── PLAN.md                  # dieses Dokument
@@ -243,34 +245,44 @@ aunserver/
 ├── installer/
 │   ├── build-iso.sh
 │   ├── preseed.cfg.in
-│   └── select-disk.sh
+│   ├── select-disk.sh
+│   └── aunserver-login.sh       # Login-Hinweis aufs Setup
 ├── bin/
-│   └── aunserver-setup
+│   ├── aunserver-setup
+│   └── aunserver-update
 ├── ansible/
 │   ├── site.yml
-│   ├── group_vars/all.yml       # Defaults inkl. gepinnter Image-Tags
+│   ├── group_vars/all.yml       # Defaults der config.yml
+│   ├── filter_plugins/          # arr_from_schema
 │   └── roles/
 │       ├── base/                # Pakete, Zeitzone, zram, Updates, Backports
 │       ├── security/            # SSH, nftables, fail2ban, sysctl
-│       ├── storage/             # Mount, Ordner, chattr
+│       ├── storage/             # Mount per Label, Ordner, chattr
 │       ├── docker/
 │       ├── cockpit/
-│       ├── samba/               # Grundkonfiguration, wsdd2, Start-Shares
-│       ├── network/             # Tailscale bzw. WireGuard
-│       ├── stacks/              # rendert stacks/* nach /opt/stacks
-│       └── backup/              # restic + Timer + ntfy bei Fehler
+│       ├── samba/               # Grundkonfiguration, wsdd2, Start-Shares, SMB1-Instanz
+│       ├── network/             # Tailscale
+│       ├── stacks/              # rendert stacks/* nach /opt/stacks, gepinnte Images in defaults/
+│       ├── backup/              # restic + Timer + ntfy bei Fehler
+│       └── update/              # aunserver-update im Pfad, täglicher Check
 ├── stacks/
 │   ├── proxy/                   # caddy
 │   ├── dns/                     # adguard
 │   ├── socket-proxy/            # Nur-Lese-Zugriff auf Docker
 │   ├── dashboard/               # homepage, arcane
 │   ├── monitoring/              # beszel, scrutiny, dozzle, ntfy, uptime-kuma
-│   └── media/                   # prowlarr, sabnzbd, *arr, bazarr, recyclarr, emby
+│   ├── media/                   # prowlarr, sabnzbd, *arr, bazarr, recyclarr, emby, recommendarr
+│   ├── ps2/                     # ps2gamemanager
+│   └── zugaenge.txt.j2          # Zugangsübersicht
 ├── dev/
-│   └── vm-test.sh               # QEMU-Testmatrix
+│   ├── vm-test.sh               # QEMU-Testmatrix
+│   ├── vm-ansible.sh            # Repo in die VM, Playbook ausführen
+│   └── preseed-dev.cfg
 ├── renovate.json
 └── .github/workflows/
-    ├── lint.yml                 # shellcheck, yamllint, ansible-lint, gitleaks
+    ├── lint.yml                 # shellcheck, yamllint, ansible-lint, Renovate-Validator, gitleaks
+    ├── vm-test.yml              # Dev-ISO bauen, installieren, Setup zweimal, Backup/Restore (UEFI + BIOS)
+    ├── iso-cache.yml            # Debian-ISO im Cache von main
     └── release.yml              # ISO bauen bei Tag
 ```
 
@@ -287,7 +299,7 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 **Abnahme:** CI grün, VM startet mit netinst.
 
 ### M1 – Spikes (Wegwerfcode, Ergebnisse in `docs/spikes.md`)
-- [x] **S1** Cockpit-Plugins (file-sharing, navigator, identities) auf Debian 13 installierbar? Samba-Registry funktioniert? → Ja, Pakete von GitHub-Releases (gepinnt), NFS/rpcbind maskieren; Details in [spikes.md](spikes.md). Bestätigung per Klick in der Weboberfläche steht noch aus.
+- [x] **S1** Cockpit-Plugins (file-sharing, navigator, identities) auf Debian 13 installierbar? Samba-Registry funktioniert? → Ja, Pakete von GitHub-Releases (gepinnt), NFS/rpcbind maskieren; Details in [spikes.md](spikes.md). Freigabe per Klick auf dem echten Server bestätigt (2026-10-19).
 - [x] **S2** Preseed: Welche Fragen erscheinen? Bleibt die Partitionsbestätigung manuell? Läuft `select-disk.sh` in der Installer-Busybox? → Ja; Hostname nicht abfragbar, `admin` reserviert; Entwürfe in `installer/` (BIOS offen)
 - [x] **S3** AdGuard auf Port 53, Caddy mit `tls internal` und Wildcard-Namen → läuft im Host-Netzwerk, AdGuard per API einrichtbar (UI auf `127.0.0.1:8083`), Caddyfile als Ordner mounten
 - [x] **S4** Docker-Ports an `127.0.0.1` und nftables → nur die freigegebenen Ports offen; forward-Regel schließt die Docker-Lücke
@@ -312,7 +324,7 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 
 **Abnahme (VM, 2026-10-18):** Von außen durch die Firewall getestet: SMB3-Schreiben als Admin ✅, SMB1 an 445 abgelehnt ✅, Gast abgelehnt ✅, `ps2` an der Hauptinstanz abgelehnt ✅, SMB1-Schreiben als `ps2` in `DVD/` ✅, SMB3 an 1445 abgelehnt ✅, Admin an der PS2-Instanz abgelehnt ✅. Neue Registry-Freigabe (wie Cockpit) sofort erreichbar und vom nächsten Playbook-Lauf unberührt ✅. Nach Reboot lauschen nur 22, 445, 1445, 3702, 5355, 9090 ✅. **Testmatrix 7:** ohne Datenplatte Boot in 18 s, Status `running`, Docker und PS2-Instanz aus, SSH/Cockpit an, leerer Mountpoint selbst für root schreibgeschützt ✅; mit Platte kommt alles von selbst zurück ✅.
 
-**Auf dem echten Server testen (M9):** Freigabe per Klick in Cockpit (Mechanismus `net conf` ist getestet) · PS2 mit OPL (S5).
+**Auf dem echten Server (M9):** Freigabe per Klick in Cockpit ✅ · PS2 mit OPL (S5) noch offen.
 
 **Befunde:** `smbd` übernimmt geänderte `smb ports` nur bei Neustart, nicht bei reload (Port 139 blieb offen). `cockpit-file-sharing` zieht mehr NFS-Dienste mit als in S1 gesehen (Port 2049 und RPC-Ports), jetzt alle maskiert. wsdd2 nutzt TCP 3702 (nicht 5357). Gerätenamen wechseln auch zwischen zwei Boots derselben VM (`sdb` → `sda`).
 
@@ -324,7 +336,7 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 
 **Abnahme (VM, 2026-10-18):** DNS löst `nas.home.arpa` und `*.nas.home.arpa` auf die NAS-IP auf, Werbung → `0.0.0.0` ✅. Stammzertifikat per HTTP abholbar, alle Apps per HTTPS mit dieser CA ✅. Dozzle/Scrutiny nur mit Web-Passwort ✅. Socket-Proxy: lesen 200, Container stoppen 403 ✅. Cockpit-WebSocket über Caddy und direkt über `:9090`, fremder Origin 403 ✅. **Alarmkette:** Scrutiny-Test → ntfy ✅; Beszel-Agent gestoppt → nach 2 min „Connection to nas is down“ über ntfy, nach Start „is up“ ✅. Reboot: alle 10 Container zurück ✅. Zweiter Lauf `changed=0` ✅.
 
-**Offen:** Push aufs Handy (siehe O8) · Testalarm auf echtem Handy.
+**Auf dem echten Server (M9):** ntfy-App am Handy über Tailscale empfängt die Meldungen ✅ (O8).
 
 **Befunde:** socket-proxy braucht `/tmp` als tmpfs bei `read_only`. `docker.sock:ro` schützt nicht vor API-Schreibzugriffen (Beszel-Beispiel). Cockpit `Origins` ersetzt die Standardregel (direkter Zugriff war sonst kaputt). Beszel: Erstbenutzer hat Rolle `user` und bekommt dann keine Alarme an interne Ziele; Einstellungen werden beim Anlegen durch Vorgaben ersetzt; Fehler landen nur im internen Log (`/api/logs`), nicht auf der Konsole. Arcane-Erstzugang `arcane`/`arcane-admin` mit erzwungenem Wechsel (Quellcode geprüft).
 
@@ -339,9 +351,9 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 
 **Von Hand (bewusst):** Usenet-Server in SABnzbd, Indexer in Prowlarr, Emby-Konto und Bibliotheken.
 **Bazarr:** per API mit Sonarr/Radarr verbunden (SignalR live), Sprachprofil „Deutsch + Englisch“ als Standard für neue Serien/Filme; wird nur angelegt, solange kein Profil existiert (Bazarr löscht beim Speichern nicht mitgeschickte Profile). Untertitel-Anbieter trägt der Nutzer ein.
-**Offen:** Testdownload mit echtem Usenet-Zugang auf dem echten Server.
+**Auf dem echten Server (M9):** Download über SABnzbd mit echtem Usenet-Zugang ✅ (84 MB/s).
 
-**Befunde:** Emby 4.11.x sind Vorabversionen, Prowlarr/Bazarr-Tags „latest“ sind Nightly/Develop → stabile Releases über die GitHub-Releases von linuxserver ermittelt. SABnzbd: Die eingebauten Kategorien `tv`/`movies` verloren nach der Einrichtung ihren Ordner wieder (CI und lokal nachgestellt, neu angelegte Kategorien blieben stabil) → eigene Kategorien `sonarr`/`radarr`/`lidarr` mit Ordnern `tv`/`movies`/`music`, danach kontrollierter Neustart und Prüfung, dass gespeichert ist. Kategorien mit Ordner nur gezielt abfragbar (`get_config&section=categories&keyword=<Name>`), Löschen per API nicht möglich. Grenze: Bekommt SABnzbd einen neuen API-Schlüssel, werden bestehende Download-Clients nicht angepasst. `community.docker` 4.7.0 (Debian) erzeugt eine Deprecation-Warnung (`warnings` an `exit_json`), relevant erst ab ansible-core 2.23. `host_whitelist` kommt als Liste. Der Entrypoint von PS2GameManager `chown`t `/config` auf PUID:PGID. x265 bei 1080p: in der deutschen TRaSH-Wertung neutral (0), nicht geblockt. Hinweis: x265 braucht HEVC-fähige Abspielgeräte, der A4-5000 kann HEVC nicht umwandeln.
+**Befunde:** Emby 4.11.x sind Vorabversionen, Prowlarr/Bazarr-Tags „latest“ sind Nightly/Develop → stabile Releases über die GitHub-Releases von linuxserver ermittelt. SABnzbd: Die eingebauten Kategorien `tv`/`movies` verloren nach der Einrichtung ihren Ordner wieder (CI und lokal nachgestellt, neu angelegte Kategorien blieben stabil) → eigene Kategorien `sonarr`/`radarr`/`lidarr` mit Ordnern `tv`/`movies`/`music`, danach kontrollierter Neustart und Prüfung, dass gespeichert ist. Kategorien mit Ordner nur gezielt abfragbar (`get_config&section=categories&keyword=<Name>`), Löschen per API nicht möglich. Grenze: Bekommt SABnzbd einen neuen API-Schlüssel, werden bestehende Download-Clients nicht angepasst. Deprecation-Warnung `warnings` an `exit_json` (relevant ab ansible-core 2.23): Quelle war `ansible.posix.mount`, in M8 durch eigene fstab-Pflege ersetzt, seitdem keine Warnungen. `host_whitelist` kommt als Liste. Der Entrypoint von PS2GameManager `chown`t `/config` auf PUID:PGID. x265 bei 1080p: in der deutschen TRaSH-Wertung neutral (0), nicht geblockt. Hinweis: x265 braucht HEVC-fähige Abspielgeräte, der A4-5000 kann HEVC nicht umwandeln.
 
 ### M6 – Ersteinrichtung `aunserver-setup` ✅
 - [x] `bin/aunserver-setup`: Dialoge (whiptail) oder alle Antworten als Parameter (`--help`), schreibt `/etc/aunserver/config.yml` (0600), startet das Playbook, zeigt die Zugänge
@@ -370,7 +382,7 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 - [x] `aunserver-backup snapshots | restore [ID]`; Neuinstallation: `aunserver-setup --restore` (fragt Ziel und Backup-Passwort ab), spielt nach der Einrichtung zurück und gleicht danach erneut ab
 - [x] CI: Setup mit Backup-Ziel, Backup ausführen, gelöschte Sonarr-Konfiguration zurückspielen
 
-**Abnahme (VM, 2026-10-18):** Tailscale mit Auth-Key angemeldet, Route `10.0.2.15/32`, Zugangsübersicht korrekt; Backup 31 s, alle Container laufen danach wieder; kaputtes Ziel → ntfy-Meldung „Backup fehlgeschlagen“; Restore im selben System (Sonarr-Daten gelöscht → Tag zurück). **Frische Installation + `--restore`:** Sonarr-Tag, zusätzliche Samba-Freigabe und alle 20 Container zurück, danach changed=0 ✅. Auf dem echten Server offen: Route freigeben, DNS im Tailnet, ntfy-App am Handy.
+**Abnahme (VM, 2026-10-18):** Tailscale mit Auth-Key angemeldet, Route `10.0.2.15/32`, Zugangsübersicht korrekt; Backup 31 s, alle Container laufen danach wieder; kaputtes Ziel → ntfy-Meldung „Backup fehlgeschlagen“; Restore im selben System (Sonarr-Daten gelöscht → Tag zurück). **Frische Installation + `--restore`:** Sonarr-Tag, zusätzliche Samba-Freigabe und alle 20 Container zurück, danach changed=0 ✅. Auf dem echten Server (M9): Route freigegeben, DNS im Tailnet, ntfy-App am Handy ✅.
 
 **Befunde:** Nach einer Neuinstallation erzeugte das Setup ein neues Backup-Passwort → `--backup-password`/`--restore`. Beim Zurückspielen müssen **alle** Stacks gestoppt sein, sonst behält AdGuard die Einstellungen im Speicher und schreibt sie zurück (Passwort passte nicht mehr). AdGuard-Einrichtung wird an `AdGuardHome.yaml` erkannt statt per HTTP (direkt nach einem Neustart antwortet noch kein Port). Zugangsübersicht las den Tailscale-Zustand vor der Anmeldung. Testumgebung: Unter Spiellast auf dem Host kamen in der VM beschädigte Dateien an (lzma-Fehler, falsche Prüfsummen); ohne Last fehlerfrei → vermutlich RAM/Takt des Hosts. `dev/vm-test.sh` kann dafür `CPU_MODEL` und `DRIVE_OPTS` setzen.
 
@@ -379,9 +391,11 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 - [x] Renovate-App für das Repo aktiviert
 - [x] `aunserver-update` (D20): Stand von `main` holen, vorher Backup, Setup ausführen, `--rollback`; täglicher Check meldet neue Stände per ntfy (`updates`); `aunserver-setup`/`aunserver-update` liegen im Pfad
 - [x] `docs/BETRIEB.md`, README auf aktuellen Stand
-- [ ] Release `v0.9.0` taggen (ISO für den Umzug), `v1.0.0` nach der Abnahme auf dem echten Server
-- [ ] Umstellung des echten NAS (vorher Configs des Altsystems sichern)
-- [ ] Abnahme auf dem echten Server: Freigabe per Klick in Cockpit anlegen und von Windows erreichen; PS2 mit OPL über die SMB1-Freigabe (Port in OPL auf 1445, sonst Fallback zweite IP, S5); Tailscale-Route und DNS freigeben, ntfy-App am Handy
+- [x] Release `v0.9.0` (ISO für den Umzug); `v1.0.0` nach der Abnahme
+- [x] Umstellung des echten NAS am 2026-10-19: frisch installiert (keine Altdaten übernommen), HDD neu formatiert (ext4)
+- [ ] Abnahme auf dem echten Server: Cockpit-Freigabe per Klick ✅, ntfy am Handy ✅, Tailscale (Route, DNS) ✅, erstes Update per `aunserver-update` ✅, Download über SABnzbd ✅; **offen: PS2 mit OPL** über die SMB1-Freigabe (Port 1445, sonst Fallback zweite IP, S5)
+
+**Befunde echter Server (2026-10-19):** Vodafone-Kabelbox erlaubt keinen eigenen DNS-Server → Namen per Tailscale-Split-DNS (`nas.home.arpa`), dokumentiert in BETRIEB.md. Zugangsübersicht meldete Tailscale nach der Anmeldung per Link als „nicht angemeldet“ (#26). Dozzle v11 verlangte eigene Anmeldung und `/data` → Anmeldung über Caddy (forward-proxy), `/data` unter appdata (#27). SABnzbd wies Zugriffe über Tailscale ab (X-Forwarded-For 100.x) → `verify_xff_header=0`, `local_ranges` ist über die API gesperrt (#27). PS2GameManager erreichte SABnzbd nicht (anderes Docker-Netz) → zusätzlich in `media_default` (#28). Einmalige Meldungen bei der Ersteinrichtung (polkit vor Anlage seines Benutzers gestartet, zram beim Umkonfigurieren) ohne Folgen. Last: SABnzbd belegt beim Download mit 84 MB/s etwa 2 der 4 Kerne des A4-5000, sonst Leerlauf.
 
 ```
 M0 → M1 ─┬→ M2 → M3 → M4 → M5 → M6 ─┬→ M8 → M9
@@ -412,7 +426,7 @@ Entschieden am 2026-10-17: Media-Server, Ort der Configs, lokale Domain und Hard
 | O3 | Mehrere Datenplatten? | V1: eine Datenplatte. V2 optional: mergerfs (Pool) + SnapRAID (Parität) |
 | O5 | Zentrales Login vor allen Apps? | V1 nein (Apps haben eigene Anmeldung), V2 TinyAuth |
 | O6 | Bücher/Hörbücher? | Audiobookshelf optional |
-| O8 | Push aufs Handy | **Entschieden (M8): ntfy-App über Tailscale.** Lokales ntfy ist nur im LAN/VPN erreichbar und braucht auf dem Handy die eigene CA. Alternativen: ntfy-App mit Tailscale, oder Alarme zusätzlich an ntfy.sh mit geheimem Thema (Inhalte verlassen das Heimnetz) |
+| O8 | Push aufs Handy | **Entschieden und umgesetzt: ntfy-App über Tailscale** (auf dem echten Handy getestet). Verworfen: Alarme zusätzlich an ntfy.sh mit geheimem Thema (Inhalte verlassen das Heimnetz) |
 
 ## 12. Risiken
 
@@ -420,9 +434,9 @@ Entschieden am 2026-10-17: Media-Server, Ort der Configs, lokale Domain und Hard
 |---|---|---|
 | Cockpit-Plugins: kein Trixie im 45Drives-Apt-Repo | Updates kommen nicht automatisch | Trixie-Pakete aus GitHub-Releases, Version + SHA256 in `group_vars`, Renovate meldet neue Releases (S1) |
 | Preseed-Verhalten (Fragen, Bestätigung) | Installer fragt zu viel oder zu wenig | Spike S2, Testmatrix |
-| Port 53 belegt | AdGuard startet nicht | Auf Debian 13 frei (S3); Rolle prüft vor dem Start, dass nichts auf 53 lauscht |
-| Schwache CPU (A4-5000) | Emby ruckelt bei Transcoding | Direct Play, Clients mit passenden Codecs, kein Transcoding einplanen |
+| Port 53 belegt | AdGuard startet nicht | Auf Debian 13 frei (S3), auf dem echten Server ohne Probleme. Eine eigene Prüfung vor dem Start gibt es nicht, der Fehler zeigt sich im Setup |
+| Schwache CPU (A4-5000) | Emby ruckelt bei Transcoding; SABnzbd belegt beim Download ~2 Kerne | Direct Play (Transcoding pro Benutzer abschaltbar), Clients mit passenden Codecs; Download-Last ist erwartet |
 | Einzelne HDD ohne Redundanz | Datenverlust bei Plattenausfall | Scrutiny-Warnung, Backup der Configs, wichtige Freigaben zusätzlich sichern |
 | OPL kann keinen anderen SMB-Port als 445 | PS2-Freigabe nicht erreichbar | Test mit echter PS2; Fallback: zweite IP am Host, Legacy-Instanz dort auf 445 (S5) |
 | SMB1/NTLMv1 ist unsicher | Passwort von `ps2` ist mitlesbar | eigenes Wegwerf-Passwort, Konto ohne Shell, nur ein Ordner, Port nur im LAN |
-| Caddy-CA auf jedem Gerät nötig | Zertifikatswarnungen | Download-Link und Anleitung je Betriebssystem auf der Startseite |
+| Caddy-CA auf jedem Gerät nötig | Zertifikatswarnungen | Download-Link auf der Startseite, Anleitung (u. a. Android) in BETRIEB.md |
