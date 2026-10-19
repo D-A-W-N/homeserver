@@ -94,6 +94,18 @@
   changed_when: true
   no_log: true
 
+# SABnzbd nahm die Client-IP aus X-Forwarded-For und wies Zugriffe über Tailscale (100.x) als
+# "extern" ab (Befund echter Server). local_ranges ist über die API gesperrt; ohne XFF sieht
+# SABnzbd Caddy als Absender. Erreichbar ist es ohnehin nur über Caddy mit Web-Passwort.
+- name: SABnzbd vertraut der Anmeldung durch Caddy (Client-IP nicht aus X-Forwarded-For)
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ stacks_ports.sabnzbd }}/api?mode=set_config&output=json&section=misc\
+      &keyword=verify_xff_header&value=0&apikey={{ stacks_arr_keys.sabnzbd }}"
+  register: stacks_sab_xff_set
+  when: stacks_sab_config.json.config.misc.verify_xff_header | bool
+  changed_when: true
+  no_log: true
+
 # Kategorie mit Ordner gezielt über die API abfragen (keyword=<Name>). Die frühere Prüfung
 # gegen die sabnzbd.ini war in der CI unzuverlässig (zweiter Lauf meldete Änderungen).
 - name: SABnzbd-Kategorien lesen
@@ -127,7 +139,7 @@
     project_src: "{{ stacks_dir }}/media"
     state: restarted
     services: [sabnzbd]
-  when: stacks_sab_misc_set is changed or stacks_sab_categories_set is changed
+  when: stacks_sab_misc_set is changed or stacks_sab_xff_set is changed or stacks_sab_categories_set is changed
 
 - name: Kategorien nach dem Neustart erneut lesen
   ansible.builtin.uri:
@@ -140,7 +152,7 @@
   until: stacks_sab_categories_after is succeeded
   retries: 30
   delay: 2
-  when: stacks_sab_misc_set is changed or stacks_sab_categories_set is changed
+  when: stacks_sab_misc_set is changed or stacks_sab_xff_set is changed or stacks_sab_categories_set is changed
   no_log: true
 
 - name: SABnzbd hat die Kategorien dauerhaft gespeichert
