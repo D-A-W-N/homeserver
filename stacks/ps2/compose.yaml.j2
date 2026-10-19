@@ -19,3 +19,10 @@ services:
       - {{ appdata_dir }}/ps2gamemanager:/config
     ports:
       - 127.0.0.1:{{ stacks_ports.ps2gamemanager }}:8420
+    # zusätzlich im Netz des Medien-Stacks: SABnzbd ist dort als http://sabnzbd:8080 erreichbar
+    networks: [default, media]
+
+networks:
+  media:
+    name: media_default
+    external: true
