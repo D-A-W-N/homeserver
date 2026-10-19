@@ -375,6 +375,10 @@ tailscale_login() {
   echo
   info "Tailscale anmelden: den folgenden Link im Browser öffnen (wartet auf die Anmeldung)"
   tailscale up --hostname="$(hostname)" --advertise-routes="$ip/32" --accept-dns=false || true
+  # Die Zugangsübersicht entstand vor der Anmeldung: Hinweis "noch nicht angemeldet" entfernen
+  if tailscale status --json 2>/dev/null | grep -q '"BackendState": *"Running"'; then
+    sed -i 's/^\(Fernzugriff (Tailscale)\)  – noch nicht angemeldet.*/\1/' "$CONFIG_DIR/zugaenge.txt"
+  fi
 }
 
 # --- Ablauf -------------------------------------------------------------------------
