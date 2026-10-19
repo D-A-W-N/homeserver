@@ -17,6 +17,7 @@
     - ntfy
     - ntfy/cache
     - uptime-kuma
+    - dozzle
 
 # Beszel ohne Klicks: Schlüsselpaar des Hubs selbst erzeugen (der Hub lädt
 # beszel_data/id_ed25519, falls vorhanden), System per config.yml anlegen.
