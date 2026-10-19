@@ -33,7 +33,7 @@ Einstieg ist die Startseite `https://home.nas.home.arpa`, dort sind alle Apps ve
 | CPU, RAM, Temperaturen, Alarme | Beszel (`monitor.…`) |
 | Festplattengesundheit (SMART) | Scrutiny (`disks.…`) |
 | Filme, Serien, Musik suchen | Sonarr, Radarr, Lidarr; Downloads in SABnzbd, Indexer in Prowlarr |
-| Untertitel | Bazarr (holt sie automatisch für alles aus Sonarr/Radarr) |
+| Untertitel | Bazarr (holt sie automatisch für alles aus Sonarr/Radarr; Untertitel-Anbieter einmal selbst eintragen) |
 | Abspielen | Emby; Fernseher und Apps über `http://<IP>:8096` |
 
 **Image-Versionen nicht in Arcane aktualisieren.** Die Versionen stehen fest im Repo, und das nächste Setup würde sie zurückdrehen. Neue Versionen kommen über `aunserver-update` (siehe unten).
@@ -75,7 +75,7 @@ Auf dem Handy muss dafür das Stammzertifikat installiert sein (siehe Zugänge).
 Einmalig nach dem Setup im Tailscale-Konto:
 
 1. **Machines → nas → Edit route settings:** die angebotene Route (IP des NAS) freigeben. Im selben Menü **Disable key expiry** wählen, sonst meldet Tailscale das NAS nach 180 Tagen ab und der Fernzugriff ist weg.
-2. **DNS → Nameservers → Add nameserver → Custom:** die Tailscale-IP des NAS (`sudo tailscale ip -4`) eintragen und **Override local DNS** einschalten. Dann gelten die `….nas.home.arpa`-Namen auch unterwegs.
+2. **DNS → Nameservers → Add nameserver → Custom:** die Tailscale-IP des NAS (`sudo tailscale ip -4`) eintragen, **Restrict to domain** anhaken und `nas.home.arpa` angeben (Split DNS, siehe Zugänge). Dann gelten die `….nas.home.arpa`-Namen auf allen Tailscale-Geräten, auch unterwegs. Soll AdGuard für diese Geräte auch Werbung filtern: ohne *Restrict to domain* eintragen und den Schalter **Override DNS servers** einschalten; fällt das NAS aus, haben diese Geräte dann aber kein DNS mehr.
 3. **Handy:** Tailscale-App anmelden, Stammzertifikat installieren, ntfy-App einrichten.
 
 Ist das NAS abgemeldet (z. B. nach einer Neuinstallation), steht das oben in der Zugangsübersicht. Neu anmelden mit `sudo tailscale up`.
@@ -123,7 +123,7 @@ sudo aunserver-setup               # danach einmal abgleichen
 
 Das Ziel steht in `config.yml` unter `backup:`. Mögliche Ziele:
 - eine USB-Platte: `repository: /mnt/backup/aunserver`, `disk_label: AUNBACKUP`; die Platte mit diesem Label beschriften,
-- ein anderer Rechner per SSH: `repository: sftp:user@rechner:/pfad`,
+- ein anderer Rechner per SSH: `repository: sftp:user@rechner:/pfad`. Das Backup läuft als root, also braucht root auf dem NAS einen SSH-Schlüssel (`sudo ssh-keygen -t ed25519`), dessen öffentlicher Teil (`/root/.ssh/id_ed25519.pub`) auf dem Zielrechner hinterlegt ist; einmal `sudo ssh user@rechner` ausführen, um den Rechner zu bestätigen,
 - jedes andere restic-Ziel; Zugangsdaten dafür unter `backup.env`.
 
 ### Neuinstallation aus dem Backup
@@ -136,7 +136,9 @@ Ergebnis: dieselben Apps mit denselben Einstellungen, Freigaben, Passwörtern un
 
 ## PS2 (Open PS2 Loader)
 
-Die SMB1-Freigabe `PS2SMB` läuft als eigene Samba-Instanz auf **Port 1445**, nur für den Ordner `games/ps2` und das Konto `ps2`. In OPL unter Netzwerkeinstellungen: IP des NAS, Port 1445, Freigabe `PS2SMB`, Benutzer `ps2`. Spiele legt man über die normale Freigabe oder den PS2GameManager in `games/ps2` ab.
+Die SMB1-Freigabe `PS2SMB` läuft als eigene Samba-Instanz auf **Port 1445**, nur für den Ordner `games/ps2` und das Konto `ps2`. In OPL unter Netzwerkeinstellungen: IP des NAS, Port 1445, Freigabe `PS2SMB`, Benutzer `ps2`. Spiele legt man über den PS2GameManager oder per Samba in die OPL-Ordner unter `games/ps2` (`DVD/` für DVD-Images, `CD/` für CD-Images); `ART/`, `CFG/`, `VMC/` usw. legt das Setup schon an.
+
+Noch nicht mit einer echten PS2 getestet. Kann OPL keinen anderen Port als 445, bekommt das NAS eine zweite IP-Adresse für die PS2-Instanz (siehe [spikes.md](spikes.md), S5).
 
 SMB1 ist unsicher: kein wichtiges Passwort verwenden. Die Freigabe bleibt auf das Heimnetz beschränkt.
 
@@ -147,9 +149,9 @@ SMB1 ist unsicher: kein wichtiges Passwort verwenden. Die Freigabe bleibt auf da
 | Setup bricht ab | Meldung im Terminal, ausführlich in `/var/log/aunserver-setup.log`; Ursache beheben und Setup erneut starten |
 | Update kaputt | `sudo aunserver-update --rollback` |
 | App startet nicht | Arcane bzw. Dozzle: Log des Containers |
-| Namen gehen nicht | Router-DNS zeigt auf das NAS? AdGuard läuft? Direkt per IP: Cockpit `https://<IP>:9090` |
+| Namen gehen nicht | Router-DNS zeigt auf das NAS bzw. Tailscale verbunden und Split DNS eingetragen? AdGuard läuft? Direkt per IP: Cockpit `https://<IP>:9090` |
 | Datenplatte fehlt | Docker startet bewusst nicht, solange sie fehlt. Der leere Mountpoint `/srv/data` ist schreibgeschützt, damit nichts auf der SSD landet. Platte anschließen und neu starten |
-| Backup schlägt fehl | `journalctl -u aunserver-backup`; USB-Platte angeschlossen? |
+| Backup schlägt fehl | `journalctl -u aunserver-backup`; USB-Platte angeschlossen? Bei sftp: hat root auf dem NAS einen SSH-Schlüssel, der auf dem Zielrechner hinterlegt ist? |
 | Zertifikatswarnung | Stammzertifikat auf dem Gerät installiert? (`http://nas.home.arpa/ca.crt`) |
 
 Dienste auf dem Host: `systemctl status docker smbd cockpit.socket tailscaled`. Container: `docker ps`, Stacks unter `/opt/stacks/<name>/compose.yaml`.

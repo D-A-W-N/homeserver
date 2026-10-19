@@ -35,7 +35,7 @@ Ergebnisse der Vorab-Tests aus [PLAN.md](PLAN.md), Meilenstein M1. Getestet in d
 ### Offen
 
 - [x] Weboberfläche: Cockpit mit den Plugins funktioniert (Rückmeldung 2026-10-17).
-- [ ] Eine per Klick angelegte Freigabe ist in `net conf listshares` noch nicht aufgetaucht. Prüfen, ob sie angelegt wurde und wo das Plugin sie speichert.
+- [x] Per Klick angelegte Freigabe: Mechanismus (`net conf`) in M3 getestet, auf dem echten Server per Klick angelegt und erreichbar (2026-10-19).
 
 ### Folgen für die Umsetzung (Rollen `cockpit`, `samba`)
 
@@ -182,9 +182,10 @@ Auf der VM läuft `cupsd` (Druckdienst). Der Preseed muss die Paketauswahl so en
 
 ### Offen
 
-- [ ] BIOS-Boot (Testmatrix 2), insbesondere GRUB auf der gewählten Platte (`grub-installer/bootdev`)
-- [ ] Verhalten mit Platte, die bereits `AUNDATA` trägt (Testmatrix 8), und mit USB-Stick als Installationsmedium (Ausschluss per `*usb*`)
-- [ ] Bootmenü-Eintrag im eigenen ISO (M7)
+- [x] BIOS-Boot (Testmatrix 2), GRUB im MBR der Systemplatte (M7, CI testet UEFI und BIOS)
+- [x] Installation vom echten USB-Stick funktioniert (echter Server, 2026-10-19); ob der Stick in der Plattenauswahl fehlte, wurde dabei nicht eigens geprüft
+- [ ] Installation mit einer Platte, die bereits `AUNDATA` trägt (Testmatrix 8); im Setup wird sie weiterverwendet (M6)
+- [x] Bootmenü-Eintrag im eigenen ISO (M7)
 
 ## S3 – AdGuard Home auf Port 53, Caddy mit `tls internal`
 
@@ -274,4 +275,4 @@ table inet aunserver {
 ### Offen
 
 - [ ] IPv6: Regeln für das LAN-Präfix (`lan6`) und Link-Local ergänzen, sobald bekannt ist, ob das Heimnetz IPv6 verteilt.
-- [ ] Tailscale-Regeln mit echtem `tailscale0` testen (M8).
+- [x] Tailscale-Regeln mit echtem `tailscale0` getestet (M8, echter Server: DNS und HTTPS über Tailscale).
