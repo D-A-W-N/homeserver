@@ -379,9 +379,11 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 - [x] Renovate-App für das Repo aktiviert
 - [x] `aunserver-update` (D20): Stand von `main` holen, vorher Backup, Setup ausführen, `--rollback`; täglicher Check meldet neue Stände per ntfy (`updates`); `aunserver-setup`/`aunserver-update` liegen im Pfad
 - [x] `docs/BETRIEB.md`, README auf aktuellen Stand
-- [ ] Release `v0.9.0` taggen (ISO für den Umzug), `v1.0.0` nach der Abnahme auf dem echten Server
-- [ ] Umstellung des echten NAS (vorher Configs des Altsystems sichern)
-- [ ] Abnahme auf dem echten Server: Freigabe per Klick in Cockpit anlegen und von Windows erreichen; PS2 mit OPL über die SMB1-Freigabe (Port in OPL auf 1445, sonst Fallback zweite IP, S5); Tailscale-Route und DNS freigeben, ntfy-App am Handy
+- [x] Release `v0.9.0` (ISO für den Umzug); `v1.0.0` nach der Abnahme
+- [x] Umstellung des echten NAS am 2026-10-19: frisch installiert (keine Altdaten übernommen), HDD neu formatiert (ext4)
+- [ ] Abnahme auf dem echten Server: Cockpit-Freigabe per Klick ✅, ntfy am Handy ✅, Tailscale (Route, DNS) ✅, erstes Update per `aunserver-update` ✅, Download über SABnzbd ✅; **offen: PS2 mit OPL** über die SMB1-Freigabe (Port 1445, sonst Fallback zweite IP, S5)
+
+**Befunde echter Server (2026-10-19):** Vodafone-Kabelbox erlaubt keinen eigenen DNS-Server → Namen per Tailscale-Split-DNS (`nas.home.arpa`), dokumentiert in BETRIEB.md. Zugangsübersicht meldete Tailscale nach der Anmeldung per Link als „nicht angemeldet“ (#26). Dozzle v11 verlangte eigene Anmeldung und `/data` → Anmeldung über Caddy (forward-proxy), `/data` unter appdata (#27). SABnzbd wies Zugriffe über Tailscale ab (X-Forwarded-For 100.x) → `verify_xff_header=0`, `local_ranges` ist über die API gesperrt (#27). PS2GameManager erreichte SABnzbd nicht (anderes Docker-Netz) → zusätzlich in `media_default` (#28). Einmalige Meldungen bei der Ersteinrichtung (polkit vor Anlage seines Benutzers gestartet, zram beim Umkonfigurieren) ohne Folgen. Last: SABnzbd belegt beim Download mit 84 MB/s etwa 2 der 4 Kerne des A4-5000, sonst Leerlauf.
 
 ```
 M0 → M1 ─┬→ M2 → M3 → M4 → M5 → M6 ─┬→ M8 → M9

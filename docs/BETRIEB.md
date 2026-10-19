@@ -12,8 +12,12 @@ sudo cat /etc/aunserver/zugaenge.txt
 
 Einmalig nötig, damit die Namen wie `https://home.nas.home.arpa` funktionieren:
 
-1. **Router:** DNS-Server auf die IP des NAS stellen (AdGuard Home beantwortet die Namen und filtert Werbung).
-2. **Jedes Gerät:** das Stammzertifikat von `http://nas.home.arpa/ca.crt` installieren. Danach zeigt der Browser keine Zertifikatswarnungen mehr.
+1. **Namen auflösen**, auf einem der beiden Wege:
+   - **Router:** DNS-Server auf die IP des NAS stellen. AdGuard Home beantwortet dann die Namen für alle Geräte im Heimnetz und filtert Werbung.
+   - **Über Tailscale**, wenn der Router das nicht kann (z. B. Vodafone-Kabelbox): in der Tailscale-Oberfläche unter DNS → Nameservers → *Add nameserver → Custom* die Tailscale-IP des NAS eintragen, *Restrict to domain* anhaken und `nas.home.arpa` angeben (Split DNS). Dann funktionieren die Namen auf allen Geräten mit Tailscale, zu Hause wie unterwegs; das übrige Internet läuft wie bisher. Geräte ohne Tailscale (Fernseher) nutzen die IP, z. B. Emby unter `http://<IP>:8096`.
+2. **Jedes Gerät:** das Stammzertifikat von `http://nas.home.arpa/ca.crt` installieren. Danach zeigt der Browser keine Zertifikatswarnungen mehr. Android: Einstellungen → nach „CA-Zertifikat“ suchen → installieren (verlangt eine Bildschirmsperre).
+
+Die IP des NAS sollte im Router fest zugewiesen sein (DHCP-Reservierung), sonst ändert sie sich irgendwann und die Namen zeigen ins Leere.
 
 Einstieg ist die Startseite `https://home.nas.home.arpa`, dort sind alle Apps verlinkt. **Cockpit** (`https://cockpit.nas.home.arpa`, direkt auch `https://<IP>:9090`) läuft auf dem Host und bleibt erreichbar, auch wenn Docker nicht läuft.
 
@@ -35,6 +39,23 @@ Einstieg ist die Startseite `https://home.nas.home.arpa`, dort sind alle Apps ve
 **Image-Versionen nicht in Arcane aktualisieren.** Die Versionen stehen fest im Repo, und das nächste Setup würde sie zurückdrehen. Neue Versionen kommen über `aunserver-update` (siehe unten).
 
 Ordner auf der Datenplatte (`/srv/data`): `usenet/` (Downloads), `media/tv|movies|music|books` (Bibliotheken), `games/` (PS2 und Eigenes). Die Einstellungen der Apps liegen auf der SSD unter `/srv/appdata`.
+
+### Apps untereinander verbinden
+
+Apps, die andere Apps ansprechen (Recommendarr, PS2GameManager …), nutzen die **internen Adressen**, nicht die `….nas.home.arpa`-Namen. Die gehen über Caddy mit Passwortabfrage und das eigene Zertifikat, beides kennen die Container nicht.
+
+| App | Interne Adresse | API-Schlüssel |
+|---|---|---|
+| SABnzbd | `http://sabnzbd:8080` | Zahnrad → Allgemein → Sicherheit |
+| Sonarr | `http://sonarr:8989` | Settings → General → Security |
+| Radarr | `http://radarr:7878` | Settings → General → Security |
+| Lidarr | `http://lidarr:8686` | Settings → General → Security |
+| Prowlarr | `http://prowlarr:9696` | Settings → General → Security |
+| Emby | `http://<IP>:8096` (läuft im Host-Netz) | Einstellungen → Erweitert → API-Schlüssel |
+
+Die Medien-Apps, Recommendarr und der PS2GameManager liegen im selben Docker-Netz. Neue eigene Apps brauchen dieses Netz (`media_default`) ebenfalls.
+
+**Indexer** trägt man nur in Prowlarr ein, es verteilt sie an Sonarr, Radarr und Lidarr. Nicht gelistete Usenet-Indexer: *Add Indexer → Generic Newznab*, URL ohne `/api`, API-Schlüssel des Indexers. Den **Usenet-Provider** trägt man in SABnzbd ein (Zahnrad → Server). Beim Hinzufügen von Filmen und Serien das Qualitätsprofil **„[German] HD Bluray + WEB“** wählen, das Recyclarr täglich nach den TRaSH-Guides pflegt.
 
 ## Benachrichtigungen aufs Handy
 
