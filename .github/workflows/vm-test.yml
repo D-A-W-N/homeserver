@@ -139,8 +139,14 @@ jobs:
           sleep 30
           ssh_vm "systemctl is-active aunserver-docker-socket"
           # Homepage fragt über den socket-proxy, Arcane direkt am Socket
-          ssh_vm "docker exec homepage wget -qO- -T 5 http://socket-proxy:2375/version" | grep -q ApiVersion
-          ssh_vm "docker logs --since 2m arcane 2>&1" | grep -q "Docker API versions detected"
+          # Ausgaben erst einsammeln: "| grep -q" kann ssh mit SIGPIPE beenden (pipefail)
+          version=$(ssh_vm "docker exec homepage wget -qO- -T 5 http://socket-proxy:2375/version")
+          grep -q ApiVersion <<<"$version"
+          arcane_neu=$(ssh_vm "docker logs --since 2m arcane 2>&1")
+          grep -q "Docker API versions detected" <<<"$arcane_neu"
+          # Arcane darf in /opt/stacks schreiben (.env.global, eigene Stacks)
+          arcane_alles=$(ssh_vm "docker logs arcane 2>&1")
+          if grep "permission denied" <<<"$arcane_alles"; then exit 1; fi
           test "$(ssh_vm "docker ps --filter status=exited -q | wc -l")" = 0
 
       - name: Warnungen im Playbook
