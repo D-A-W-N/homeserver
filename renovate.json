@@ -49,6 +49,14 @@
       "matchDatasources": ["docker", "github-releases"],
       "matchUpdateTypes": ["major"],
       "labels": ["abhängigkeiten", "major"]
+    },
+    {
+      "description": "Patch- und Minor-Updates merged Renovate selbst, sobald alle Prüfungen grün sind (auch der VM-Test); Major-Updates entscheidet der Nutzer. Aufs NAS kommt dadurch nichts automatisch, das macht erst 'sudo aunserver-update' nach der ntfy-Meldung (D20)",
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest"],
+      "automerge": true,
+      "platformAutomerge": false,
+      "automergeType": "pr",
+      "automergeStrategy": "merge-commit"
     }
   ]
 }
