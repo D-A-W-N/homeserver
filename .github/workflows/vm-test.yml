@@ -132,6 +132,17 @@ jobs:
           ssh_vm "printf '%s\n' aunserver | sudo -S -p '' test -s /srv/appdata/sonarr/config.xml"
           test "$(ssh_vm "docker ps --filter status=exited -q | wc -l")" = 0
 
+      - name: Docker-Neustart wie bei einem Update (Container mit Socket verbinden neu)
+        run: |
+          ssh_vm() { ssh -n -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost "$@"; }
+          ssh_vm "printf '%s\n' aunserver | sudo -S -p '' systemctl restart docker"
+          sleep 30
+          ssh_vm "systemctl is-active aunserver-docker-socket"
+          # Homepage fragt über den socket-proxy, Arcane direkt am Socket
+          ssh_vm "docker exec homepage wget -qO- -T 5 http://socket-proxy:2375/version" | grep -q ApiVersion
+          ssh_vm "docker logs --since 2m arcane 2>&1" | grep -q "Docker API versions detected"
+          test "$(ssh_vm "docker ps --filter status=exited -q | wc -l")" = 0
+
       - name: Warnungen im Playbook
         if: always()
         run: grep -hiE '\[WARNING\]|\[DEPRECATION' "$RUNNER_TEMP"/run*.log | sort | uniq -c || echo "keine"

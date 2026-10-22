@@ -79,11 +79,37 @@
     groups: docker
     append: true
 
+# live-restore lässt Container bei einem Docker-Update weiterlaufen; Container mit eingebundenem
+# Socket hingen danach am alten Socket (Befund echter Server, 2026-10-21)
+- name: Skript zum Neuverbinden nach Docker-Neustart
+  ansible.builtin.copy:
+    src: aunserver-docker-socket
+    dest: /usr/local/sbin/aunserver-docker-socket
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Dienst zum Neuverbinden nach Docker-Neustart
+  ansible.builtin.copy:
+    src: aunserver-docker-socket.service
+    dest: /etc/systemd/system/aunserver-docker-socket.service
+    owner: root
+    group: root
+    mode: "0644"
+  register: docker_socket_unit
+
 - name: Docker läuft
   ansible.builtin.systemd_service:
     name: docker.service
     enabled: true
     state: started
+
+- name: Neuverbinden nach Docker-Neustart aktiv
+  ansible.builtin.systemd_service:
+    name: aunserver-docker-socket.service
+    enabled: true
+    state: started
+    daemon_reload: "{{ docker_socket_unit is changed }}"
 
 - name: Docker-Neustart vor den Stacks ausführen
   ansible.builtin.meta: flush_handlers
