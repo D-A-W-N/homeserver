@@ -1,0 +1,15 @@
+# Von aunserver verwaltet (Ansible).
+# Läuft nach jedem Start und Neustart von docker.service (PartOf + WantedBy), siehe Skript.
+[Unit]
+Description=aunserver: Container mit Docker-Socket nach Docker-Neustart neu verbinden
+After=docker.service
+Requires=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/aunserver-docker-socket
+
+[Install]
+WantedBy=docker.service

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Von aunserver verwaltet (Ansible).
+# Nach einem Neustart von dockerd (z. B. Update per unattended-upgrades) laufen die Container
+# dank live-restore weiter. Container, die /var/run/docker.sock als Datei einbinden
+# (socket-proxy, Arcane), hängen dann aber am alten, gelöschten Socket und bekommen keine
+# Antwort mehr. Diese Container neu starten, sofern sie älter sind als der laufende dockerd.
+set -euo pipefail
+
+since=$(systemctl show -P ActiveEnterTimestamp --timestamp=unix docker.service)
+since=${since#@}
+[ -n "$since" ] || exit 0
+
+for id in $(docker ps -q); do
+  mounts=$(docker inspect -f '{{range .Mounts}}{{.Source}} {{end}}' "$id")
+  case " $mounts " in *" /var/run/docker.sock "*|*" /run/docker.sock "*) ;; *) continue ;; esac
+  started=$(date -d "$(docker inspect -f '{{.State.StartedAt}}' "$id")" +%s)
+  if [ "$started" -lt "$since" ]; then
+    echo "Docker wurde neu gestartet, verbinde neu: $(docker inspect -f '{{.Name}}' "$id" | tr -d /)"
+    docker restart "$id" >/dev/null
+  fi
+done
