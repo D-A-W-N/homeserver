@@ -63,13 +63,16 @@
   register: stacks_network_result
   changed_when: "'erstellt' in stacks_network_result.stdout"
 
+# Arcane läuft als 65532 mit der Gruppe des Docker-Sockets: Gruppe docker darf hier neue Stacks
+# und .env.global anlegen (setgid hält neue Ordner in der Gruppe). Die mitgelieferten Stacks
+# bleiben 0750 root:docker und damit dem Setup vorbehalten (D8; Befund echter Server).
 - name: Ordner für Stacks
   ansible.builtin.file:
     path: "{{ stacks_dir }}"
     state: directory
     owner: root
     group: docker
-    mode: "0750"
+    mode: "2770"
 
 # eigener Schleifenname: die eingebundenen Dateien haben selbst Schleifen mit "item"
 - name: Plattform-Stacks ausrollen

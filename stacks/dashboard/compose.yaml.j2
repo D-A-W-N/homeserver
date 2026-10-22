@@ -29,6 +29,8 @@ services:
       JWT_SECRET: {{ stacks_arcane_jwt_secret }}
       PROJECTS_DIRECTORY: {{ stacks_dir }}
       TRUSTED_PROXIES: 127.0.0.0/8,172.16.0.0/12
+      # kein stündlicher Heartbeat (Version + Instanz-ID) an checkin.getarcane.app
+      ANALYTICS_DISABLED: "true"
       TZ: {{ timezone }}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
