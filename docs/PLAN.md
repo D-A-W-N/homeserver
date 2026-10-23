@@ -346,6 +346,7 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 - [x] Stack `media` (Prowlarr, SABnzbd, Sonarr, Radarr, Lidarr, Bazarr, Recyclarr, Emby, Recommendarr) und Stack `ps2` (PS2GameManager)
 - [x] Apps per API verbunden: SABnzbd-Ordner/Kategorien, Anmeldung (Admin + Web-Passwort), Bibliotheksordner, SABnzbd als Download-Client, Sonarr/Radarr/Lidarr in Prowlarr
 - [x] Recyclarr mit TRaSH „[German] HD Bluray + WEB“ (Deutsch + DL, 1080p), **x265 (HD) +500** (Wunsch: platzsparend)
+- [x] Recyclarr optional mit eigener Konfiguration (`recyclarr_eigene_config`): Ansible überschreibt `recyclarr.yml` dann nicht; Befund: sonst holte jedes Update die TRaSH-Profile zurück und der tägliche Lauf setzte eigene Größen zurück
 - [x] Hardlink-Test (Download → Bibliothek liefert Linkzähler 2)
 
 **Abnahme (VM, 2026-10-18):** Verbindungstests Sonarr/Radarr/Lidarr → SABnzbd 200, Prowlarr-Anwendungen 200, Bibliotheksordner erreichbar, API ohne Schlüssel 401 ✅. Profile mit x265 +500, German DL 11000, German 10000 ✅. Hardlink 2 ✅. PS2GameManager läuft als `1000:ps2share` mit umask 002; App und SMB1-Konto `ps2` können die Dateien des jeweils anderen bearbeiten ✅. HTTPS: Servarr-Apps mit eigener Anmeldung, SABnzbd/Bazarr/PS2GameManager/Recommendarr (kein eigenes Login, Auskunft des Nutzers) mit Web-Passwort ✅. Abspielgerät Kodi spielt HEVC direkt ab (x265-Bonus passt). Reboot: 20/20 Container ✅. Zweiter Lauf `changed=0` ✅.

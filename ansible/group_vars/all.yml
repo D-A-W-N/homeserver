@@ -16,6 +16,9 @@ lan6_subnets: []   # z. B. [fd00::/64]; Link-Local ist immer erlaubt
 # DLNA-Abspielgeräte für Emby „Wiedergabe auf“ (z. B. Sonos). Sie beantworten Embys
 # SSDP-Suche vom Zufallsport. Leer = keine Regel; feste IPs (DHCP-Reservierung) nötig.
 emby_dlna_renderers: []
+# Recyclarr: true = eigene recyclarr.yml im appdata-Ordner; Ansible schreibt dann die
+# TRaSH-Vorlage nicht mehr darüber, Recyclarr synchronisiert täglich nur die eigene Datei.
+recyclarr_eigene_config: false
 
 # Speicher (Plan, Abschnitt 5)
 # true = keine eigene Datenplatte, data_mount liegt auf der Systemplatte

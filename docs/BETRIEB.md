@@ -59,6 +59,8 @@ Die Medien-Apps, Recommendarr und der PS2GameManager liegen im selben Docker-Net
 
 **Indexer** trägt man nur in Prowlarr ein, es verteilt sie an Sonarr, Radarr und Lidarr. Nicht gelistete Usenet-Indexer: *Add Indexer → Generic Newznab*, URL ohne `/api`, API-Schlüssel des Indexers. Den **Usenet-Provider** trägt man in SABnzbd ein (Zahnrad → Server). Beim Hinzufügen von Filmen und Serien das Qualitätsprofil **„[German] HD Bluray + WEB“** wählen, das Recyclarr täglich nach den TRaSH-Guides pflegt.
 
+**Eigene Qualitätsprofile:** Recyclarr synchronisiert jeden Tag um 00:00 die Datei `/srv/appdata/recyclarr/recyclarr.yml` und legt dabei die dort genannten Profile und Größen wieder an. Ohne weitere Einstellung schreibt jedes `aunserver-update` die TRaSH-Vorlage aus dem Repo darüber. Wer eigene Profile pflegt, setzt in `/etc/aunserver/config.yml` `recyclarr_eigene_config: true`: Ansible lässt `recyclarr.yml` (samt `settings.yml` und `custom-formats/`) dann in Ruhe, Recyclarr synchronisiert täglich nur die eigene Datei. Die API-Schlüssel stehen in der eigenen Datei selbst (Werte aus `/srv/appdata/<app>/config.xml`). Ein Beispiel mit eigenen Profilen und Custom Formats liegt in [beispiele/recyclarr-eigene-profile/](beispiele/recyclarr-eigene-profile/).
+
 ## Benachrichtigungen aufs Handy
 
 Die ntfy-App mit dem Server `https://ntfy.nas.home.arpa` verbinden (unterwegs über Tailscale) und diese Themen abonnieren:
