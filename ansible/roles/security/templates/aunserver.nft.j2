@@ -62,6 +62,15 @@ table inet aunserver {
 		iifname "tailscale0" udp dport { {{ security_vpn_udp_ports | join(', ') }} } accept
 	}
 
+{% if samba_legacy.enabled | bool and samba_legacy.allowed_clients | length > 0 %}
+	# OPL kann (je nach Version) keinen anderen Port als 445: nur die eingetragenen PS2 landen
+	# auf 445 bei der SMB1-Instanz, alle anderen Geräte bei der normalen Freigabe (SMB3)
+	chain prerouting {
+		type nat hook prerouting priority dstnat; policy accept;
+		ip saddr @ps2_clients tcp dport 445 redirect to :{{ samba_legacy.port }}
+	}
+
+{% endif %}
 	# Sicherheitsnetz: versehentlich auf 0.0.0.0 veröffentlichte Container-Ports
 	# sind aus LAN/VPN nicht erreichbar (Docker leitet sie an input vorbei).
 	chain forward {
