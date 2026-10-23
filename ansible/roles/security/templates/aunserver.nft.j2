@@ -49,7 +49,8 @@ table inet aunserver {
 		# Emby-Apps unterwegs (und Geräte, die das NAS über die Tailscale-Route ansprechen)
 		iifname "tailscale0" tcp dport { {{ security_emby_tcp_ports | join(', ') }} } accept
 {% if emby_dlna_renderers | length > 0 %}
-		# SSDP-Antworten der Abspielgeräte kommen vom Zufallsport an Embys Zufallsports
+		# SSDP der Abspielgeräte: Ankündigungen an 1900, Antworten vom Zufallsport an Embys Zufallsports
+		ip saddr @dlna_renderers udp dport 1900 accept
 		ip saddr @dlna_renderers udp sport 32768-60999 udp dport 32768-60999 accept
 {% endif %}
 {% endif %}

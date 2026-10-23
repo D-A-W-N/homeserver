@@ -9,6 +9,7 @@ security_vpn_udp_ports: [53, 443]
 
 security_fail2ban: true
 
-# Emby im Host-Netzwerk: Web/Apps, Discovery (7359) und DLNA/SSDP (1900), nur LAN (nicht VPN)
+# Emby im Host-Netzwerk: Web/Apps und Discovery, nur LAN (nicht VPN).
+# SSDP (1900) nur für eingetragene Abspielgeräte, siehe emby_dlna_renderers (group_vars)
 security_emby_tcp_ports: [8096]
-security_emby_udp_ports: [7359, 1900]
+security_emby_udp_ports: [7359]
