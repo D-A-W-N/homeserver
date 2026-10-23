@@ -182,7 +182,7 @@ Grundsatz: **Nichts ist aus dem Internet erreichbar.** Zugriff gibt es nur aus d
 
 | Bereich | Maßnahme |
 |---|---|
-| Firewall | nftables, Default **drop** eingehend. Aus dem LAN: 22, 53, 80, 443, 445, 9090 (+ 3702 TCP/UDP für wsdd2, 5355 UDP für LLMNR), Emby 8096 TCP und 7359 UDP. Über Tailscale (`tailscale0`): 22, 53, 80, 443, 445, 9090 und Emby 8096. Tailscale selbst: UDP 41641. Port 1445 (SMB1) nur aus dem LAN, nie per VPN, auf Wunsch nur von der PS2-IP |
+| Firewall | nftables, Default **drop** eingehend. Aus dem LAN: 22, 53, 80, 443, 445, 9090 (+ 3702 TCP/UDP für wsdd2, 5355 UDP für LLMNR), Emby 8096 TCP und 7359 UDP; nur von den in `emby_dlna_renderers` eingetragenen Abspielgeräten (z. B. Sonos für „Wiedergabe auf“) zusätzlich SSDP: UDP 1900 und Antworten an UDP 32768–60999. Über Tailscale (`tailscale0`): 22, 53, 80, 443, 445, 9090 und Emby 8096. Tailscale selbst: UDP 41641. Port 1445 (SMB1) nur aus dem LAN, nie per VPN, auf Wunsch nur von der PS2-IP |
 | SMB1 | Nur in der getrennten Legacy-Instanz (D19), nur der PS2-Ordner, eigenes Konto `ps2` ohne Shell und mit eigenem Passwort |
 | Docker vs. Firewall | Container-Ports nur an `127.0.0.1`, Zugriff ausschließlich über Caddy (Host-Netzwerk). Zusätzlich verwirft eine forward-Regel neue DNAT-Verbindungen aus LAN/VPN zu Containern, damit auch ein versehentlich auf `0.0.0.0` veröffentlichter Port zu bleibt. Eigene nftables-Tabelle, nie `flush ruleset` (S4) |
 | Docker-Socket | Homepage, Dozzle und Beszel nur über **socket-proxy (read-only)**. Arcane braucht den vollen Socket, ist root-gleich und deshalb nur hinter Caddy aus dem LAN erreichbar |
