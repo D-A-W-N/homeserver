@@ -236,6 +236,7 @@ Optional: Backup-Ziel (`--backup-repo`) und `--restore` für eine Neuinstallatio
 ```
 aunserver/
 ├── README.md
+├── CLAUDE.md                    # Regeln für Claude-Sessions (Gitflow)
 ├── COMMIT                       # git archive trägt den Commit ein (export-subst, D20)
 ├── config.example.yml
 ├── docs/
