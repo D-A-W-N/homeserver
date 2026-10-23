@@ -135,13 +135,14 @@ jobs:
           sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/run2.log" \
             | grep -E 'localhost +: ok=[0-9]+ +changed=0 +unreachable=0 +failed=0'
 
-      - name: Firewall ohne DLNA-Liste wie bisher (kein SSDP)
+      - name: Firewall ohne DLNA-Liste und PS2-IP wie bisher (kein SSDP, keine Umleitung)
         run: |
           ssh_vm() { ssh -n -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost "$@"; }
-          # Die CI setzt keine emby_dlna_renderers: dann darf weder 1900 noch das Set auftauchen
+          # Die CI setzt weder emby_dlna_renderers noch samba_legacy.allowed_clients: dann darf weder
+          # 1900 noch das Set noch die Umleitung 445 -> 1445 für die PS2 auftauchen
           regeln=$(ssh_vm "printf '%s\n' aunserver | sudo -S -p '' nft list table inet aunserver")
           grep -q "chain input" <<<"$regeln"
-          if grep -E '1900|dlna_renderers' <<<"$regeln"; then exit 1; fi
+          if grep -E '1900|dlna_renderers|prerouting|redirect' <<<"$regeln"; then exit 1; fi
 
       - name: Backup ausführen und Sicherung prüfen
         run: |

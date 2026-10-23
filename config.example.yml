@@ -24,7 +24,7 @@ emby_dlna_renderers: []   # z. B. [192.168.1.110, 192.168.1.207]
 samba_legacy:
   enabled: true
   port: 1445
-  allowed_clients: []    # z. B. [192.168.1.50] = nur die PS2
+  allowed_clients: []    # z. B. [192.168.1.50] = nur die PS2; sie erreicht die Freigabe dann auch über Port 445
   shares:
     - name: PS2SMB
       path: games/ps2

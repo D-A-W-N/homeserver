@@ -138,9 +138,9 @@ Ergebnis: dieselben Apps mit denselben Einstellungen, Freigaben, Passwörtern un
 
 ## PS2 (Open PS2 Loader)
 
-Die SMB1-Freigabe `PS2SMB` läuft als eigene Samba-Instanz auf **Port 1445**, nur für den Ordner `games/ps2` und das Konto `ps2`. In OPL unter Netzwerkeinstellungen: IP des NAS, Port 1445, Freigabe `PS2SMB`, Benutzer `ps2`. Spiele legt man über den PS2GameManager oder per Samba in die OPL-Ordner unter `games/ps2` (`DVD/` für DVD-Images, `CD/` für CD-Images); `ART/`, `CFG/`, `VMC/` usw. legt das Setup schon an.
+Die SMB1-Freigabe `PS2SMB` läuft als eigene Samba-Instanz auf **Port 1445**, nur für den Ordner `games/ps2` und das Konto `ps2`. In OPL unter Netzwerkeinstellungen: Adresstyp IP, IP des NAS, Port 1445, Freigabe `PS2SMB`, Benutzer `ps2` mit dem PS2-Passwort aus der Zugangsübersicht. Spiele legt man über den PS2GameManager oder per Samba in die OPL-Ordner unter `games/ps2` (`DVD/` für DVD-Images, `CD/` für CD-Images); `ART/`, `CFG/`, `VMC/` usw. legt das Setup schon an.
 
-Noch nicht mit einer echten PS2 getestet. Kann OPL keinen anderen Port als 445, bekommt das NAS eine zweite IP-Adresse für die PS2-Instanz (siehe [spikes.md](spikes.md), S5).
+**OPL ohne Port-Einstellung** (nur 445): Der PS2 eine feste IP geben (DHCP-Reservierung im Router) und diese in `/etc/aunserver/config.yml` unter `samba_legacy.allowed_clients` eintragen, danach `sudo aunserver-setup`. Die Firewall leitet dann nur für diese IP Port 445 auf die SMB1-Instanz um; in OPL Port 445 lassen. Alle anderen Geräte erreichen über 445 weiter die normalen Freigaben.
 
 SMB1 ist unsicher: kein wichtiges Passwort verwenden. Die Freigabe bleibt auf das Heimnetz beschränkt.
 
