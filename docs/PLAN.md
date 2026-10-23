@@ -45,7 +45,7 @@ Stand: 2026-10-19 · Status: im Betrieb auf dem echten NAS (`v0.9.0` + Updates),
 | D10 | Zugriff auf Web-Apps | **Caddy** als Reverse Proxy, alle Apps unter `https://<app>.<domain>`. Caddy und AdGuard laufen im **Host-Netzwerk**, alle anderen Container veröffentlichen Ports nur an `127.0.0.1` | Docker öffnet selbst keinen Port ins LAN, die Host-Firewall entscheidet allein (Spikes S3/S4). |
 | D11 | DNS | **AdGuard Home** als DNS für das Heimnetz, mit Rewrite `*.<domain>` → NAS-IP | Werbeblocker und lokale Namen in einem Dienst. |
 | D12 | Fernzugriff | **Tailscale** auf dem Host. WireGuard (wg-easy) war als Alternative vorgesehen, ist aber nicht umgesetzt (`apps.wireguard` bleibt `false`) | Tailscale braucht keine Portfreigabe und verteilt auch den DNS (Split DNS für `nas.home.arpa`). |
-| D13 | Image-Versionen | **Feste Tags** in `roles/stacks/defaults`, **Renovate** erzeugt Update-PRs im Repo (montags); Patch/Minor merged Renovate nach grüner CI selbst, Major entscheidet der Nutzer | Reproduzierbar, Updates bleiben trotzdem einfach; aufs NAS kommt nichts unbeaufsichtigt (D20). |
+| D13 | Image-Versionen | **Feste Tags** in `roles/stacks/defaults`, **Renovate** erzeugt Update-PRs im Repo (montags, eigene Images `ghcr.io/d-a-w-n/*` sofort); Patch/Minor merged Renovate nach grüner CI selbst, Major entscheidet der Nutzer | Reproduzierbar, Updates bleiben trotzdem einfach; aufs NAS kommt nichts unbeaufsichtigt (D20). |
 | D14 | Sprache | Deutsch (Doku, Skriptausgaben, Kommentare) | wie bisher |
 | D15 | Media-Server | **Emby** | Wird heute schon genutzt. |
 | D16 | App-Configs | **SSD** (`/srv/appdata`), Sicherung per restic | Schnelle SQLite-Zugriffe, die HDD darf schlafen, Configs überleben einen HDD-Ausfall. |
