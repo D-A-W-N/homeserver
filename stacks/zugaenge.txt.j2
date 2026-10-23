@@ -48,6 +48,9 @@ Ohne Anmeldung (nur aus LAN/VPN erreichbar)
 Fernzugriff (Tailscale){{ '' if network_tailscale_state | default('') == 'Running' else '  – noch nicht angemeldet: sudo tailscale up' }}
   1. tailscale.com → Machines → {{ hostname }} → "Edit route settings": Route {{ network_routes | default([ansible_facts.default_ipv4.address ~ '/32']) | join(', ') }} freigeben,
      im selben Menü "Disable key expiry" (sonst Abmeldung nach 180 Tagen)
+{% if network_tailscale_exit_node | default(false) | bool %}
+     und "Use as exit node" einschalten (NAS bietet sich als Exit-Node an)
+{% endif %}
   2. tailscale.com → DNS → Nameservers → "Add nameserver: Custom": Tailscale-IP des NAS
      (sudo tailscale ip -4), dann "Override local DNS" einschalten
   3. Handy: Tailscale-App, Stammzertifikat (http://{{ domain }}/ca.crt) installieren,

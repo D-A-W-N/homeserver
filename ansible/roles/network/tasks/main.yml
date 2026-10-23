@@ -49,6 +49,12 @@
         network_routes: >-
           {{ network_tailscale_routes if network_tailscale_routes | length > 0
              else [ansible_facts.default_ipv4.address ~ '/32'] }}
+        # Als Exit-Node führt Tailscale zusätzlich die Standardrouten in AdvertiseRoutes
+        network_advertised: >-
+          {{ (network_tailscale_routes if network_tailscale_routes | length > 0
+              else [ansible_facts.default_ipv4.address ~ '/32'])
+             + (['0.0.0.0/0', '::/0'] if network_tailscale_exit_node | bool else []) }}
+        network_exit_node_flag: "--advertise-exit-node={{ 'true' if network_tailscale_exit_node | bool else 'false' }}"
 
     - name: Zustand von Tailscale lesen
       ansible.builtin.command: tailscale status --json
@@ -68,6 +74,7 @@
           - "--auth-key={{ tailscale_authkey }}"
           - "--hostname={{ hostname }}"
           - "--advertise-routes={{ network_routes | join(',') }}"
+          - "{{ network_exit_node_flag }}"
           - --accept-dns=false
       when:
         - network_tailscale_state == 'NeedsLogin'
@@ -94,16 +101,16 @@
       ansible.builtin.set_fact:
         network_tailscale_state: "{{ (network_tailscale_status.stdout | from_json).BackendState | default('Unbekannt') }}"
 
-    - name: Angebotene Route abgleichen (wenn angemeldet)
+    - name: Angebotene Route und Exit-Node abgleichen (wenn angemeldet)
       ansible.builtin.command: tailscale debug prefs
       register: network_tailscale_prefs
       changed_when: false
       when: network_tailscale_state == 'Running'
 
-    - name: Route setzen
+    - name: Route und Exit-Node setzen
       ansible.builtin.command:
-        argv: [tailscale, set, "--advertise-routes={{ network_routes | join(',') }}"]
+        argv: [tailscale, set, "--advertise-routes={{ network_routes | join(',') }}", "{{ network_exit_node_flag }}"]
       when:
         - network_tailscale_state == 'Running'
-        - (network_tailscale_prefs.stdout | from_json).AdvertiseRoutes | default([], true) | sort != network_routes | sort
+        - (network_tailscale_prefs.stdout | from_json).AdvertiseRoutes | default([], true) | sort != network_advertised | sort
       changed_when: true
