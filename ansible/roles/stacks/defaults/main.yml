@@ -23,7 +23,7 @@ stacks_images:
   # 4.10 ist die stabile Version; 4.11.x sind Vorabversionen (Stand 2026-10-18)
   emby: docker.io/emby/embyserver:4.10.2.0
   # eigene Apps des Nutzers
-  recommendarr: ghcr.io/d-a-w-n/recommendarr:v2.11.3
+  recommendarr: ghcr.io/d-a-w-n/recommendarr:v2.12.1
   ps2gamemanager: ghcr.io/d-a-w-n/ps2gamemanager:2.3.0
 
 # Ports der Container auf dem Host, nur an 127.0.0.1 gebunden; Zugriff über Caddy.
