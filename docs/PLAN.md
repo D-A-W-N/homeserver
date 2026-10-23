@@ -282,7 +282,7 @@ aunserver/
 ├── renovate.json
 └── .github/workflows/
     ├── lint.yml                 # shellcheck, yamllint, ansible-lint, Renovate-Validator, gitleaks
-    ├── vm-test.yml              # Dev-ISO bauen, installieren, Setup zweimal, Backup/Restore (UEFI + BIOS)
+    ├── vm-test.yml              # Dev-ISO bauen, installieren, Setup zweimal, Backup/Restore (UEFI + BIOS); Job vm-test = Pflicht-Check
     ├── iso-cache.yml            # Debian-ISO im Cache von main
     └── release.yml              # ISO bauen bei Tag
 ```
