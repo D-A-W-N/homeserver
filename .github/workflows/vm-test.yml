@@ -3,15 +3,10 @@
 # (UEFI und BIOS), aunserver-setup formatiert die leere Datenplatte und richtet alles ein;
 # der zweite Lauf darf nichts ändern. Dieselben Skripte wie lokal (installer/, dev/).
 name: vm-test
+# Läuft bei jedem PR, damit "vm-test" Pflicht-Check im Ruleset von main sein kann; die VM selbst
+# startet nur, wenn der PR etwas berührt, das auf dem NAS landet.
 "on":
   pull_request:
-    paths:
-      - ansible/**
-      - installer/**
-      - dev/**
-      - stacks/**
-      - bin/**
-      - .github/workflows/vm-test.yml
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,7 +14,32 @@ concurrency:
   group: vm-test-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  aenderungen:
+    runs-on: ubuntu-latest
+    outputs:
+      vm: ${{ steps.pfade.outputs.vm }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2   # Merge-Commit des PRs und main davor
+
+      - name: Betroffene Pfade
+        id: pfade
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          # erst einsammeln: "| grep -q" kann git mit SIGPIPE beenden
+          geaendert=$(git diff --name-only HEAD^1 HEAD)
+          if [ "$EVENT" != pull_request ] \
+            || grep -qE '^(ansible|installer|dev|stacks|bin)/|^\.github/workflows/vm-test\.yml$' <<<"$geaendert"; then
+            echo "vm=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "vm=false" >> "$GITHUB_OUTPUT"
+          fi
+
   vm:
+    needs: aenderungen
+    if: needs.aenderungen.outputs.vm == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 75
     strategy:
@@ -156,3 +176,17 @@ jobs:
       - name: Logs bei Fehler
         if: failure()
         run: tail -n 50 "$RUNNER_TEMP"/*.log || true
+
+  # Pflicht-Check im Ruleset: grün, wenn die VM bestanden hat oder nicht nötig war
+  vm-test:
+    needs: [aenderungen, vm]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ergebnis
+        env:
+          AENDERUNGEN: ${{ needs.aenderungen.result }}
+          VM: ${{ needs.vm.result }}
+        run: |
+          echo "aenderungen: $AENDERUNGEN, vm: $VM"
+          [ "$AENDERUNGEN" = success ] && { [ "$VM" = success ] || [ "$VM" = skipped ]; }

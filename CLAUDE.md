@@ -4,7 +4,7 @@ An diesem Repo arbeiten **mehrere Claude-Sessions parallel**. Diese Regeln gelte
 
 ## Gitflow (Pflicht)
 
-1. **Nie direkt auf `main` committen oder pushen.** Ein Ruleset auf GitHub erzwingt das: Änderungen nur per PR, `lint` und `secrets` grün, Branch auf dem Stand von `main`, nur Merge-Commits, kein Force-Push.
+1. **Nie direkt auf `main` committen oder pushen.** Ein Ruleset auf GitHub erzwingt das: Änderungen nur per PR, `lint`, `secrets` und `vm-test` grün, Branch auf dem Stand von `main`, nur Merge-Commits, kein Force-Push.
 2. **Vor dem Start:** `git fetch`, offene PRs und Branches ansehen (`gh pr list`, `git branch -r`), damit zwei Sessions nicht dasselbe bauen. Überschneidet sich etwas, erst den Nutzer fragen.
 3. **Ein Thema = ein Branch**, immer vom aktuellen `origin/main`: `git switch -c <name> origin/main`.
    Namen kurz, deutsch, kebab-case, ohne Präfix (wie bisher: `arcane-rechte`, `emby-tailscale`).
@@ -29,7 +29,7 @@ yamllint . && (cd ansible && ansible-lint)
 shellcheck bin/* dev/*.sh installer/*.sh
 ```
 
-Die CI ([.github/workflows/](.github/workflows/)) prüft dasselbe plus gitleaks; bei Änderungen an `ansible/`, `stacks/`, `bin/`, `installer/`, `dev/` läuft zusätzlich der VM-Test (UEFI und BIOS, zweiter Setup-Lauf muss `changed=0` melden). Idempotenz also immer mitdenken.
+Die CI ([.github/workflows/](.github/workflows/)) prüft dasselbe plus gitleaks; bei Änderungen an `ansible/`, `stacks/`, `bin/`, `installer/`, `dev/` läuft zusätzlich der VM-Test (UEFI und BIOS, zweiter Setup-Lauf muss `changed=0` melden); der Pflicht-Check `vm-test` fasst das zusammen und ist sonst sofort grün. Idempotenz also immer mitdenken.
 
 ## Nie einchecken
 
