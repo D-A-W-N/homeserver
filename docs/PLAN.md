@@ -242,6 +242,7 @@ aunserver/
 ├── docs/
 │   ├── PLAN.md                  # dieses Dokument
 │   ├── spikes.md                # Ergebnisse der Vorab-Tests
+│   ├── beispiele/               # z. B. eigene Recyclarr-Profile (nicht ausgerollt)
 │   └── BETRIEB.md               # Bedienung, Updates, Wiederherstellung
 ├── installer/
 │   ├── build-iso.sh

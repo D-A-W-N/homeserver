@@ -1,0 +1,35 @@
+{
+  "trash_id": "146e02f7ef079284a71002be9977c75d",
+  "name": "★ Folge über 3 GB",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Size 3",
+      "implementation": "SizeSpecification",
+      "negate": false,
+      "required": true,
+      "fields": {
+        "min": 3,
+        "max": 1000
+      }
+    },
+    {
+      "name": "ReleaseType 1",
+      "implementation": "ReleaseTypeSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": 1
+      }
+    },
+    {
+      "name": "ReleaseType 2",
+      "implementation": "ReleaseTypeSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": 2
+      }
+    }
+  ]
+}

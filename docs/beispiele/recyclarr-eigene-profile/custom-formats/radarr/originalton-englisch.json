@@ -1,0 +1,17 @@
+{
+  "trash_id": "63896a9fd9dd35c376d121518fcb14ce",
+  "name": "★ Originalton Englisch",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Language 1",
+      "implementation": "LanguageSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": 1,
+        "exceptLanguage": false
+      }
+    }
+  ]
+}

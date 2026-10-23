@@ -1,0 +1,35 @@
+{
+  "trash_id": "70f44e69f14e335cb6d3b40c6958dd14",
+  "name": "★ Folge 1,5-3 GB",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Size 1.5",
+      "implementation": "SizeSpecification",
+      "negate": false,
+      "required": true,
+      "fields": {
+        "min": 1.5,
+        "max": 3
+      }
+    },
+    {
+      "name": "ReleaseType 1",
+      "implementation": "ReleaseTypeSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": 1
+      }
+    },
+    {
+      "name": "ReleaseType 2",
+      "implementation": "ReleaseTypeSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": 2
+      }
+    }
+  ]
+}

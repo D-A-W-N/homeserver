@@ -1,0 +1,16 @@
+{
+  "trash_id": "18f322a9dba089cc56177578cfe45d58",
+  "name": "★ Hardsub",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "ReleaseTitle \\b(hc|hardsub(bed)?|hardcoded)\\b",
+      "implementation": "ReleaseTitleSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": "\\b(hc|hardsub(bed)?|hardcoded)\\b"
+      }
+    }
+  ]
+}

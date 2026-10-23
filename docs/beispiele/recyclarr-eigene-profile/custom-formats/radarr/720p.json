@@ -1,0 +1,16 @@
+{
+  "trash_id": "e10f1c5854817f457422bf7bfbcb5152",
+  "name": "★ 720p",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Resolution 720",
+      "implementation": "ResolutionSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": 720
+      }
+    }
+  ]
+}

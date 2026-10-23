@@ -1,0 +1,565 @@
+---
+# ENTWURF (2026-10-23, nicht mit Recyclarr getestet): eigene Profile statt TRaSH-Profile.
+# Quelle: ~/nas-admin/tools/profile_def.py. Live angelegt per API (profile_anlegen.py).
+# Eigene Custom Formats liegen in custom-formats/<app>/ (settings.yml: resource_providers).
+
+sonarr:
+  sonarr:
+    base_url: http://sonarr:8989
+    api_key: <SONARR_API_KEY>
+    delete_old_custom_formats: true
+    quality_definition:
+      type: series
+      qualities:
+        - { name: SDTV, min: 2, preferred: 10, max: 20 }
+        - { name: DVD, min: 2, preferred: 10, max: 20 }
+        - { name: WEBDL-480p, min: 2, preferred: 10, max: 20 }
+        - { name: WEBRip-480p, min: 2, preferred: 10, max: 20 }
+        - { name: Bluray-480p, min: 2, preferred: 10, max: 20 }
+        - { name: Bluray-576p, min: 2, preferred: 10, max: 20 }
+        - { name: HDTV-720p, min: 3, preferred: 15, max: 60 }
+        - { name: WEBRip-720p, min: 3, preferred: 15, max: 60 }
+        - { name: WEBDL-720p, min: 3, preferred: 15, max: 60 }
+        - { name: Bluray-720p, min: 3, preferred: 15, max: 60 }
+        - { name: HDTV-1080p, min: 4, preferred: 25, max: 110 }
+        - { name: WEBRip-1080p, min: 4, preferred: 25, max: 110 }
+        - { name: WEBDL-1080p, min: 4, preferred: 25, max: 110 }
+        - { name: Bluray-1080p, min: 4, preferred: 25, max: 110 }
+    quality_profiles:
+      - name: Standard
+        reset_unmatched_scores:
+          enabled: true
+        upgrade:
+          allowed: false
+          until_quality: HD 720p/1080p
+        min_format_score: 0
+        qualities:
+          - name: HD 720p/1080p
+            qualities:
+              - HDTV-720p
+              - WEBRip-720p
+              - WEBDL-720p
+              - Bluray-720p
+              - HDTV-1080p
+              - WEBRip-1080p
+              - WEBDL-1080p
+              - Bluray-1080p
+      - name: Staffelpaket Low
+        reset_unmatched_scores:
+          enabled: true
+        upgrade:
+          allowed: false
+          until_quality: SD bis 1080p
+        min_format_score: 0
+        qualities:
+          - name: SD bis 1080p
+            qualities:
+              - SDTV
+              - DVD
+              - WEBDL-480p
+              - WEBRip-480p
+              - Bluray-480p
+              - Bluray-576p
+              - HDTV-720p
+              - WEBRip-720p
+              - WEBDL-720p
+              - Bluray-720p
+              - HDTV-1080p
+              - WEBRip-1080p
+              - WEBDL-1080p
+              - Bluray-1080p
+      - name: Staffelpaket High
+        reset_unmatched_scores:
+          enabled: true
+        upgrade:
+          allowed: false
+          until_quality: HD 720p/1080p
+        min_format_score: 0
+        qualities:
+          - name: HD 720p/1080p
+            qualities:
+              - HDTV-720p
+              - WEBRip-720p
+              - WEBDL-720p
+              - Bluray-720p
+              - HDTV-1080p
+              - WEBRip-1080p
+              - WEBDL-1080p
+              - Bluray-1080p
+      - name: Low
+        reset_unmatched_scores:
+          enabled: true
+        upgrade:
+          allowed: false
+          until_quality: SD bis 720p
+        min_format_score: 0
+        qualities:
+          - name: SD bis 720p
+            qualities:
+              - SDTV
+              - DVD
+              - WEBDL-480p
+              - WEBRip-480p
+              - Bluray-480p
+              - Bluray-576p
+              - HDTV-720p
+              - WEBRip-720p
+              - WEBDL-720p
+              - Bluray-720p
+      - name: Fun Release
+        reset_unmatched_scores:
+          enabled: true
+        upgrade:
+          allowed: false
+          until_quality: HD 720p/1080p
+        min_format_score: 50000
+        qualities:
+          - name: HD 720p/1080p
+            qualities:
+              - HDTV-720p
+              - WEBRip-720p
+              - WEBDL-720p
+              - Bluray-720p
+              - HDTV-1080p
+              - WEBRip-1080p
+              - WEBDL-1080p
+              - Bluray-1080p
+      - name: Nur Englisch
+        reset_unmatched_scores:
+          enabled: true
+        upgrade:
+          allowed: false
+          until_quality: HD 720p/1080p
+        min_format_score: 0
+        qualities:
+          - name: HD 720p/1080p
+            qualities:
+              - HDTV-720p
+              - WEBRip-720p
+              - WEBDL-720p
+              - Bluray-720p
+              - HDTV-1080p
+              - WEBRip-1080p
+              - WEBDL-1080p
+              - Bluray-1080p
+    custom_formats:
+      - trash_ids: [ac61bd7f3fbcdac2eb0785a2e1ef193d]  # ★ Kein deutscher Ton
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Staffelpaket Low, score: -100000 }
+          - { name: Staffelpaket High, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+      - trash_ids: [f50c40398879f739749ffaaa44b05b8b]  # ★ Kein englischer Ton
+        assign_scores_to:
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [2ea1cddf91df05d0e4a0e4c94436d554]  # ★ Originalton Englisch
+        assign_scores_to:
+          - { name: Standard, score: 1000 }
+          - { name: Staffelpaket Low, score: 1000 }
+          - { name: Staffelpaket High, score: 1000 }
+          - { name: Low, score: 1000 }
+          - { name: Fun Release, score: 1000 }
+      - trash_ids: [9188c97ef1e5f5027424d8d87430008c]  # ★ Untertitel
+        assign_scores_to:
+          - { name: Standard, score: 250 }
+          - { name: Staffelpaket Low, score: 250 }
+          - { name: Staffelpaket High, score: 250 }
+          - { name: Low, score: 250 }
+          - { name: Fun Release, score: 250 }
+          - { name: Nur Englisch, score: 250 }
+      - trash_ids: [952887528472ca97cc03250a6744e0de]  # ★ x265 / HEVC
+        assign_scores_to:
+          - { name: Standard, score: 5000 }
+          - { name: Staffelpaket Low, score: 2000 }
+          - { name: Staffelpaket High, score: 5000 }
+          - { name: Low, score: 1000 }
+          - { name: Fun Release, score: 5000 }
+          - { name: Nur Englisch, score: 5000 }
+      - trash_ids: [0b4ee0ad13087cbbf1f441d47f64aae1]  # ★ AV1
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Staffelpaket Low, score: -100000 }
+          - { name: Staffelpaket High, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [0290c9540fcbba8db7895a0ee7c562d7]  # ★ HDR
+        assign_scores_to:
+          - { name: Standard, score: -5000 }
+          - { name: Staffelpaket Low, score: -5000 }
+          - { name: Staffelpaket High, score: -5000 }
+          - { name: Low, score: -5000 }
+          - { name: Fun Release, score: -5000 }
+          - { name: Nur Englisch, score: -5000 }
+      - trash_ids: [a2a14a12d3c407a04613e66a12b3324c]  # ★ Dolby Vision ohne HDR
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Staffelpaket Low, score: -100000 }
+          - { name: Staffelpaket High, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [52099f5540d0aeb7a475bfe13ca4be52]  # ★ Remux
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Staffelpaket Low, score: -100000 }
+          - { name: Staffelpaket High, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [6614a4bc146ede103c7aa42960e8843e]  # ★ Disc-Image
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Staffelpaket Low, score: -100000 }
+          - { name: Staffelpaket High, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [d430f1e7e8d9f30420e8b6db78f29a98]  # ★ CAM / TS / Screener
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Staffelpaket Low, score: -100000 }
+          - { name: Staffelpaket High, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [0dc04f314eba4d89d1da078dee61b9fc]  # ★ 3D
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Staffelpaket Low, score: -100000 }
+          - { name: Staffelpaket High, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [18f322a9dba089cc56177578cfe45d58]  # ★ Hardsub
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Staffelpaket Low, score: -100000 }
+          - { name: Staffelpaket High, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [1ae2dd03c27b7ff544bb188b778f7066]  # ★ LD / MD (Kinoton)
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Staffelpaket Low, score: -100000 }
+          - { name: Staffelpaket High, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [9591428362271fa0d073c672778ab46a]  # ★ Upscale
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Staffelpaket Low, score: -100000 }
+          - { name: Staffelpaket High, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [916781ecdfc20cf0e9957cca1450ab2e]  # ★ Müll-Releases
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Staffelpaket Low, score: -100000 }
+          - { name: Staffelpaket High, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [65adb65215969f25a0a13085e276e8da]  # ★ FuN
+        assign_scores_to:
+          - { name: Fun Release, score: 50000 }
+      - trash_ids: [8bd1bbae4fd15adb13d020ecf630c44c]  # ★ 720p
+        assign_scores_to:
+          - { name: Low, score: 1000 }
+      - trash_ids: [1ee32ce98bd0850aac5a7181fd7441a6]  # ★ Kein Staffelpaket
+        assign_scores_to:
+          - { name: Staffelpaket Low, score: -100000 }
+          - { name: Staffelpaket High, score: -100000 }
+      - trash_ids: [aad22dbac427f20339308bd9d7cd9b9b]  # ★ 1080p ohne x265
+        assign_scores_to:
+          - { name: Staffelpaket Low, score: -100000 }
+      - trash_ids: [dfdefadac74ce65e0d081d21754bcc0a]  # ★ Folge bis 0,4 GB
+        assign_scores_to:
+          - { name: Standard, score: 3000 }
+          - { name: Staffelpaket High, score: 3000 }
+          - { name: Low, score: 3000 }
+          - { name: Fun Release, score: 3000 }
+          - { name: Nur Englisch, score: 3000 }
+      - trash_ids: [4f77faf0b2f2311e99d4c16c0f405c7e]  # ★ Folge 0,4-0,8 GB
+        assign_scores_to:
+          - { name: Standard, score: 3000 }
+          - { name: Staffelpaket High, score: 3000 }
+          - { name: Low, score: 1500 }
+          - { name: Fun Release, score: 3000 }
+          - { name: Nur Englisch, score: 3000 }
+      - trash_ids: [8867f1e75243ada0bf2d78b703c7927b]  # ★ Folge 0,8-1,5 GB
+        assign_scores_to:
+          - { name: Standard, score: 1500 }
+          - { name: Staffelpaket High, score: 1500 }
+          - { name: Fun Release, score: 1500 }
+          - { name: Nur Englisch, score: 1500 }
+      - trash_ids: [70f44e69f14e335cb6d3b40c6958dd14]  # ★ Folge 1,5-3 GB
+        assign_scores_to:
+          - { name: Low, score: -3000 }
+      - trash_ids: [146e02f7ef079284a71002be9977c75d]  # ★ Folge über 3 GB
+        assign_scores_to:
+          - { name: Standard, score: -3000 }
+          - { name: Staffelpaket High, score: -3000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -3000 }
+          - { name: Nur Englisch, score: -3000 }
+      - trash_ids: [5a2101368b07f674de30f5fc0aaf23fd]  # ★ Staffel bis 6 GB
+        assign_scores_to:
+          - { name: Standard, score: 3000 }
+          - { name: Staffelpaket Low, score: 3000 }
+          - { name: Staffelpaket High, score: 3000 }
+          - { name: Low, score: 3000 }
+          - { name: Fun Release, score: 3000 }
+          - { name: Nur Englisch, score: 3000 }
+      - trash_ids: [8471f68d11cb7eddc1e0777b06c41385]  # ★ Staffel 6-16 GB
+        assign_scores_to:
+          - { name: Standard, score: 3000 }
+          - { name: Staffelpaket Low, score: 1500 }
+          - { name: Staffelpaket High, score: 3000 }
+          - { name: Low, score: 1500 }
+          - { name: Fun Release, score: 3000 }
+          - { name: Nur Englisch, score: 3000 }
+      - trash_ids: [c977812e6bed05c4d68bc2f60bb5c074]  # ★ Staffel 16-20 GB
+        assign_scores_to:
+          - { name: Standard, score: 1500 }
+          - { name: Staffelpaket High, score: 1500 }
+          - { name: Fun Release, score: 1500 }
+          - { name: Nur Englisch, score: 1500 }
+      - trash_ids: [c39c0418ebb4cf6d1fdfcba110d4cb8a]  # ★ Staffel 20-35 GB
+        assign_scores_to:
+          - { name: Staffelpaket Low, score: -100000 }
+          - { name: Low, score: -100000 }
+      - trash_ids: [4ac4f23e71bd3ccf3ad8dc387ba70089]  # ★ Staffel über 35 GB
+        assign_scores_to:
+          - { name: Standard, score: -3000 }
+          - { name: Staffelpaket Low, score: -100000 }
+          - { name: Staffelpaket High, score: -3000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -3000 }
+          - { name: Nur Englisch, score: -3000 }
+
+radarr:
+  radarr:
+    base_url: http://radarr:7878
+    api_key: <RADARR_API_KEY>
+    delete_old_custom_formats: true
+    quality_definition:
+      type: movie
+      qualities:
+        - { name: SDTV, min: 2, preferred: 10, max: 20 }
+        - { name: DVD, min: 2, preferred: 10, max: 20 }
+        - { name: WEBDL-480p, min: 2, preferred: 10, max: 20 }
+        - { name: WEBRip-480p, min: 2, preferred: 10, max: 20 }
+        - { name: Bluray-480p, min: 2, preferred: 10, max: 20 }
+        - { name: Bluray-576p, min: 2, preferred: 10, max: 20 }
+        - { name: HDTV-720p, min: 3, preferred: 15, max: 60 }
+        - { name: WEBRip-720p, min: 3, preferred: 15, max: 60 }
+        - { name: WEBDL-720p, min: 3, preferred: 15, max: 60 }
+        - { name: Bluray-720p, min: 3, preferred: 15, max: 60 }
+        - { name: HDTV-1080p, min: 4, preferred: 25, max: 110 }
+        - { name: WEBRip-1080p, min: 4, preferred: 25, max: 110 }
+        - { name: WEBDL-1080p, min: 4, preferred: 25, max: 110 }
+        - { name: Bluray-1080p, min: 4, preferred: 25, max: 110 }
+    quality_profiles:
+      - name: Standard
+        reset_unmatched_scores:
+          enabled: true
+        upgrade:
+          allowed: false
+          until_quality: HD 720p/1080p
+        min_format_score: 0
+        qualities:
+          - name: HD 720p/1080p
+            qualities:
+              - HDTV-720p
+              - WEBRip-720p
+              - WEBDL-720p
+              - Bluray-720p
+              - HDTV-1080p
+              - WEBRip-1080p
+              - WEBDL-1080p
+              - Bluray-1080p
+      - name: Low
+        reset_unmatched_scores:
+          enabled: true
+        upgrade:
+          allowed: false
+          until_quality: SD bis 720p
+        min_format_score: 0
+        qualities:
+          - name: SD bis 720p
+            qualities:
+              - SDTV
+              - DVD
+              - WEBDL-480p
+              - WEBRip-480p
+              - Bluray-480p
+              - Bluray-576p
+              - HDTV-720p
+              - WEBRip-720p
+              - WEBDL-720p
+              - Bluray-720p
+      - name: Fun Release
+        reset_unmatched_scores:
+          enabled: true
+        upgrade:
+          allowed: false
+          until_quality: HD 720p/1080p
+        min_format_score: 50000
+        qualities:
+          - name: HD 720p/1080p
+            qualities:
+              - HDTV-720p
+              - WEBRip-720p
+              - WEBDL-720p
+              - Bluray-720p
+              - HDTV-1080p
+              - WEBRip-1080p
+              - WEBDL-1080p
+              - Bluray-1080p
+      - name: Nur Englisch
+        reset_unmatched_scores:
+          enabled: true
+        upgrade:
+          allowed: false
+          until_quality: HD 720p/1080p
+        min_format_score: 0
+        qualities:
+          - name: HD 720p/1080p
+            qualities:
+              - HDTV-720p
+              - WEBRip-720p
+              - WEBDL-720p
+              - Bluray-720p
+              - HDTV-1080p
+              - WEBRip-1080p
+              - WEBDL-1080p
+              - Bluray-1080p
+    custom_formats:
+      - trash_ids: [79a4bd5b7a4a6079969173abba20ebf6]  # ★ Kein deutscher Ton
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+      - trash_ids: [fa6cf8d97c2dc032426ed7d6308b3d52]  # ★ Kein englischer Ton
+        assign_scores_to:
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [63896a9fd9dd35c376d121518fcb14ce]  # ★ Originalton Englisch
+        assign_scores_to:
+          - { name: Standard, score: 1000 }
+          - { name: Low, score: 1000 }
+          - { name: Fun Release, score: 1000 }
+      - trash_ids: [77aa1f5a861f105c172155960d66e4d2]  # ★ Untertitel
+        assign_scores_to:
+          - { name: Standard, score: 250 }
+          - { name: Low, score: 250 }
+          - { name: Fun Release, score: 250 }
+          - { name: Nur Englisch, score: 250 }
+      - trash_ids: [ec21a0902e9336fc8b8226320e9e75b3]  # ★ x265 / HEVC
+        assign_scores_to:
+          - { name: Standard, score: 5000 }
+          - { name: Low, score: 1000 }
+          - { name: Fun Release, score: 5000 }
+          - { name: Nur Englisch, score: 5000 }
+      - trash_ids: [7dab8e336b3ba124d9b30130f1ec3d57]  # ★ AV1
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [b9556d87d1c58b3cbda16de8683fe2fb]  # ★ HDR
+        assign_scores_to:
+          - { name: Standard, score: -5000 }
+          - { name: Low, score: -5000 }
+          - { name: Fun Release, score: -5000 }
+          - { name: Nur Englisch, score: -5000 }
+      - trash_ids: [8994cc9f7d836a99f8ff8aadd913586c]  # ★ Dolby Vision ohne HDR
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [263d8dc37c998e2ee829360789a36a1d]  # ★ Remux
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [0b2619af5226d89de28976f67506c927]  # ★ Disc-Image
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [445c6296b7f45e17bc4f24a6d3fa585f]  # ★ CAM / TS / Screener
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [3eb307517ab9c82cf3737a133aee9bb7]  # ★ 3D
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [01fb972bafa851c2edb4d62c22cff7a5]  # ★ Hardsub
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [2e1c3b8fd8d0ac2cee090105f9a17b4e]  # ★ LD / MD (Kinoton)
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [fdb9362964f6a8764cffa8b499565c95]  # ★ Upscale
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [9a0e14a67ecce3a5feb7e9fb75c4ae09]  # ★ Müll-Releases
+        assign_scores_to:
+          - { name: Standard, score: -100000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -100000 }
+          - { name: Nur Englisch, score: -100000 }
+      - trash_ids: [772da7db65f133be4d6f79a7de302452]  # ★ FuN
+        assign_scores_to:
+          - { name: Fun Release, score: 50000 }
+      - trash_ids: [e10f1c5854817f457422bf7bfbcb5152]  # ★ 720p
+        assign_scores_to:
+          - { name: Low, score: 1000 }
+      - trash_ids: [b9dc2b74b02e8e340a3e418368c9ce7b]  # ★ Film bis 1,5 GB
+        assign_scores_to:
+          - { name: Standard, score: 3000 }
+          - { name: Low, score: 3000 }
+          - { name: Fun Release, score: 3000 }
+          - { name: Nur Englisch, score: 3000 }
+      - trash_ids: [0d41ff82d90be4f482f0d097498a5eae]  # ★ Film 1,5-3,5 GB
+        assign_scores_to:
+          - { name: Standard, score: 3000 }
+          - { name: Low, score: 1500 }
+          - { name: Fun Release, score: 3000 }
+          - { name: Nur Englisch, score: 3000 }
+      - trash_ids: [e3c6574130cf04b925cd72970bb0233f]  # ★ Film 3,5-6 GB
+        assign_scores_to:
+          - { name: Standard, score: 1500 }
+          - { name: Fun Release, score: 1500 }
+          - { name: Nur Englisch, score: 1500 }
+      - trash_ids: [f417c54ebe840b951d69a3bc3dba720d]  # ★ Film 6-12 GB
+        assign_scores_to:
+          - { name: Low, score: -3000 }
+      - trash_ids: [ce54fd4f6ca6f2918b9a14b442dc9346]  # ★ Film über 12 GB
+        assign_scores_to:
+          - { name: Standard, score: -3000 }
+          - { name: Low, score: -100000 }
+          - { name: Fun Release, score: -3000 }
+          - { name: Nur Englisch, score: -3000 }

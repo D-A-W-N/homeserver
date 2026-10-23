@@ -1,0 +1,26 @@
+{
+  "trash_id": "c39c0418ebb4cf6d1fdfcba110d4cb8a",
+  "name": "★ Staffel 20-35 GB",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Size 20",
+      "implementation": "SizeSpecification",
+      "negate": false,
+      "required": true,
+      "fields": {
+        "min": 20,
+        "max": 35
+      }
+    },
+    {
+      "name": "ReleaseType 3",
+      "implementation": "ReleaseTypeSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": 3
+      }
+    }
+  ]
+}

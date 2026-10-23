@@ -1,0 +1,16 @@
+{
+  "trash_id": "7dab8e336b3ba124d9b30130f1ec3d57",
+  "name": "★ AV1",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "ReleaseTitle \\bav1\\b",
+      "implementation": "ReleaseTitleSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": "\\bav1\\b"
+      }
+    }
+  ]
+}

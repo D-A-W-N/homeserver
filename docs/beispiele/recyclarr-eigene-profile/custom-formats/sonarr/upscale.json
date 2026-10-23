@@ -1,0 +1,16 @@
+{
+  "trash_id": "9591428362271fa0d073c672778ab46a",
+  "name": "★ Upscale",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "ReleaseTitle \\b(upscaled?|regraded?|ai[ .]?upscale)\\b",
+      "implementation": "ReleaseTitleSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": "\\b(upscaled?|regraded?|ai[ .]?upscale)\\b"
+      }
+    }
+  ]
+}

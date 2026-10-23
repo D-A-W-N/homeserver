@@ -1,0 +1,11 @@
+---
+# Eigene Custom Formats (Entwurf)
+resource_providers:
+  - name: aunserver-eigen-sonarr
+    type: custom-formats
+    service: sonarr
+    path: custom-formats/sonarr
+  - name: aunserver-eigen-radarr
+    type: custom-formats
+    service: radarr
+    path: custom-formats/radarr
