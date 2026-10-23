@@ -41,8 +41,8 @@ Updates: Debian und Docker aktualisieren sich selbst; neue Stände von aunserver
 ## Entwicklung
 
 ```bash
-python3.13 -m venv .venv && . .venv/bin/activate
-pip install -r requirements-dev.txt
+uv venv --python 3.13 .venv && . .venv/bin/activate   # uv lädt Python 3.13, falls es fehlt
+uv pip install -r requirements-dev.txt                 # auch nach Änderungen an requirements-dev.txt
 yamllint . && (cd ansible && ansible-lint)
 shellcheck bin/* dev/*.sh installer/*.sh
 ```

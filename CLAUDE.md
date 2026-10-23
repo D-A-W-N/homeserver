@@ -24,7 +24,7 @@ An diesem Repo arbeiten **mehrere Claude-Sessions parallel**. Diese Regeln gelte
 ## Prüfen vor dem PR
 
 ```bash
-. .venv/bin/activate   # einmalig: python3.13 -m venv .venv && pip install -r requirements-dev.txt
+. .venv/bin/activate   # einmalig: uv venv --python 3.13 .venv; danach und nach Updates: uv pip install -r requirements-dev.txt
 yamllint . && (cd ansible && ansible-lint)
 shellcheck bin/* dev/*.sh installer/*.sh
 ```
