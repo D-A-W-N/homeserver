@@ -4,13 +4,13 @@ An diesem Repo arbeiten **mehrere Claude-Sessions parallel**. Diese Regeln gelte
 
 ## Gitflow (Pflicht)
 
-1. **Nie direkt auf `main` committen oder pushen.** `main` ist nicht technisch geschützt, die Regel hängt an uns.
+1. **Nie direkt auf `main` committen oder pushen.** Ein Ruleset auf GitHub erzwingt das: Änderungen nur per PR, `lint` und `secrets` grün, Branch auf dem Stand von `main`, nur Merge-Commits, kein Force-Push.
 2. **Vor dem Start:** `git fetch`, offene PRs und Branches ansehen (`gh pr list`, `git branch -r`), damit zwei Sessions nicht dasselbe bauen. Überschneidet sich etwas, erst den Nutzer fragen.
 3. **Ein Thema = ein Branch**, immer vom aktuellen `origin/main`: `git switch -c <name> origin/main`.
    Namen kurz, deutsch, kebab-case, ohne Präfix (wie bisher: `arcane-rechte`, `emby-tailscale`).
 4. **Nur auf dem eigenen Branch arbeiten.** Fremde Branches nicht ändern, nie `--force` auf fremde Branches; auf dem eigenen nur `--force-with-lease`.
 5. **Pull Request** mit `gh pr create` gegen `main`. Ist `main` inzwischen weiter, `origin/main` in den Branch mergen und Konflikte sauber lösen.
-6. **Merge nur mit grüner CI und nach OK des Nutzers**, als Merge-Commit (`gh pr merge --merge --delete-branch`). Renovate merged Patch/Minor selbst, das ist so gewollt.
+6. **Merge nach grüner CI** (alle Prüfungen, auch der VM-Test, und ohne neue Warnungen im Log) als Merge-Commit (`gh pr merge --merge --delete-branch`); dafür ist kein extra OK des Nutzers nötig. Renovate merged Patch/Minor selbst, Major-Updates entscheidet der Nutzer.
 
 **Warum so streng:** `aunserver-update` auf dem echten NAS holt direkt den Stand von `main` (D20 in [docs/PLAN.md](docs/PLAN.md)). Alles, was auf `main` landet, kann auf dem Server ankommen.
 
