@@ -95,7 +95,7 @@ sudo aunserver-update --check    # nur nachsehen
 sudo aunserver-update --rollback # zurück zum Stand vor dem letzten Update
 ```
 
-Woher neue Versionen kommen: Renovate prüft das Repo und legt montags früh für jede neue Image-Version einen Pull Request an (Übersicht im Issue „Dependency Dashboard“, dort lassen sich Updates auch sofort anstoßen). Die CI testet jeden PR komplett in VMs. **Patch- und Minor-Updates merged Renovate danach selbst**, sobald alle Prüfungen grün sind; **Major-Updates** bleiben als PR liegen, bis du entscheidest. Alles, was in `main` landet, meldet das NAS als Update, installiert wird aber erst mit `sudo aunserver-update`.
+Woher neue Versionen kommen: Renovate prüft das Repo und legt montags früh für jede neue Image-Version einen Pull Request an, für die eigenen Images (Recommendarr, PS2GameManager) schon beim nächsten Lauf nach dem Release (Übersicht im Issue „Dependency Dashboard“, dort lassen sich Updates auch sofort anstoßen). Die CI testet jeden PR komplett in VMs. **Patch- und Minor-Updates merged Renovate danach selbst**, sobald alle Prüfungen grün sind; **Major-Updates** bleiben als PR liegen, bis du entscheidest. Alles, was in `main` landet, meldet das NAS als Update, installiert wird aber erst mit `sudo aunserver-update`. Arcane zeigt neue Versionen nicht an: Es prüft nur, ob es für den laufenden Tag ein neueres Image gibt.
 
 ## Konfiguration ändern
 

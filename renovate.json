@@ -57,6 +57,11 @@
       "platformAutomerge": false,
       "automergeType": "pr",
       "automergeStrategy": "merge-commit"
+    },
+    {
+      "description": "Eigene Images (Recommendarr, PS2GameManager) ohne Wochenplan: neue Versionen kommen beim nächsten Renovate-Lauf statt erst am Montag. Arcane meldet sie nicht, weil es nur den laufenden Tag prüft",
+      "matchDepNames": ["ghcr.io/d-a-w-n/**"],
+      "schedule": ["at any time"]
     }
   ]
 }
