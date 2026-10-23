@@ -17,6 +17,9 @@ apps:
   recommendarr: true
   ps2gamemanager: true
 
+# DLNA-Abspielgeräte (z. B. Sonos) für Emby „Wiedergabe auf“, feste IPs
+emby_dlna_renderers: []   # z. B. [192.168.1.110, 192.168.1.207]
+
 # SMB1 für PS2/OPL (getrennte Samba-Instanz, nur SMB1, eigener Benutzer ps2)
 samba_legacy:
   enabled: true

@@ -13,6 +13,9 @@ domain: nas.home.arpa
 # Netze, die auf die NAS-Dienste zugreifen dürfen. Leer = Netz der Standard-Schnittstelle.
 lan_subnets: []
 lan6_subnets: []   # z. B. [fd00::/64]; Link-Local ist immer erlaubt
+# DLNA-Abspielgeräte für Emby „Wiedergabe auf“ (z. B. Sonos). Sie beantworten Embys
+# SSDP-Suche vom Zufallsport. Leer = keine Regel; feste IPs (DHCP-Reservierung) nötig.
+emby_dlna_renderers: []
 
 # Speicher (Plan, Abschnitt 5)
 # true = keine eigene Datenplatte, data_mount liegt auf der Systemplatte

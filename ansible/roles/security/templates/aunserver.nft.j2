@@ -19,6 +19,13 @@ table inet aunserver {
 		elements = { {{ (samba_legacy.allowed_clients if samba_legacy.allowed_clients | length > 0 else security_lan4) | join(', ') }} }
 	}
 {% endif %}
+{% if apps.emby | bool and emby_dlna_renderers | length > 0 %}
+	# DLNA-Abspielgeräte für Emby „Wiedergabe auf“ (z. B. Sonos)
+	set dlna_renderers {
+		type ipv4_addr; flags interval
+		elements = { {{ emby_dlna_renderers | join(', ') }} }
+	}
+{% endif %}
 
 	chain input {
 		type filter hook input priority filter; policy drop;
@@ -41,6 +48,10 @@ table inet aunserver {
 		ip6 saddr @lan6 tcp dport { {{ security_emby_tcp_ports | join(', ') }} } accept
 		# Emby-Apps unterwegs (und Geräte, die das NAS über die Tailscale-Route ansprechen)
 		iifname "tailscale0" tcp dport { {{ security_emby_tcp_ports | join(', ') }} } accept
+{% if emby_dlna_renderers | length > 0 %}
+		# SSDP-Antworten der Abspielgeräte kommen vom Zufallsport an Embys Zufallsports
+		ip saddr @dlna_renderers udp sport 32768-60999 udp dport 32768-60999 accept
+{% endif %}
 {% endif %}
 {% if apps.tailscale | bool %}
 		# Tailscale: direkte, verschlüsselte Verbindungen (sonst nur über langsamere Relays)
