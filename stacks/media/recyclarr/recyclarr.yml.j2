@@ -3,11 +3,12 @@
 # Wunsch des Nutzers: Deutsch + DL, 1080p, x265 bevorzugt (platzsparend).
 # "Golden Rule HD" bewusst weggelassen: sie fügt "x265 (HD)" mit 0 Punkten hinzu und
 # würde mit dem Bonus unten kollidieren.
+# API-Schlüssel stehen in secrets.yml (schreibt das Setup bei jedem Lauf).
 
 sonarr:
   sonarr:
     base_url: http://sonarr:8989
-    api_key: {{ stacks_arr_keys.sonarr }}
+    api_key: !secret sonarr_api_key
     delete_old_custom_formats: true
     quality_definition:
       type: series
@@ -28,7 +29,7 @@ sonarr:
 radarr:
   radarr:
     base_url: http://radarr:7878
-    api_key: {{ stacks_arr_keys.radarr }}
+    api_key: !secret radarr_api_key
     delete_old_custom_formats: true
     quality_definition:
       type: movie

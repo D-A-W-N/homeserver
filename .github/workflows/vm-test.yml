@@ -135,6 +135,15 @@ jobs:
           sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/run2.log" \
             | grep -E 'localhost +: ok=[0-9]+ +changed=0 +unreachable=0 +failed=0'
 
+      - name: Recyclarr-Schlüssel nur in secrets.yml
+        run: |
+          ssh_vm() { ssh -n -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost "$@"; }
+          # recyclarr.yml verweist per !secret, der Sync im ersten Lauf hat das schon aufgelöst
+          test "$(ssh_vm "grep -c '!secret' /srv/appdata/recyclarr/recyclarr.yml")" = 2
+          test "$(ssh_vm "grep -cE '_api_key: [0-9a-f]{32}$' /srv/appdata/recyclarr/secrets.yml")" = 2
+          test "$(ssh_vm "stat -c %a /srv/appdata/recyclarr/secrets.yml")" = 600
+          if ssh_vm "grep -E 'api_key: [0-9a-f]{32}' /srv/appdata/recyclarr/recyclarr.yml"; then exit 1; fi
+
       - name: Firewall ohne DLNA-Liste und PS2-IP wie bisher (kein SSDP, keine Umleitung)
         run: |
           ssh_vm() { ssh -n -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost "$@"; }

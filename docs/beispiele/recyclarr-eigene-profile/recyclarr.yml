@@ -1,12 +1,12 @@
 ---
 # ENTWURF (2026-10-23, nicht mit Recyclarr getestet): eigene Profile statt TRaSH-Profile.
-# Quelle: ~/nas-admin/tools/profile_def.py. Live angelegt per API (profile_anlegen.py).
+# Live per API angelegt und geprüft; API-Schlüssel kommen aus secrets.yml (schreibt das Setup).
 # Eigene Custom Formats liegen in custom-formats/<app>/ (settings.yml: resource_providers).
 
 sonarr:
   sonarr:
     base_url: http://sonarr:8989
-    api_key: <SONARR_API_KEY>
+    api_key: !secret sonarr_api_key
     delete_old_custom_formats: true
     quality_definition:
       type: series
@@ -345,7 +345,7 @@ sonarr:
 radarr:
   radarr:
     base_url: http://radarr:7878
-    api_key: <RADARR_API_KEY>
+    api_key: !secret radarr_api_key
     delete_old_custom_formats: true
     quality_definition:
       type: movie
