@@ -82,6 +82,8 @@ Einmalig nach dem Setup im Tailscale-Konto:
 2. **DNS → Nameservers → Add nameserver → Custom:** die Tailscale-IP des NAS (`sudo tailscale ip -4`) eintragen, **Restrict to domain** anhaken und `nas.home.arpa` angeben (Split DNS, siehe Zugänge). Dann gelten die `….nas.home.arpa`-Namen auf allen Tailscale-Geräten, auch unterwegs. Soll AdGuard für diese Geräte auch Werbung filtern: ohne *Restrict to domain* eintragen und den Schalter **Override DNS servers** einschalten; fällt das NAS aus, haben diese Geräte dann aber kein DNS mehr.
 3. **Handy:** Tailscale-App anmelden, Stammzertifikat installieren, ntfy-App einrichten.
 
+**Exit-Node (optional):** Mit `network_tailscale_exit_node: true` in `/etc/aunserver/config.yml` und `sudo aunserver-setup` bietet sich das NAS als Exit-Node an. Danach unter **Machines → nas → Edit route settings** „Use as exit node“ einschalten und am Handy in der Tailscale-App das NAS als Exit-Node wählen. Dann geht der ganze Internetverkehr des Handys verschlüsselt nach Hause und von dort über den Router hinaus (Tempo durch den Upload des Anschlusses begrenzt). Wer das NAS als Exit-Node nutzt, erreicht darüber auch das übrige Heimnetz, solange die Tailscale-ACL das nicht einschränkt. Abschalten: Wert auf `false`, `sudo aunserver-setup`.
+
 Ist das NAS abgemeldet (z. B. nach einer Neuinstallation), steht das oben in der Zugangsübersicht. Neu anmelden mit `sudo tailscale up`.
 
 ## Updates

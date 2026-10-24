@@ -20,6 +20,9 @@ apps:
 # DLNA-Abspielgeräte (z. B. Sonos) für Emby „Wiedergabe auf“, feste IPs
 emby_dlna_renderers: []   # z. B. [192.168.1.110, 192.168.1.207]
 
+# NAS als Tailscale-Exit-Node (z. B. Handy unterwegs), danach in der Admin-Konsole freigeben
+network_tailscale_exit_node: false
+
 # Eigene Recyclarr-Profile statt der TRaSH-Vorlage (docs/BETRIEB.md, Abschnitt Indexer)
 recyclarr_eigene_config: false
 

@@ -3,3 +3,10 @@
 # So erreichen Geräte im VPN die NAS-Dienste unter ihren normalen Namen (AdGuard antwortet mit
 # der LAN-Adresse), aber nicht den Rest des Heimnetzes. Ganzes LAN: z. B. ["192.168.1.0/24"].
 network_tailscale_routes: []
+
+# Exit-Node: Tailnet-Geräte können ihren ganzen Internetverkehr über das NAS leiten (z. B. das
+# Handy unterwegs, dann geht er zu Hause durch den Router hinaus). Zusätzlich in der Admin-Konsole
+# freigeben (Machines → <hostname> → Edit route settings → Use as exit node).
+# Achtung: Wer das NAS als Exit-Node nutzt, erreicht darüber auch das übrige Heimnetz, solange
+# die Tailscale-ACL das nicht einschränkt (autogroup:internet).
+network_tailscale_exit_node: false
