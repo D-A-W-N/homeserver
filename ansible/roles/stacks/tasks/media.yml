@@ -311,8 +311,23 @@
 
 # --- Recyclarr ---------------------------------------------------------------------
 
+# API-Schlüssel immer aktuell in secrets.yml (in der Konfiguration: api_key: !secret sonarr_api_key),
+# auch mit eigener Konfiguration; recyclarr.yml selbst enthält dann keine Schlüssel
+- name: Recyclarr-Schlüssel (secrets.yml)
+  ansible.builtin.copy:
+    content: |
+      # {{ ansible_managed }}
+      sonarr_api_key: {{ stacks_arr_keys.sonarr }}
+      radarr_api_key: {{ stacks_arr_keys.radarr }}
+    dest: "{{ appdata_dir }}/recyclarr/secrets.yml"
+    owner: "{{ admin_user }}"
+    group: "{{ admin_user }}"
+    mode: "0600"
+  register: stacks_recyclarr_secrets
+  no_log: true
+
 # Mit recyclarr_eigene_config gehört recyclarr.yml dem Nutzer und bleibt unangetastet
-- name: Recyclarr-Konfiguration (enthält API-Schlüssel)
+- name: Recyclarr-Konfiguration (TRaSH-Vorlage)
   ansible.builtin.template:
     src: "{{ playbook_dir }}/../stacks/media/recyclarr/recyclarr.yml.j2"
     dest: "{{ appdata_dir }}/recyclarr/recyclarr.yml"
@@ -324,8 +339,16 @@
 
 - name: Qualitätsprofile sofort synchronisieren (danach täglich durch Recyclarr selbst)
   ansible.builtin.command: docker exec recyclarr recyclarr sync
-  when: stacks_recyclarr_config.changed # noqa no-handler
+  when: stacks_recyclarr_config.changed or stacks_recyclarr_secrets.changed # noqa no-handler
+  register: stacks_recyclarr_sync
   changed_when: true
+  # eine fehlerhafte eigene Konfiguration darf das Setup nicht abbrechen, die TRaSH-Vorlage schon
+  failed_when: stacks_recyclarr_sync.rc != 0 and not (recyclarr_eigene_config | bool)
+
+- name: Hinweis, wenn die eigene Recyclarr-Konfiguration nicht synchronisiert
+  ansible.builtin.debug:
+    msg: "recyclarr sync mit der eigenen recyclarr.yml fehlgeschlagen. Prüfen: docker exec recyclarr recyclarr sync --preview"
+  when: stacks_recyclarr_sync.rc | default(0) != 0
 
 # --- Bazarr (Untertitel) -----------------------------------------------------------
 # Verbindung zu Sonarr/Radarr und ein Sprachprofil "Deutsch + Englisch". Untertitel-Anbieter

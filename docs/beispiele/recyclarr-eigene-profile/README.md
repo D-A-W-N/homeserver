@@ -5,7 +5,8 @@ geprüft (2026-10-23, Sonarr 4.0.20, Radarr 6.4.4, Indexer TM und HoU). Die Recy
 ist daraus erzeugt und **noch nicht mit `recyclarr sync` getestet**.
 
 Nutzung: `recyclarr_eigene_config: true` in `/etc/aunserver/config.yml`, dann `recyclarr.yml`
-(API-Schlüssel eintragen), `settings.yml` und `custom-formats/` nach `/srv/appdata/recyclarr/` kopieren
+(die API-Schlüssel kommen per `!secret` aus der `secrets.yml`, die das Setup schreibt), `settings.yml`
+und `custom-formats/` nach `/srv/appdata/recyclarr/` kopieren
 und `docker exec recyclarr recyclarr sync --preview` prüfen.
 
 | Profil | App | Qualitäten | Min-Score | Kern |
