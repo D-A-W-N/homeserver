@@ -1,0 +1,17 @@
+{
+  "trash_id": "f417c54ebe840b951d69a3bc3dba720d",
+  "name": "★ Film 6-12 GB",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Size 6",
+      "implementation": "SizeSpecification",
+      "negate": false,
+      "required": true,
+      "fields": {
+        "min": 6,
+        "max": 12
+      }
+    }
+  ]
+}

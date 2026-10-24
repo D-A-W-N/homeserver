@@ -1,0 +1,16 @@
+{
+  "trash_id": "2e1c3b8fd8d0ac2cee090105f9a17b4e",
+  "name": "★ LD / MD (Kinoton)",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "ReleaseTitle \\b(ld|md|line[ .]?dubbed|mic[ .]?dubbed)\\b",
+      "implementation": "ReleaseTitleSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": "\\b(ld|md|line[ .]?dubbed|mic[ .]?dubbed)\\b"
+      }
+    }
+  ]
+}

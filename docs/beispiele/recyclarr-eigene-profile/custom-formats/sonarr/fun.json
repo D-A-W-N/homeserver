@@ -1,0 +1,16 @@
+{
+  "trash_id": "65adb65215969f25a0a13085e276e8da",
+  "name": "★ FuN",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "ReleaseTitle -FuN\\b",
+      "implementation": "ReleaseTitleSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": "-FuN\\b"
+      }
+    }
+  ]
+}

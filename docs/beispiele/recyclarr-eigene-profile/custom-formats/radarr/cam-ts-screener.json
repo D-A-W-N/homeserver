@@ -1,0 +1,16 @@
+{
+  "trash_id": "445c6296b7f45e17bc4f24a6d3fa585f",
+  "name": "★ CAM / TS / Screener",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "ReleaseTitle \\b(cam(rip)?|hdcam|ts|hdts|telesync|tc|telecine|(dvd|bd)?scr(eener)?|r5|workprint)\\b",
+      "implementation": "ReleaseTitleSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": "\\b(cam(rip)?|hdcam|ts|hdts|telesync|tc|telecine|(dvd|bd)?scr(eener)?|r5|workprint)\\b"
+      }
+    }
+  ]
+}

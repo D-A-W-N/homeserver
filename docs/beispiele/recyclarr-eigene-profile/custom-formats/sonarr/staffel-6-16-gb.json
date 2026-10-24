@@ -1,0 +1,26 @@
+{
+  "trash_id": "8471f68d11cb7eddc1e0777b06c41385",
+  "name": "★ Staffel 6-16 GB",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Size 6",
+      "implementation": "SizeSpecification",
+      "negate": false,
+      "required": true,
+      "fields": {
+        "min": 6,
+        "max": 16
+      }
+    },
+    {
+      "name": "ReleaseType 3",
+      "implementation": "ReleaseTypeSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": 3
+      }
+    }
+  ]
+}

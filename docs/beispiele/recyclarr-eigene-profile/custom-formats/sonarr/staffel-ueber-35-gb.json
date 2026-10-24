@@ -1,0 +1,26 @@
+{
+  "trash_id": "4ac4f23e71bd3ccf3ad8dc387ba70089",
+  "name": "★ Staffel über 35 GB",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Size 35",
+      "implementation": "SizeSpecification",
+      "negate": false,
+      "required": true,
+      "fields": {
+        "min": 35,
+        "max": 1000
+      }
+    },
+    {
+      "name": "ReleaseType 3",
+      "implementation": "ReleaseTypeSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": 3
+      }
+    }
+  ]
+}

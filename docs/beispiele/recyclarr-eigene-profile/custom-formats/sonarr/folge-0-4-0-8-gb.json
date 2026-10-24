@@ -1,0 +1,35 @@
+{
+  "trash_id": "4f77faf0b2f2311e99d4c16c0f405c7e",
+  "name": "★ Folge 0,4-0,8 GB",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Size 0.4",
+      "implementation": "SizeSpecification",
+      "negate": false,
+      "required": true,
+      "fields": {
+        "min": 0.4,
+        "max": 0.8
+      }
+    },
+    {
+      "name": "ReleaseType 1",
+      "implementation": "ReleaseTypeSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": 1
+      }
+    },
+    {
+      "name": "ReleaseType 2",
+      "implementation": "ReleaseTypeSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": 2
+      }
+    }
+  ]
+}

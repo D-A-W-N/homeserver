@@ -1,0 +1,16 @@
+{
+  "trash_id": "0290c9540fcbba8db7895a0ee7c562d7",
+  "name": "★ HDR",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "ReleaseTitle \\bhdr(10)?(\\+|p(lus)?)?\\b",
+      "implementation": "ReleaseTitleSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": "\\bhdr(10)?(\\+|p(lus)?)?\\b"
+      }
+    }
+  ]
+}

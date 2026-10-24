@@ -1,0 +1,17 @@
+{
+  "trash_id": "ce54fd4f6ca6f2918b9a14b442dc9346",
+  "name": "★ Film über 12 GB",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Size 12",
+      "implementation": "SizeSpecification",
+      "negate": false,
+      "required": true,
+      "fields": {
+        "min": 12,
+        "max": 1000
+      }
+    }
+  ]
+}

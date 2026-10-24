@@ -51,7 +51,7 @@ Stand: 2026-10-19 · Status: im Betrieb auf dem echten NAS (`v0.9.0` + Updates),
 | D16 | App-Configs | **SSD** (`/srv/appdata`), Sicherung per restic | Schnelle SQLite-Zugriffe, die HDD darf schlafen, Configs überleben einen HDD-Ausfall. |
 | D17 | HTTPS im LAN | Lokale Domain `nas.home.arpa`, Caddy mit eigener CA (`tls internal`) | Keine eigene Domain nötig. Das Stammzertifikat wird einmal pro Gerät installiert. |
 | D18 | Zielhardware | AMD A4-5000, 15 GiB RAM, SSD + 3,6-TB-HDD, UEFI | Kein Transcoding: Emby nur mit Direct Play, Monitoring bewusst leichtgewichtig. |
-| D19 | SMB1 für PS2/OPL | **Zweite Samba-Instanz** `smbd-legacy`: nur SMB1, eigener Port (1445), eigene Benutzerdatenbank mit Benutzer `ps2`, nur der PS2-Ordner, Firewall optional auf die IP der Konsole beschränkt. Freigaben über `config.yml`, nicht über Cockpit | SMB1 gilt in Samba global; die Hauptinstanz bleibt so bei SMB3. Das schwache NTLMv1 trifft nur ein eigenes Konto ohne Login (Spike S5). |
+| D19 | SMB1 für PS2/OPL | **Zweite Samba-Instanz** `smbd-legacy`: nur SMB1, eigener Port (1445), eigene Benutzerdatenbank mit Benutzer `ps2`, nur der PS2-Ordner, Firewall optional auf die IP der Konsole beschränkt; dann leitet sie für diese IP auch Port 445 auf 1445 um (für OPL ohne Port-Einstellung). Freigaben über `config.yml`, nicht über Cockpit | SMB1 gilt in Samba global; die Hauptinstanz bleibt so bei SMB3. Das schwache NTLMv1 trifft nur ein eigenes Konto ohne Login (Spike S5). |
 | D20 | Updates des NAS | **`aunserver-update`** holt den Stand von `main` (GitHub-Tarball, Commit per `export-subst` in `COMMIT`), vorher Backup, danach Setup; täglicher Check meldet per ntfy, installiert wird per Hand (entschieden 2026-10-18) | Jeder Merge in `main` hat den VM-Test bestanden; Renovate-Updates kommen so ohne eigenes Release an, aber nie unbeaufsichtigt. |
 
 ## 3. Architektur
@@ -182,7 +182,7 @@ Grundsatz: **Nichts ist aus dem Internet erreichbar.** Zugriff gibt es nur aus d
 
 | Bereich | Maßnahme |
 |---|---|
-| Firewall | nftables, Default **drop** eingehend. Aus dem LAN: 22, 53, 80, 443, 445, 9090 (+ 3702 TCP/UDP für wsdd2, 5355 UDP für LLMNR), Emby 8096 TCP und 7359 UDP; nur von den in `emby_dlna_renderers` eingetragenen Abspielgeräten (z. B. Sonos für „Wiedergabe auf“) zusätzlich SSDP: UDP 1900 und Antworten an UDP 32768–60999. Über Tailscale (`tailscale0`): 22, 53, 80, 443, 445, 9090 und Emby 8096. Tailscale selbst: UDP 41641. Port 1445 (SMB1) nur aus dem LAN, nie per VPN, auf Wunsch nur von der PS2-IP |
+| Firewall | nftables, Default **drop** eingehend. Aus dem LAN: 22, 53, 80, 443, 445, 9090 (+ 3702 TCP/UDP für wsdd2, 5355 UDP für LLMNR), Emby 8096 TCP und 7359 UDP; nur von den in `emby_dlna_renderers` eingetragenen Abspielgeräten (z. B. Sonos für „Wiedergabe auf“) zusätzlich SSDP: UDP 1900 und Antworten an UDP 32768–60999. Über Tailscale (`tailscale0`): 22, 53, 80, 443, 445, 9090 und Emby 8096. Tailscale selbst: UDP 41641. Port 1445 (SMB1) nur aus dem LAN, nie per VPN, auf Wunsch nur von der PS2-IP; dann für diese IP zusätzlich 445 → 1445 umgeleitet (OPL ohne Port-Einstellung) |
 | SMB1 | Nur in der getrennten Legacy-Instanz (D19), nur der PS2-Ordner, eigenes Konto `ps2` ohne Shell und mit eigenem Passwort |
 | Docker vs. Firewall | Container-Ports nur an `127.0.0.1`, Zugriff ausschließlich über Caddy (Host-Netzwerk). Zusätzlich verwirft eine forward-Regel neue DNAT-Verbindungen aus LAN/VPN zu Containern, damit auch ein versehentlich auf `0.0.0.0` veröffentlichter Port zu bleibt. Eigene nftables-Tabelle, nie `flush ruleset` (S4) |
 | Docker-Socket | Homepage, Dozzle und Beszel nur über **socket-proxy (read-only)**. Arcane braucht den vollen Socket, ist root-gleich und deshalb nur hinter Caddy aus dem LAN erreichbar |
@@ -242,6 +242,7 @@ aunserver/
 ├── docs/
 │   ├── PLAN.md                  # dieses Dokument
 │   ├── spikes.md                # Ergebnisse der Vorab-Tests
+│   ├── beispiele/               # z. B. eigene Recyclarr-Profile (nicht ausgerollt)
 │   └── BETRIEB.md               # Bedienung, Updates, Wiederherstellung
 ├── installer/
 │   ├── build-iso.sh
@@ -346,6 +347,7 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 - [x] Stack `media` (Prowlarr, SABnzbd, Sonarr, Radarr, Lidarr, Bazarr, Recyclarr, Emby, Recommendarr) und Stack `ps2` (PS2GameManager)
 - [x] Apps per API verbunden: SABnzbd-Ordner/Kategorien, Anmeldung (Admin + Web-Passwort), Bibliotheksordner, SABnzbd als Download-Client, Sonarr/Radarr/Lidarr in Prowlarr
 - [x] Recyclarr mit TRaSH „[German] HD Bluray + WEB“ (Deutsch + DL, 1080p), **x265 (HD) +500** (Wunsch: platzsparend)
+- [x] Recyclarr optional mit eigener Konfiguration (`recyclarr_eigene_config`): Ansible überschreibt `recyclarr.yml` dann nicht; Befund: sonst holte jedes Update die TRaSH-Profile zurück und der tägliche Lauf setzte eigene Größen zurück
 - [x] Hardlink-Test (Download → Bibliothek liefert Linkzähler 2)
 
 **Abnahme (VM, 2026-10-18):** Verbindungstests Sonarr/Radarr/Lidarr → SABnzbd 200, Prowlarr-Anwendungen 200, Bibliotheksordner erreichbar, API ohne Schlüssel 401 ✅. Profile mit x265 +500, German DL 11000, German 10000 ✅. Hardlink 2 ✅. PS2GameManager läuft als `1000:ps2share` mit umask 002; App und SMB1-Konto `ps2` können die Dateien des jeweils anderen bearbeiten ✅. HTTPS: Servarr-Apps mit eigener Anmeldung, SABnzbd/Bazarr/PS2GameManager/Recommendarr (kein eigenes Login, Auskunft des Nutzers) mit Web-Passwort ✅. Abspielgerät Kodi spielt HEVC direkt ab (x265-Bonus passt). Reboot: 20/20 Container ✅. Zweiter Lauf `changed=0` ✅.

@@ -311,6 +311,7 @@
 
 # --- Recyclarr ---------------------------------------------------------------------
 
+# Mit recyclarr_eigene_config gehört recyclarr.yml dem Nutzer und bleibt unangetastet
 - name: Recyclarr-Konfiguration (enthält API-Schlüssel)
   ansible.builtin.template:
     src: "{{ playbook_dir }}/../stacks/media/recyclarr/recyclarr.yml.j2"
@@ -319,6 +320,7 @@
     group: "{{ admin_user }}"
     mode: "0600"
   register: stacks_recyclarr_config
+  when: not (recyclarr_eigene_config | bool)
 
 - name: Qualitätsprofile sofort synchronisieren (danach täglich durch Recyclarr selbst)
   ansible.builtin.command: docker exec recyclarr recyclarr sync

@@ -59,6 +59,8 @@ Die Medien-Apps, Recommendarr und der PS2GameManager liegen im selben Docker-Net
 
 **Indexer** trägt man nur in Prowlarr ein, es verteilt sie an Sonarr, Radarr und Lidarr. Nicht gelistete Usenet-Indexer: *Add Indexer → Generic Newznab*, URL ohne `/api`, API-Schlüssel des Indexers. Den **Usenet-Provider** trägt man in SABnzbd ein (Zahnrad → Server). Beim Hinzufügen von Filmen und Serien das Qualitätsprofil **„[German] HD Bluray + WEB“** wählen, das Recyclarr täglich nach den TRaSH-Guides pflegt.
 
+**Eigene Qualitätsprofile:** Recyclarr synchronisiert jeden Tag um 00:00 die Datei `/srv/appdata/recyclarr/recyclarr.yml` und legt dabei die dort genannten Profile und Größen wieder an. Ohne weitere Einstellung schreibt jedes `aunserver-update` die TRaSH-Vorlage aus dem Repo darüber. Wer eigene Profile pflegt, setzt in `/etc/aunserver/config.yml` `recyclarr_eigene_config: true`: Ansible lässt `recyclarr.yml` (samt `settings.yml` und `custom-formats/`) dann in Ruhe, Recyclarr synchronisiert täglich nur die eigene Datei. Die API-Schlüssel stehen in der eigenen Datei selbst (Werte aus `/srv/appdata/<app>/config.xml`). Ein Beispiel mit eigenen Profilen und Custom Formats liegt in [beispiele/recyclarr-eigene-profile/](beispiele/recyclarr-eigene-profile/).
+
 ## Benachrichtigungen aufs Handy
 
 Die ntfy-App mit dem Server `https://ntfy.nas.home.arpa` verbinden (unterwegs über Tailscale) und diese Themen abonnieren:
@@ -140,9 +142,9 @@ Ergebnis: dieselben Apps mit denselben Einstellungen, Freigaben, Passwörtern un
 
 ## PS2 (Open PS2 Loader)
 
-Die SMB1-Freigabe `PS2SMB` läuft als eigene Samba-Instanz auf **Port 1445**, nur für den Ordner `games/ps2` und das Konto `ps2`. In OPL unter Netzwerkeinstellungen: IP des NAS, Port 1445, Freigabe `PS2SMB`, Benutzer `ps2`. Spiele legt man über den PS2GameManager oder per Samba in die OPL-Ordner unter `games/ps2` (`DVD/` für DVD-Images, `CD/` für CD-Images); `ART/`, `CFG/`, `VMC/` usw. legt das Setup schon an.
+Die SMB1-Freigabe `PS2SMB` läuft als eigene Samba-Instanz auf **Port 1445**, nur für den Ordner `games/ps2` und das Konto `ps2`. In OPL unter Netzwerkeinstellungen: Adresstyp IP, IP des NAS, Port 1445, Freigabe `PS2SMB`, Benutzer `ps2` mit dem PS2-Passwort aus der Zugangsübersicht. Spiele legt man über den PS2GameManager oder per Samba in die OPL-Ordner unter `games/ps2` (`DVD/` für DVD-Images, `CD/` für CD-Images); `ART/`, `CFG/`, `VMC/` usw. legt das Setup schon an.
 
-Noch nicht mit einer echten PS2 getestet. Kann OPL keinen anderen Port als 445, bekommt das NAS eine zweite IP-Adresse für die PS2-Instanz (siehe [spikes.md](spikes.md), S5).
+**OPL ohne Port-Einstellung** (nur 445): Der PS2 eine feste IP geben (DHCP-Reservierung im Router) und diese in `/etc/aunserver/config.yml` unter `samba_legacy.allowed_clients` eintragen, danach `sudo aunserver-setup`. Die Firewall leitet dann nur für diese IP Port 445 auf die SMB1-Instanz um; in OPL Port 445 lassen. Alle anderen Geräte erreichen über 445 weiter die normalen Freigaben.
 
 SMB1 ist unsicher: kein wichtiges Passwort verwenden. Die Freigabe bleibt auf das Heimnetz beschränkt.
 

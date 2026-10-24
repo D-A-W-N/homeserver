@@ -1,0 +1,35 @@
+{
+  "trash_id": "dfdefadac74ce65e0d081d21754bcc0a",
+  "name": "★ Folge bis 0,4 GB",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Size 0",
+      "implementation": "SizeSpecification",
+      "negate": false,
+      "required": true,
+      "fields": {
+        "min": 0,
+        "max": 0.4
+      }
+    },
+    {
+      "name": "ReleaseType 1",
+      "implementation": "ReleaseTypeSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": 1
+      }
+    },
+    {
+      "name": "ReleaseType 2",
+      "implementation": "ReleaseTypeSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": 2
+      }
+    }
+  ]
+}

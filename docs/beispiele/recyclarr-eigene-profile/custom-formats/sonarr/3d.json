@@ -1,0 +1,16 @@
+{
+  "trash_id": "0dc04f314eba4d89d1da078dee61b9fc",
+  "name": "★ 3D",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "ReleaseTitle \\b(3d|h-?sbs|h-?ou)\\b",
+      "implementation": "ReleaseTitleSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": "\\b(3d|h-?sbs|h-?ou)\\b"
+      }
+    }
+  ]
+}
