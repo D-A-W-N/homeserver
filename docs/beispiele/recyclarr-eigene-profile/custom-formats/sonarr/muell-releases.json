@@ -1,0 +1,16 @@
+{
+  "trash_id": "916781ecdfc20cf0e9957cca1450ab2e",
+  "name": "★ Müll-Releases",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "ReleaseTitle \\b(vostfr|truefrench|subfrench|yify|yts)\\b|green\\.poste",
+      "implementation": "ReleaseTitleSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": "\\b(vostfr|truefrench|subfrench|yify|yts)\\b|green\\.poste"
+      }
+    }
+  ]
+}

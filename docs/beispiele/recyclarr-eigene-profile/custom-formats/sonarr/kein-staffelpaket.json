@@ -1,0 +1,16 @@
+{
+  "trash_id": "1ee32ce98bd0850aac5a7181fd7441a6",
+  "name": "★ Kein Staffelpaket",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "ReleaseType 3",
+      "implementation": "ReleaseTypeSpecification",
+      "negate": true,
+      "required": true,
+      "fields": {
+        "value": 3
+      }
+    }
+  ]
+}

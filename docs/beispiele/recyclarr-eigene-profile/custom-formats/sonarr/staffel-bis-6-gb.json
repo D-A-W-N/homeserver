@@ -1,0 +1,26 @@
+{
+  "trash_id": "5a2101368b07f674de30f5fc0aaf23fd",
+  "name": "★ Staffel bis 6 GB",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Size 0",
+      "implementation": "SizeSpecification",
+      "negate": false,
+      "required": true,
+      "fields": {
+        "min": 0,
+        "max": 6
+      }
+    },
+    {
+      "name": "ReleaseType 3",
+      "implementation": "ReleaseTypeSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": 3
+      }
+    }
+  ]
+}

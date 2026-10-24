@@ -1,0 +1,16 @@
+{
+  "trash_id": "9188c97ef1e5f5027424d8d87430008c",
+  "name": "★ Untertitel",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "ReleaseTitle \\b(subbed|subs?|untertitel)\\b",
+      "implementation": "ReleaseTitleSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": "\\b(subbed|subs?|untertitel)\\b"
+      }
+    }
+  ]
+}

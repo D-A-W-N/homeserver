@@ -1,0 +1,17 @@
+{
+  "trash_id": "0d41ff82d90be4f482f0d097498a5eae",
+  "name": "★ Film 1,5-3,5 GB",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Size 1.5",
+      "implementation": "SizeSpecification",
+      "negate": false,
+      "required": true,
+      "fields": {
+        "min": 1.5,
+        "max": 3.5
+      }
+    }
+  ]
+}

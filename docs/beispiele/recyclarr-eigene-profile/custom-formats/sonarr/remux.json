@@ -1,0 +1,16 @@
+{
+  "trash_id": "52099f5540d0aeb7a475bfe13ca4be52",
+  "name": "★ Remux",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "ReleaseTitle \\bremux\\b",
+      "implementation": "ReleaseTitleSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": "\\bremux\\b"
+      }
+    }
+  ]
+}

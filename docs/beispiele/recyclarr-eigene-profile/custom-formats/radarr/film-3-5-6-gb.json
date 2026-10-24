@@ -1,0 +1,17 @@
+{
+  "trash_id": "e3c6574130cf04b925cd72970bb0233f",
+  "name": "★ Film 3,5-6 GB",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Size 3.5",
+      "implementation": "SizeSpecification",
+      "negate": false,
+      "required": true,
+      "fields": {
+        "min": 3.5,
+        "max": 6
+      }
+    }
+  ]
+}

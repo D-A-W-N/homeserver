@@ -1,0 +1,16 @@
+{
+  "trash_id": "6614a4bc146ede103c7aa42960e8843e",
+  "name": "★ Disc-Image",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "ReleaseTitle \\b(bd25|bd50|bd66|bd100|iso|m2ts)\\b",
+      "implementation": "ReleaseTitleSpecification",
+      "negate": false,
+      "required": false,
+      "fields": {
+        "value": "\\b(bd25|bd50|bd66|bd100|iso|m2ts)\\b"
+      }
+    }
+  ]
+}
