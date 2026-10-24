@@ -316,7 +316,7 @@
 - name: Recyclarr-Schlüssel (secrets.yml)
   ansible.builtin.copy:
     content: |
-      # {{ ansible_managed }}
+      # Vom aunserver-Setup verwaltet, Änderungen werden überschrieben
       sonarr_api_key: {{ stacks_arr_keys.sonarr }}
       radarr_api_key: {{ stacks_arr_keys.radarr }}
     dest: "{{ appdata_dir }}/recyclarr/secrets.yml"
