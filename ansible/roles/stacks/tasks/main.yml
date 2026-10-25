@@ -58,8 +58,9 @@
 
 # --- Gemeinsames ---------------------------------------------------------------
 
-- name: Gemeinsames Docker-Netz
-  ansible.builtin.shell: docker network inspect {{ stacks_network }} >/dev/null 2>&1 || { docker network create {{ stacks_network }} && echo erstellt; }
+- name: Gemeinsame Docker-Netze
+  ansible.builtin.shell: docker network inspect {{ item }} >/dev/null 2>&1 || { docker network create {{ item }} && echo erstellt; }
+  loop: ["{{ stacks_network }}", "{{ stacks_ntfy_network }}"]
   register: stacks_network_result
   changed_when: "'erstellt' in stacks_network_result.stdout"
 

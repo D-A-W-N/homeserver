@@ -72,6 +72,8 @@ Die ntfy-App mit dem Server `https://ntfy.nas.home.arpa` verbinden (unterwegs ü
 | `backup` | Nächtliches Backup fehlgeschlagen |
 | `updates` | Neuer Stand von aunserver verfügbar |
 
+Sonarr, Radarr und Lidarr erreichen ntfy im Docker-Netz `ntfy` unter `http://ntfy`. Meldungen dort einrichten: *Settings → Connect → + → ntfy*, Server-URL `http://ntfy`, Thema z. B. `medien`, gewünschte Ereignisse anhaken.
+
 Auf dem Handy muss dafür das Stammzertifikat installiert sein (siehe Zugänge).
 
 **Nur mit Anmeldung lesen (optional):** Ohne weitere Einstellung kann jedes Gerät im LAN und im Tailnet alle Themen lesen und beschreiben. Mit `ntfy_default_access: write-only` in `/etc/aunserver/config.yml` und `sudo aunserver-setup` senden die NAS-Dienste weiter ohne Anmeldung, lesen geht nur noch mit einem ntfy-Benutzer. Benutzer und Rechte liegen in `/srv/appdata/ntfy/cache/user.db` (Updates lassen sie stehen, das Backup sichert sie mit):
