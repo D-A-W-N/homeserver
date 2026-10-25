@@ -72,6 +72,8 @@ Die ntfy-App mit dem Server `https://ntfy.nas.home.arpa` verbinden (unterwegs ü
 | `backup` | Nächtliches Backup fehlgeschlagen |
 | `updates` | Neuer Stand von aunserver verfügbar |
 
+Sonarr, Radarr und Lidarr erreichen ntfy im Docker-Netz `ntfy` unter `http://ntfy`. Meldungen dort einrichten: *Settings → Connect → + → ntfy*, Server-URL `http://ntfy`, Thema z. B. `medien`, gewünschte Ereignisse anhaken.
+
 Auf dem Handy muss dafür das Stammzertifikat installiert sein (siehe Zugänge).
 
 ## Fernzugriff (Tailscale)

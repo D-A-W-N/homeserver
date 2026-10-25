@@ -41,6 +41,7 @@ services:
       - {{ data_mount }}:/data
     ports:
       - 127.0.0.1:{{ stacks_ports.sonarr }}:8989
+    networks: [default, {{ stacks_ntfy_network }}]   # Meldungen an http://ntfy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8989/ping"]
       interval: 30s
@@ -58,6 +59,7 @@ services:
       - {{ data_mount }}:/data
     ports:
       - 127.0.0.1:{{ stacks_ports.radarr }}:7878
+    networks: [default, {{ stacks_ntfy_network }}]   # Meldungen an http://ntfy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:7878/ping"]
       interval: 30s
@@ -75,6 +77,7 @@ services:
       - {{ data_mount }}:/data
     ports:
       - 127.0.0.1:{{ stacks_ports.lidarr }}:8686
+    networks: [default, {{ stacks_ntfy_network }}]   # Meldungen an http://ntfy
 
   bazarr:
     image: {{ stacks_images.bazarr }}
@@ -133,3 +136,7 @@ services:
     ports:
       - 127.0.0.1:{{ stacks_ports.recommendarr }}:3000
 {% endif %}
+
+networks:
+  {{ stacks_ntfy_network }}:
+    external: true
