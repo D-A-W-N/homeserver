@@ -135,6 +135,13 @@ jobs:
           sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/run2.log" \
             | grep -E 'localhost +: ok=[0-9]+ +changed=0 +unreachable=0 +failed=0'
 
+      - name: Login-Hinweis aufs Setup nach der Einrichtung weg
+        run: |
+          ssh_vm() { ssh -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost "$@"; }
+          anmeldung=$(printf 'exit\n' | ssh_vm -tt 2>&1 | tr -d '\r')
+          grep -q "Debian GNU/Linux" <<<"$anmeldung"   # die Anmeldung lief wirklich durch
+          if grep "aunserver ist installiert" <<<"$anmeldung"; then exit 1; fi
+
       - name: Recyclarr-Schlüssel nur in secrets.yml
         run: |
           ssh_vm() { ssh -n -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost "$@"; }
