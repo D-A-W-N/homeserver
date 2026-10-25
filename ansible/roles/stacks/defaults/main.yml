@@ -72,6 +72,8 @@ stacks_hosts:
 
 stacks_secrets_dir: /etc/aunserver/secrets
 stacks_network: aunserver
+# Kleines Netz nur für Meldungen an ntfy (Sonarr, Radarr, Lidarr), ohne Zugang zu Caddy und Socket-Proxy
+stacks_ntfy_network: ntfy
 
 # Alarme in Beszel (Wert, Minuten); Benachrichtigung per ntfy, Thema "beszel"
 stacks_beszel_alerts:

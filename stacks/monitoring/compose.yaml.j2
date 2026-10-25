@@ -82,7 +82,7 @@ services:
       - {{ appdata_dir }}/ntfy/cache:/var/cache/ntfy
     ports:
       - 127.0.0.1:{{ stacks_ports.ntfy }}:80
-    networks: [{{ stacks_network }}]
+    networks: [{{ stacks_network }}, {{ stacks_ntfy_network }}]
 {% if apps.uptime_kuma | bool %}
 
   uptime-kuma:
@@ -97,4 +97,6 @@ services:
 
 networks:
   {{ stacks_network }}:
+    external: true
+  {{ stacks_ntfy_network }}:
     external: true
