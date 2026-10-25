@@ -52,7 +52,7 @@
   register: stacks_beszel_config
 
 # deny-all/read-only sperren die Absender ohne Token aus (Beszel, Scrutiny, Backup, Update-Check)
-- name: ntfy-Zugriff prüfen
+- name: Zugriff auf ntfy prüfen
   ansible.builtin.assert:
     that: ntfy_default_access in ['read-write', 'write-only']
     fail_msg: "ntfy_default_access: nur read-write oder write-only; andere Werte sperren die NAS-Dienste aus"
