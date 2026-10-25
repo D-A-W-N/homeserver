@@ -26,6 +26,11 @@ network_tailscale_exit_node: false
 # Eigene Recyclarr-Profile statt der TRaSH-Vorlage (docs/BETRIEB.md, Abschnitt Indexer)
 recyclarr_eigene_config: false
 
+# ntfy: write-only = Meldungen lesen nur mit ntfy-Benutzer (docs/BETRIEB.md, Benachrichtigungen)
+ntfy_default_access: read-write
+# ntfy: false = kein Weckruf über ntfy.sh (nur für iPhones nötig)
+ntfy_ios_push: true
+
 # SMB1 für PS2/OPL (getrennte Samba-Instanz, nur SMB1, eigener Benutzer ps2)
 samba_legacy:
   enabled: true
