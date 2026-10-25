@@ -74,6 +74,17 @@ Die ntfy-App mit dem Server `https://ntfy.nas.home.arpa` verbinden (unterwegs ü
 
 Auf dem Handy muss dafür das Stammzertifikat installiert sein (siehe Zugänge).
 
+**Nur mit Anmeldung lesen (optional):** Ohne weitere Einstellung kann jedes Gerät im LAN und im Tailnet alle Themen lesen und beschreiben. Mit `ntfy_default_access: write-only` in `/etc/aunserver/config.yml` und `sudo aunserver-setup` senden die NAS-Dienste weiter ohne Anmeldung, lesen geht nur noch mit einem ntfy-Benutzer. Benutzer und Rechte liegen in `/srv/appdata/ntfy/cache/user.db` (Updates lassen sie stehen, das Backup sichert sie mit):
+
+```bash
+docker exec -it ntfy ntfy user add handy          # fragt das Passwort ab
+docker exec ntfy ntfy access handy '*' read-only  # alle Themen lesen
+docker exec ntfy ntfy token add handy             # Token statt Passwort, z. B. für einen PC-Client
+docker exec ntfy ntfy access                      # Übersicht
+```
+
+In der App dann unter *Einstellungen → Benutzer verwalten* Server und Benutzer eintragen. `deny-all` wird abgelehnt, weil Beszel, Scrutiny, Backup und Update-Check dafür Tokens bräuchten. Mit `ntfy_ios_push: false` geht kein Weckruf mehr an ntfy.sh (nur die iPhone-App braucht ihn).
+
 ## Fernzugriff (Tailscale)
 
 Einmalig nach dem Setup im Tailscale-Konto:

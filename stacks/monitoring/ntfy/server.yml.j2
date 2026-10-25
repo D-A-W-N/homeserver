@@ -4,5 +4,10 @@ listen-http: ":80"
 behind-proxy: true
 cache-file: /var/cache/ntfy/cache.db
 cache-duration: "24h"
+# Benutzer und Rechte (ntfy user/access) liegen im Cache-Ordner, Updates lassen sie stehen
+auth-file: /var/cache/ntfy/user.db
+auth-default-access: "{{ ntfy_default_access }}"
+{% if ntfy_ios_push | bool %}
 # Für Push auf iOS nötig; leitet nur eine Weckmeldung über ntfy.sh, nicht den Inhalt
 upstream-base-url: "https://ntfy.sh"
+{% endif %}

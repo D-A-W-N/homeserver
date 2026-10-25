@@ -19,6 +19,12 @@ emby_dlna_renderers: []
 # Recyclarr: true = eigene recyclarr.yml im appdata-Ordner; Ansible schreibt dann die
 # TRaSH-Vorlage nicht mehr darüber, Recyclarr synchronisiert täglich nur die eigene Datei.
 recyclarr_eigene_config: false
+# ntfy: Zugriff ohne Anmeldung. read-write = jeder im Netz darf lesen und senden;
+# write-only = senden weiter ohne Anmeldung (Beszel, Scrutiny, Backup, Update-Check),
+# lesen nur mit ntfy-Benutzer (docs/BETRIEB.md, Benachrichtigungen)
+ntfy_default_access: read-write
+# ntfy: Weckruf über ntfy.sh, nur für die iPhone-App nötig (ohne Inhalt, aber mit Zeitpunkt)
+ntfy_ios_push: true
 
 # Speicher (Plan, Abschnitt 5)
 # true = keine eigene Datenplatte, data_mount liegt auf der Systemplatte
