@@ -370,7 +370,7 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 
 ### M7 – USB-Installer ✅
 - [x] `installer/build-iso.sh`: aus dem offiziellen Debian-13-netinst-ISO (SHA256 gegen die Debian-Prüfsummen geprüft) ein ISO mit Bootmenü-Eintrag „aunserver installieren“ (UEFI und BIOS), Preseed, Plattenauswahl und dem Repo als Archiv; `md5sum.txt` wird fortgeschrieben. Ohne xorriso baut es automatisch in einem Debian-13-Container
-- [x] Installation entpackt das Repo nach `/opt/aunserver`; Login-Hinweis aufs Setup, solange `/etc/aunserver/config.yml` fehlt
+- [x] Installation entpackt das Repo nach `/opt/aunserver`; Login-Hinweis aufs Setup, bis ein Setup erfolgreich durchgelaufen ist (das Setup entfernt ihn; die frühere Prüfung auf `/etc/aunserver/config.yml` griff für den Admin nie, das Verzeichnis ist 0700)
 - [x] `--dev`: Dev-ISO für Tests (keine Rückfragen, SSH-Schlüssel, Menü startet nach 5 s)
 - [x] CI: Dev-ISO bauen, davon in KVM installieren (UEFI und BIOS parallel), Repo/Login-Hinweis/Firmware prüfen, `aunserver-setup` zweimal
 - [x] `release.yml`: Tag `v*` → ISO + SHA256 als Release-Datei

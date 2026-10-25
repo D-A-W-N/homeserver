@@ -45,3 +45,11 @@
         owner: root
         group: root
         mode: "0600"
+
+    # Hinweis aufs Setup aus dem Installer: nach erfolgreicher Einrichtung überflüssig. Er prüfte
+    # /etc/aunserver/config.yml, das Verzeichnis ist aber nur für root lesbar (0700), daher
+    # erschien er für den Admin auch nach der Einrichtung
+    - name: Login-Hinweis aufs Setup entfernen
+      ansible.builtin.file:
+        path: /etc/profile.d/aunserver.sh
+        state: absent
