@@ -9,7 +9,7 @@ stacks_images:
   beszel: docker.io/henrygd/beszel:0.21.1
   beszel_agent: docker.io/henrygd/beszel-agent:0.21.1
   scrutiny: ghcr.io/analogj/scrutiny:v0.9.5-omnibus
-  dozzle: docker.io/amir20/dozzle:v11.3.4
+  dozzle: docker.io/amir20/dozzle:v11.3.5
   ntfy: docker.io/binwiederhier/ntfy:v2.33.1
   uptime_kuma: docker.io/louislam/uptime-kuma:2.5.7
   # Medien (M5): linuxserver-Images, stabile Releases (keine nightly/develop-Tags)
