@@ -1,6 +1,7 @@
 # {{ ansible_managed }}
 # Grundlage: TRaSH-Vorlage "[German] HD Bluray + WEB" (recyclarr/config-templates),
-# Wunsch des Nutzers: Deutsch + DL, 1080p, x265 bevorzugt (platzsparend).
+# Wunsch des Nutzers: Deutsch + DL, 1080p, x265 bevorzugt (platzsparend), mit Größengrenzen
+# und Upgrades nur bis German DL in guter Qualität (Werte in roles/stacks/defaults).
 # "Golden Rule HD" bewusst weggelassen: sie fügt "x265 (HD)" mit 0 Punkten hinzu und
 # würde mit dem Bonus unten kollidieren.
 # API-Schlüssel stehen in secrets.yml (schreibt das Setup bei jedem Lauf).
@@ -12,10 +13,17 @@ sonarr:
     delete_old_custom_formats: true
     quality_definition:
       type: series
+      qualities:  # MB/min, Grenzen siehe stacks_recyclarr_groessen
+{% for q in stacks_recyclarr_groessen.sonarr %}
+        - { name: {{ q.name }}, min: {{ q.min }}, preferred: {{ q.preferred }}, max: {{ q.max }} }
+{% endfor %}
     quality_profiles:
       - trash_id: dca7e5e9e99c703bcbdaaa471dd40e98  # [German] HD Bluray + WEB
         reset_unmatched_scores:
           enabled: true
+        upgrade:
+          allowed: true
+          until_score: {{ stacks_recyclarr_upgrade_until_score }}
     custom_format_groups:
       add:
         - trash_id: 6f0872eebfc95b1f93474b7ac866ced0  # [Unwanted] Unwanted Formats German
@@ -33,10 +41,17 @@ radarr:
     delete_old_custom_formats: true
     quality_definition:
       type: movie
+      qualities:  # MB/min, Grenzen siehe stacks_recyclarr_groessen
+{% for q in stacks_recyclarr_groessen.radarr %}
+        - { name: {{ q.name }}, min: {{ q.min }}, preferred: {{ q.preferred }}, max: {{ q.max }} }
+{% endfor %}
     quality_profiles:
       - trash_id: 2b90e905c99490edc7c7a5787443748b  # [German] HD Bluray + WEB
         reset_unmatched_scores:
           enabled: true
+        upgrade:
+          allowed: true
+          until_score: {{ stacks_recyclarr_upgrade_until_score }}
     custom_format_groups:
       add:
         - trash_id: 0ca61b4b233178d07113082a7acff72d  # [Unwanted] Unwanted Formats German

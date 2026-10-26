@@ -346,7 +346,8 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 - [x] Compose-Dateien für Recommendarr und PS2GameManager vom Nutzer übernommen (feste Versionen, Ports nur an 127.0.0.1)
 - [x] Stack `media` (Prowlarr, SABnzbd, Sonarr, Radarr, Lidarr, Bazarr, Recyclarr, Emby, Recommendarr) und Stack `ps2` (PS2GameManager)
 - [x] Apps per API verbunden: SABnzbd-Ordner/Kategorien, Anmeldung (Admin + Web-Passwort), Bibliotheksordner, SABnzbd als Download-Client, Sonarr/Radarr/Lidarr in Prowlarr
-- [x] Recyclarr mit TRaSH „[German] HD Bluray + WEB“ (Deutsch + DL, 1080p), **x265 (HD) +500** (Wunsch: platzsparend)
+- [x] Recyclarr mit TRaSH „[German] HD Bluray + WEB“ (Deutsch + DL, 1080p), **x265 (HD) +1500** (Wunsch: platzsparend; anfangs +500)
+- [x] Größengrenzen pro Minute (Serien 1080p bis 60 MB/min, Filme bis 70 MB/min) und Upgrades nur bis 13500 Punkte. Befund (2026-10-26): Die Vorlage hat kein Maximum, ein Bluray-Encode (TvR, x264, ~150 MB/min, 8–11 GB pro Folge) schlug mit Tier-01-Punkten (2900) jedes WEB-Release mit x265 (2100 + 500); Upgrades bis 35000 hätten WEB-Releases später durch solche Encodes ersetzt. Außerdem verlangte die Vorlage für Bluray-1080p mindestens ~50 MB/min und lehnte kleine x265-Encodes als zu klein ab
 - [x] Recyclarr optional mit eigener Konfiguration (`recyclarr_eigene_config`): Ansible überschreibt `recyclarr.yml` dann nicht; Befund: sonst holte jedes Update die TRaSH-Profile zurück und der tägliche Lauf setzte eigene Größen zurück
 - [x] Hardlink-Test (Download → Bibliothek liefert Linkzähler 2)
 
