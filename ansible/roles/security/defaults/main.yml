@@ -7,6 +7,9 @@ security_udp_ports: [53, 443, 3702, 5355]
 security_vpn_tcp_ports: [22, 53, 80, 443, 445, 9090]
 security_vpn_udp_ports: [53, 443]
 
+# Web-Apps über LAN-IP und Port (caddy_lan_ports, stacks_lan_ports), nur LAN
+security_lan_web_ports: ["8400-8417"]
+
 security_fail2ban: true
 
 # Emby im Host-Netzwerk: Web/Apps und Discovery, nur LAN (nicht VPN).

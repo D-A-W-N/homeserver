@@ -50,6 +50,24 @@ stacks_ports:
   emby: 8096
 
 # Subdomains unter {{ domain }}
+# Nur mit caddy_lan_ports: dieselben Seiten unter https://<LAN-IP>:<Port>.
+# Bereich muss zu security_lan_web_ports passen. Homepage fehlt (HOMEPAGE_ALLOWED_HOSTS, Links auf Namen).
+stacks_lan_ports:
+  prowlarr: 8400
+  sabnzbd: 8401
+  sonarr: 8402
+  radarr: 8403
+  lidarr: 8404
+  bazarr: 8405
+  ntfy: 8410
+  adguard: 8411
+  dozzle: 8412
+  scrutiny: 8413
+  beszel: 8414
+  arcane: 8415
+  recommendarr: 8416
+  ps2gamemanager: 8417
+
 stacks_hosts:
   homepage: home
   arcane: arcane

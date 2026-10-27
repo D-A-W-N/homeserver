@@ -17,6 +17,21 @@ Einmalig nötig, damit die Namen wie `https://home.nas.home.arpa` funktionieren:
    - **Über Tailscale**, wenn der Router das nicht kann (z. B. Vodafone-Kabelbox): in der Tailscale-Oberfläche unter DNS → Nameservers → *Add nameserver → Custom* die Tailscale-IP des NAS eintragen, *Restrict to domain* anhaken und `nas.home.arpa` angeben (Split DNS). Dann funktionieren die Namen auf allen Geräten mit Tailscale, zu Hause wie unterwegs; das übrige Internet läuft wie bisher. Geräte ohne Tailscale (Fernseher) nutzen die IP, z. B. Emby unter `http://<IP>:8096`.
 2. **Jedes Gerät:** das Stammzertifikat von `http://nas.home.arpa/ca.crt` installieren. Danach zeigt der Browser keine Zertifikatswarnungen mehr. Android: Einstellungen → nach „CA-Zertifikat“ suchen → installieren (verlangt eine Bildschirmsperre).
 
+**Ohne Namen, nur per IP (optional):** Geräte, die weder AdGuard noch Tailscale zum Auflösen nutzen können (z. B. ein Handy mit Mullvad-App: sie schickt alle DNS-Anfragen an Mullvad, und unter Android läuft pro Profil nur eine VPN-App), erreichen die Apps zu Hause auch über `https://<IP>:<Port>`. Dazu `caddy_lan_ports: true` in `/etc/aunserver/config.yml` und `sudo aunserver-setup`. Es sind dieselben Seiten mit derselben Anmeldung und dem Zertifikat der eigenen CA, erreichbar nur aus dem LAN (nicht über Tailscale, dort gehen die Namen):
+
+| Port | App | Port | App |
+|---|---|---|---|
+| 8400 | Prowlarr | 8410 | ntfy |
+| 8401 | SABnzbd | 8411 | AdGuard |
+| 8402 | Sonarr | 8412 | Logs (Dozzle) |
+| 8403 | Radarr | 8413 | Festplatten (Scrutiny) |
+| 8404 | Lidarr | 8414 | Monitor (Beszel) |
+| 8405 | Bazarr | 8415 | Arcane |
+| | | 8416 | Recommendarr |
+| | | 8417 | PS2GameManager |
+
+Die Startseite fehlt (sie verlinkt nur die Namen); Emby (`http://<IP>:8096`) und Cockpit (`https://<IP>:9090`) gehen ohnehin per IP. Ports ändern: `stacks_lan_ports` und `security_lan_web_ports` in der `config.yml` überschreiben.
+
 Die IP des NAS sollte im Router fest zugewiesen sein (DHCP-Reservierung), sonst ändert sie sich irgendwann und die Namen zeigen ins Leere.
 
 **Rechner, die immer zu Hause sind** (z. B. der Desktop-PC), brauchen die Tailscale-Route zum NAS nicht: `sudo tailscale set --accept-routes=false` (Linux) bzw. in der App „Use Tailscale subnets“ aus. Sonst läuft auch zu Hause der ganze Verkehr zum NAS verschlüsselt über Tailscale, das bremst Samba-Kopien auf der schwachen NAS-CPU. Die Namen funktionieren trotzdem, den DNS liefert Tailscale weiter.
