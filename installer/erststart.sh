@@ -4,6 +4,9 @@
 # Cockpit aus den Backports wie später im Setup (D2); die Paketquellen schreibt das Setup ohnehin
 # neu (debian.sources), die Zeile hier entfernt es mit der alten sources.list.
 set -e
+# Die Quelle vom Installationsmedium (deb cdrom:) ist danach nicht mehr da, apt-get update
+# bräche an ihr ab ("enthält keine Release-Datei", im M10-Test gefunden)
+sed -i 's/^deb cdrom:/# deb cdrom:/' /etc/apt/sources.list 2>/dev/null || true
 grep -q trixie-backports /etc/apt/sources.list 2>/dev/null \
   || echo "deb http://deb.debian.org/debian trixie-backports main" >> /etc/apt/sources.list
 apt-get update -qq
