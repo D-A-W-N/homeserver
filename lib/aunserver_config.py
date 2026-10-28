@@ -797,7 +797,20 @@ def cmd_validate(args, schema):
 
 
 def cmd_show(args, schema):
-    config = load_config(args.datei)
+    config = load_config(args.datei) if os.path.exists(args.datei) or not args.json else {}
+    if args.json:
+        # für den Editor: eigene Werte, wirksame Werte, gesetzte Geheimnisse, Befunde
+        res = validate(schema, config)
+        eff = merge(schema, config) if not res.errors else {}
+        json.dump({
+            "eigene": to_plain(strip_secrets(schema, config)),
+            "wirksam": strip_secrets(schema, eff),
+            "geheim_gesetzt": sorted(set(read_secrets(schema)) | {
+                p for p, spec in schema.leaves.items() if spec.get("geheim") and get_path(config, p) is not None}),
+            "fehler": res.errors, "warnungen": res.warnings,
+        }, sys.stdout, ensure_ascii=False)
+        print()
+        return 0
     if args.effective:
         res = validate(schema, config)
         report(res, args.datei, quiet=True)
@@ -945,6 +958,12 @@ def cmd_diff(args, schema):
     else:
         base, title = schema.defaults(), "Noch nie übernommen, Abweichungen vom Standard"
     found = changes(schema, strip_secrets(schema, base), strip_secrets(schema, current))
+    if args.json:
+        json.dump({"titel": title, "angewendet": os.path.exists(APPLIED),
+                   "aenderungen": [{"pfad": p, "alt": a, "neu": n} for p, a, n in found]},
+                  sys.stdout, ensure_ascii=False, default=str)
+        print()
+        return 0
     if not found:
         print("Keine Änderungen." if not args.standard else "Alles auf dem Standard.")
         return 0
@@ -956,6 +975,17 @@ def cmd_diff(args, schema):
 
 def cmd_history(args, schema):
     entries = history_entries()
+    if args.json:
+        out, prev = [], {}
+        for entry in entries:
+            grund, _, data = history_read(entry)
+            out.append({"fassung": entry, "grund": grund,
+                         "aenderungen": [{"pfad": p, "alt": a, "neu": n} for p, a, n in changes(schema, prev, data)]
+                         if out else []})
+            prev = data
+        json.dump(list(reversed(out)), sys.stdout, ensure_ascii=False, default=str)
+        print()
+        return 0
     if not entries:
         print("Noch keine Fassungen im Verlauf.")
         return 0
@@ -982,6 +1012,37 @@ def cmd_revert(args, schema):
     for c in changes(schema, strip_secrets(schema, before), data):
         print(fmt_change(*c))
     print(f"Fassung {args.fassung} wiederhergestellt (neu: {entry}). Übernehmen: sudo aunserver-setup")
+    return 0
+
+
+def cmd_edit(args, schema):
+    """Mehrere Änderungen auf einmal als JSON von stdin (Editor): {"set": {}, "unset": [], "grund": ""}"""
+    try:
+        req = json.load(sys.stdin)
+    except json.JSONDecodeError as e:
+        die(f"kein gültiges JSON: {e}")
+    sets, unsets = req.get("set", {}), req.get("unset", [])
+    for key in list(sets) + list(unsets):
+        spec = leaf_or_die(schema, key)
+        if spec["stufe"] == "fest":
+            die(f"{key} setzt das Setup, nicht der Editor")
+        if spec.get("geheim"):
+            die(f"{key} ist geheim: aunserver-config passwd bzw. set")
+    if not sets and not unsets:
+        die("keine Änderungen")
+    with locked():
+        data = load_for_edit(args.datei)
+        before = to_plain(data)
+        migrate(schema, data)
+        for key, value in sets.items():
+            set_path(data, key, value)
+        for key in unsets:
+            del_path(data, key)
+        entry = save_config(schema, data, req.get("grund") or "Editor", path=args.datei)
+    found = changes(schema, strip_secrets(schema, before), load_config(args.datei))
+    json.dump({"fassung": entry, "aenderungen": [{"pfad": p, "alt": a, "neu": n} for p, a, n in found]},
+              sys.stdout, ensure_ascii=False, default=str)
+    print()
     return 0
 
 
@@ -1069,6 +1130,7 @@ def main(argv=None):
     s = sub.add_parser("show", help="Konfiguration anzeigen, Passwörter verdeckt")
     s.add_argument("datei", nargs="?", default=CONFIG)
     s.add_argument("--effective", action="store_true", help="mit allen Standardwerten, so wie Ansible sie bekommt")
+    s.add_argument("--json", action="store_true", help="für den Editor: eigene und wirksame Werte, Befunde")
     s = sub.add_parser("effective", help="zusammengeführte Konfiguration für Ansible schreiben")
     s.add_argument("datei", nargs="?", default=CONFIG)
     s.add_argument("--out", required=True)
@@ -1096,7 +1158,11 @@ def main(argv=None):
     s = sub.add_parser("diff", help="was seit dem letzten Setup geändert und noch nicht übernommen ist (Rückgabe 3)")
     s.add_argument("datei", nargs="?", default=CONFIG)
     s.add_argument("--standard", action="store_true", help="stattdessen alle Abweichungen vom Standard")
+    s.add_argument("--json", action="store_true")
     s = sub.add_parser("history", help="frühere Fassungen der config.yml")
+    s.add_argument("--json", action="store_true")
+    s = sub.add_parser("edit", help="mehrere Änderungen als JSON von stdin (für den Editor)")
+    s.add_argument("--datei", default=CONFIG)
     s = sub.add_parser("revert", help="eine frühere Fassung zurückholen")
     s.add_argument("fassung")
     s.add_argument("--datei", default=CONFIG)
@@ -1114,7 +1180,7 @@ def main(argv=None):
     return {"validate": cmd_validate, "show": cmd_show, "effective": cmd_effective,
             "generate": cmd_generate, "schema": cmd_schema, "get": cmd_get, "set": cmd_set,
             "unset": cmd_unset, "import": cmd_import, "migrate": cmd_migrate, "diff": cmd_diff,
-            "history": cmd_history, "revert": cmd_revert, "passwd": cmd_passwd,
+            "history": cmd_history, "revert": cmd_revert, "passwd": cmd_passwd, "edit": cmd_edit,
             "mark-applied": cmd_mark_applied}[args.befehl](args, schema)
 
 

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<!-- aunserver: Einstellungen des NAS in Cockpit (D22). Alle Änderungen laufen über aunserver-config. -->
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>aunserver</title>
+  <link rel="stylesheet" href="aunserver.css">
+  <script src="../base1/cockpit.js"></script>
+  <script src="aunserver.js" defer></script>
+</head>
+<body>
+  <header class="kopf">
+    <div class="kopf-titel">
+      <h1>aunserver</h1>
+      <span id="version" class="leise"></span>
+    </div>
+    <nav class="reiter" role="tablist" aria-label="Bereiche">
+      <button role="tab" data-reiter="uebersicht" aria-selected="true">Übersicht</button>
+      <button role="tab" data-reiter="einstellungen">Einstellungen</button>
+      <button role="tab" data-reiter="aenderungen">Übernehmen <span id="zaehler" class="zaehler" hidden></span></button>
+      <button role="tab" data-reiter="verlauf">Verlauf</button>
+      <button role="tab" data-reiter="passwoerter">Passwörter</button>
+      <button role="tab" data-reiter="zugaenge">Zugänge</button>
+    </nav>
+  </header>
+
+  <div id="meldung" class="meldung" role="status" hidden></div>
+
+  <main>
+    <section id="uebersicht" class="seite">
+      <div class="karten">
+        <article class="karte">
+          <h2>Konfiguration</h2>
+          <p id="ue-konfig" class="leise">Wird geladen …</p>
+          <div id="ue-befunde"></div>
+          <div class="knoepfe"><button class="sekundaer" data-gehe="einstellungen">Einstellungen ändern</button></div>
+        </article>
+        <article class="karte">
+          <h2>Letzter Lauf</h2>
+          <p id="ue-lauf" class="leise">Wird geladen …</p>
+          <div class="knoepfe"><button class="sekundaer" data-gehe="aenderungen">Übernehmen und Protokoll</button></div>
+        </article>
+        <article class="karte">
+          <h2>Version</h2>
+          <p id="ue-version" class="leise">Wird geladen …</p>
+          <pre id="ue-update" class="kurzlog" hidden></pre>
+          <div class="knoepfe">
+            <button id="update-pruefen" class="sekundaer">Nach Updates suchen</button>
+            <button id="update-starten" class="primaer" hidden>Jetzt aktualisieren</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="einstellungen" class="seite" hidden>
+      <div class="werkzeuge">
+        <input id="suche" type="search" placeholder="Einstellung suchen …" aria-label="Einstellung suchen">
+        <label class="schalter-text"><input id="erweitert" type="checkbox"> Erweiterte Einstellungen zeigen</label>
+      </div>
+      <div id="formular"></div>
+      <div id="speicherleiste" class="speicherleiste" hidden>
+        <span id="speicher-text"></span>
+        <span class="knoepfe">
+          <button id="verwerfen" class="sekundaer">Verwerfen</button>
+          <button id="speichern" class="primaer">Speichern</button>
+        </span>
+      </div>
+    </section>
+
+    <section id="aenderungen" class="seite" hidden>
+      <article class="karte">
+        <h2 id="ae-titel">Noch nicht übernommen</h2>
+        <div id="ae-liste"></div>
+        <p class="leise">Übernehmen führt <code>aunserver-setup</code> aus und richtet das NAS nach der Konfiguration ein
+          (einige Minuten; das Fenster darf dabei zu).</p>
+        <div class="knoepfe"><button id="uebernehmen" class="primaer">Jetzt übernehmen</button></div>
+      </article>
+      <article class="karte" id="ae-protokoll-karte" hidden>
+        <h2>Protokoll <span id="ae-status" class="marke"></span></h2>
+        <pre id="ae-protokoll" class="protokoll" aria-live="polite"></pre>
+      </article>
+    </section>
+
+    <section id="verlauf" class="seite" hidden>
+      <article class="karte">
+        <h2>Frühere Fassungen</h2>
+        <p class="leise">Jede Änderung (auch durch das Setup) wird hier abgelegt, ohne Passwörter. Zurückholen ändert nur
+          die Datei; danach übernehmen.</p>
+        <div id="vl-liste"></div>
+      </article>
+    </section>
+
+    <section id="passwoerter" class="seite" hidden>
+      <div class="karten" id="pw-karten"></div>
+    </section>
+
+    <section id="zugaenge" class="seite" hidden>
+      <article class="karte">
+        <h2>Zugangsübersicht</h2>
+        <p class="leise">Aus <code>/etc/aunserver/zugaenge.txt</code>, wird bei jedem Lauf neu geschrieben. Enthält Passwörter.</p>
+        <div class="knoepfe"><button id="zg-zeigen" class="sekundaer">Anzeigen</button></div>
+        <pre id="zg-text" class="protokoll" hidden></pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

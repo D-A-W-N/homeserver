@@ -3,6 +3,7 @@
 import contextlib
 import fcntl
 import io
+import json
 import os
 import shutil
 import stat
@@ -347,6 +348,31 @@ class AendernTest(unittest.TestCase):
         self.assertEqual(open(os.path.join(ac.SECRETS_DIR, "samba_password")).read(), "Samba-Neu-123\n")
         with unittest.mock.patch("sys.stdin", io.StringIO("Ps2-Neu-1234\n")):
             self.assertNotEqual(self.run_cli("passwd", "ps2", "--stdin")[0], 0)   # Freigabe ist aus
+
+    def test_json_fuer_den_editor(self):
+        self.write("---\nhostname: a\nsamba_password: geheim-x\napps: {emby: false}\n")
+        rc, out, _ = self.run_cli("show", "--json")
+        data = json.loads(out)
+        self.assertEqual(data["eigene"], {"hostname": "a", "apps": {"emby": False}})
+        self.assertTrue(data["wirksam"]["apps"]["adguard"])
+        self.assertEqual(data["geheim_gesetzt"], ["samba_password"])
+        self.assertNotIn("geheim-x", out)
+        req = {"set": {"apps.emby": True, "lan_subnets": ["10.0.0.0/8"]}, "unset": ["hostname"], "grund": "Editor-Test"}
+        with unittest.mock.patch("sys.stdin", io.StringIO(json.dumps(req))):
+            rc, out, err = self.run_cli("edit")
+        self.assertEqual(rc, 0, err)
+        result = json.loads(out)
+        self.assertEqual({c["pfad"] for c in result["aenderungen"]}, {"apps.emby", "lan_subnets", "hostname"})
+        data = yaml.safe_load(self.read())
+        self.assertNotIn("hostname", data)
+        self.assertNotIn("samba_password", data)   # beim Schreiben nach secrets/
+        self.assertEqual(json.loads(self.run_cli("history", "--json")[1])[0]["grund"], "Editor-Test")
+        for bad in ({"set": {"apps.emby": "ja"}}, {"set": {"admin_user": "x"}}, {"set": {"samba_password": "x"}},
+                    {"unset": ["apps"]}, {}):
+            with self.subTest(bad), unittest.mock.patch("sys.stdin", io.StringIO(json.dumps(bad))):
+                self.assertNotEqual(self.run_cli("edit")[0], 0)
+        self.run_cli("mark-applied")
+        self.assertEqual(json.loads(self.run_cli("diff", "--json")[1])["aenderungen"], [])
 
     def test_get(self):
         self.write("---\nhostname: a\n")

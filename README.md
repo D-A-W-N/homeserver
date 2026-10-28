@@ -59,7 +59,7 @@ dev/vm-ansible.sh /tmp/test.yml      # Repo in die VM kopieren und das Playbook 
 
 `autoinstall` nutzt den echten Preseed aus `installer/` plus `dev/preseed-dev.cfg` (Benutzer `nasadmin`, Passwort `aunserver`, eigener SSH-Schlüssel, keine Rückfragen). Für manuelle Installationen gibt es weiterhin `install`.
 
-Die CI fährt denselben Ablauf in einer KVM-VM (`.github/workflows/vm-test.yml`, UEFI und BIOS): Dev-ISO bauen, davon installieren, Setup zweimal ausführen (der zweite Lauf muss `changed=0` melden), Backup und Wiederherstellung prüfen. Die VM startet nur, wenn ein PR `ansible/`, `installer/`, `dev/`, `stacks/`, `bin/`, `lib/` oder `config/` ändert; der Job `vm-test` fasst das Ergebnis zusammen und ist Pflicht-Check im Ruleset von `main`.
+Die CI fährt denselben Ablauf in einer KVM-VM (`.github/workflows/vm-test.yml`, UEFI und BIOS): Dev-ISO bauen, davon installieren, Setup zweimal ausführen (der zweite Lauf muss `changed=0` melden), Backup und Wiederherstellung prüfen. Die VM startet nur, wenn ein PR `ansible/`, `installer/`, `dev/`, `stacks/`, `bin/`, `lib/`, `config/` oder `cockpit/` ändert; der Job `vm-test` fasst das Ergebnis zusammen und ist Pflicht-Check im Ruleset von `main`.
 
 Image- und Action-Updates kommen per [Renovate](https://docs.renovatebot.com/) als Pull Request.
 
