@@ -9,6 +9,7 @@ import stat
 import sys
 import tempfile
 import unittest
+import unittest.mock
 
 import yaml
 
@@ -312,6 +313,40 @@ class AendernTest(unittest.TestCase):
         finally:
             os.environ.pop("AUNSERVER_LOCK_HELD", None)
             os.close(fd)
+
+    def test_passwd_web(self):
+        self.write("---\nhostname: a\n")
+        os.makedirs(ac.SECRETS_DIR)
+        for name, text in (("web_password", "AltesPasswort123\n"), ("web_password.bcrypt", "$2a$14$x\n")):  # gitleaks:allow
+            with open(os.path.join(ac.SECRETS_DIR, name), "w") as f:
+                f.write(text)
+        with unittest.mock.patch("sys.stdin", io.StringIO("Neu-Passwort_1\n")):
+            rc, out, _ = self.run_cli("passwd", "web", "--stdin")
+        self.assertEqual(rc, 0)
+        read = lambda n: open(os.path.join(ac.SECRETS_DIR, n)).read()  # noqa: E731
+        self.assertEqual(read("web_password"), "Neu-Passwort_1\n")
+        self.assertEqual(read("web_password.alt"), "AltesPasswort123\n")
+        self.assertFalse(os.path.exists(os.path.join(ac.SECRETS_DIR, "web_password.bcrypt")))
+        # zweiter Wechsel vor dem Setup: das ursprüngliche alte Passwort bleibt
+        with unittest.mock.patch("sys.stdin", io.StringIO("Noch-neuer-2\n")):
+            self.run_cli("passwd", "web", "--stdin")
+        self.assertEqual(read("web_password.alt"), "AltesPasswort123\n")
+        for bad in ("kurz", "mit leerzeichen", "dollar$zeichen", 'an"f'):
+            with self.subTest(bad), unittest.mock.patch("sys.stdin", io.StringIO(bad + "\n")):
+                self.assertNotEqual(self.run_cli("passwd", "web", "--stdin")[0], 0)
+        self.assertEqual(read("web_password"), "Noch-neuer-2\n")
+
+    def test_passwd_samba(self):
+        self.write("---\nadmin_user: nasadmin\n")
+        with unittest.mock.patch("subprocess.run") as run, \
+                unittest.mock.patch("sys.stdin", io.StringIO("Samba-Neu-123\n")):
+            rc, out, _ = self.run_cli("passwd", "samba", "--stdin")
+        self.assertEqual(rc, 0)
+        self.assertEqual(run.call_args.args[0], ["smbpasswd", "-s", "-a", "nasadmin"])
+        self.assertEqual(run.call_args.kwargs["input"], "Samba-Neu-123\nSamba-Neu-123\n")
+        self.assertEqual(open(os.path.join(ac.SECRETS_DIR, "samba_password")).read(), "Samba-Neu-123\n")
+        with unittest.mock.patch("sys.stdin", io.StringIO("Ps2-Neu-1234\n")):
+            self.assertNotEqual(self.run_cli("passwd", "ps2", "--stdin")[0], 0)   # Freigabe ist aus
 
     def test_get(self):
         self.write("---\nhostname: a\n")

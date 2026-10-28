@@ -167,6 +167,39 @@ jobs:
           s aunserver-config unset emby_dlna_renderers
           s aunserver-config diff | grep "Keine Änderungen"
 
+      - name: Passwörter ändern (Samba sofort, Web-Passwort mit dem Setup in allen Apps)
+        run: |
+          s() { ssh -n -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost \
+                  "printf '%s\n' aunserver | sudo -S -p '' $*"; }
+          neu=Neu-Web_Passwort-42
+          alt=$(s cat /etc/aunserver/secrets/web_password)
+          hash_vorher=$(s pdbedit -L -w -u nasadmin)
+          s "sh -c 'echo Samba-Neu-4711 | aunserver-config passwd samba --stdin'"
+          test "$(s pdbedit -L -w -u nasadmin)" != "$hash_vorher"
+          s "sh -c 'echo $neu | aunserver-config passwd web --stdin'"
+          s /opt/aunserver/bin/aunserver-setup --yes > "$RUNNER_TEMP/run3.log"
+          sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/run3.log" | grep -E 'localhost +: ok=[0-9]+ +changed=[0-9]+ +unreachable=0 +failed=0'
+          s test ! -e /etc/aunserver/secrets/web_password.alt
+          s grep -qF "'Passwort: $neu'" /etc/aunserver/zugaenge.txt
+          # Caddy (Basic Auth vor SABnzbd): neu ja, alt nein
+          code() { s curl -sk -o /dev/null -w '%{http_code}' -u "nasadmin:$1" \
+                     --resolve sabnzbd.nas.home.arpa:443:127.0.0.1 https://sabnzbd.nas.home.arpa/; }
+          test "$(code "$neu")" != 401
+          test "$(code "$alt")" = 401
+          # AdGuard
+          test "$(s curl -s -o /dev/null -w '%{http_code}' -u "nasadmin:$neu" http://127.0.0.1:8083/control/status)" = 200
+          # Beszel: Benutzer und Superuser
+          for c in users _superusers; do
+            s curl -sf -o /dev/null -X POST -H "'Content-Type: application/json'" \
+              -d "'{\"identity\":\"nasadmin@nas.home.arpa\",\"password\":\"$neu\"}'" \
+              http://127.0.0.1:3030/api/collections/$c/auth-with-password
+          done
+          # Sonarr: Anmeldung per Formular leitet ohne loginFailed weiter
+          # (Anführungszeichen für die Shell auf der VM: & trennt dort sonst Befehle)
+          ziel=$(s curl -s -o /dev/null -w "'%{redirect_url}'" -d "'username=nasadmin&password=$neu&rememberMe=on'" http://127.0.0.1:3102/login)
+          echo "Sonarr leitet weiter nach: $ziel"
+          if grep -q loginFailed <<<"$ziel"; then exit 1; fi
+
       - name: Login-Hinweis aufs Setup nach der Einrichtung weg
         run: |
           ssh_vm() { ssh -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost "$@"; }

@@ -19,11 +19,13 @@ import copy
 import datetime
 import difflib
 import fcntl
+import getpass
 import io
 import ipaddress
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 
@@ -449,6 +451,7 @@ def render_docs(schema):
         "sudo aunserver-config diff                    # was noch nicht übernommen ist",
         "sudo aunserver-setup                          # übernehmen",
         "sudo aunserver-config history                 # frühere Fassungen; zurück: revert <Fassung>",
+        "sudo aunserver-config passwd web              # Passwort ändern (samba, ps2, web)",
         "```",
         "",
         "Wer die Datei lieber selbst bearbeitet (`sudo nano /etc/aunserver/config.yml`), prüft sie mit",
@@ -989,6 +992,69 @@ def cmd_mark_applied(args, schema):
     return 0
 
 
+# Erlaubt sind druckbare Zeichen ohne Leerzeichen, Anführungszeichen, Backslash und $ (das Web-Passwort
+# steht auch in einer Compose-Datei, dort würde $ als Variable gelesen)
+PASSWORT = re.compile(r"^[!#%&()*+,\-./0-9:;<=>?@A-Z\[\]^_a-z{|}~]{8,128}$")
+SAMBA_LEGACY_CONF = "/etc/samba-legacy/smb.conf"
+
+
+def read_password(args, what):
+    if args.stdin:
+        pw = sys.stdin.readline().rstrip("\n")
+    else:
+        if not sys.stdin.isatty():
+            die("Ohne Terminal das Passwort mit --stdin übergeben")
+        pw = getpass.getpass(f"Neues Passwort für {what}: ")
+        if getpass.getpass("Wiederholen: ") != pw:
+            die("Die Passwörter stimmen nicht überein, nichts geändert.")
+    if not PASSWORT.match(pw):
+        die("Mindestens 8 Zeichen; erlaubt sind Buchstaben, Ziffern und Sonderzeichen außer "
+            "Leerzeichen, Anführungszeichen, \\ und $. Nichts geändert.")
+    return pw
+
+
+def smbpasswd(argv, pw):
+    try:
+        subprocess.run(argv, input=f"{pw}\n{pw}\n", text=True, check=True, capture_output=True)
+    except FileNotFoundError:
+        die("smbpasswd fehlt (läuft das auf dem NAS?)")
+    except subprocess.CalledProcessError as e:
+        die(f"smbpasswd fehlgeschlagen: {(e.stderr or e.stdout).strip()}")
+
+
+def cmd_passwd(args, schema):
+    with locked():
+        cfg = merge(schema, load_config(args.datei) if os.path.exists(args.datei) else {})
+        if args.wofuer == "samba":
+            pw = read_password(args, f"Samba ({cfg['admin_user']})")
+            smbpasswd(["smbpasswd", "-s", "-a", cfg["admin_user"]], pw)
+            write_secret("samba_password", pw)
+            print("Samba-Passwort geändert, gilt sofort.")
+        elif args.wofuer == "ps2":
+            if not get_path(cfg, "samba_legacy.enabled"):
+                die("Die PS2-Freigabe ist aus (samba_legacy.enabled).")
+            pw = read_password(args, "die PS2-Freigabe (Konto ps2)")
+            smbpasswd(["smbpasswd", "-c", SAMBA_LEGACY_CONF, "-s", "-a", "ps2"], pw)
+            write_secret("samba_legacy_password", pw)
+            print("Passwort für ps2 geändert, gilt sofort.")
+        else:
+            current = os.path.join(SECRETS_DIR, "web_password")
+            if not os.path.isfile(current):
+                die("Noch kein Web-Passwort (erst nach dem ersten Setup).")
+            pw = read_password(args, f"die Web-Apps ({cfg['admin_user']})")
+            alt = current + ".alt"
+            # bei einem abgebrochenen Wechsel bleibt das ursprüngliche alte Passwort stehen
+            if not os.path.exists(alt):
+                with open(current, encoding="utf-8") as f:
+                    write_atomic(alt, f.read(), 0o600)
+            write_atomic(current, pw + "\n", 0o600)
+            with contextlib.suppress(FileNotFoundError):
+                os.unlink(current + ".bcrypt")
+            print("Web-Passwort gespeichert. Wirksam (Caddy, AdGuard, Beszel, Servarr-Apps, Zugangsübersicht) "
+                  "nach: sudo aunserver-setup")
+    return 0
+
+
 def cmd_schema(args, schema):
     json.dump(schema.as_json(), sys.stdout, ensure_ascii=False, indent=1)
     print()
@@ -1034,6 +1100,10 @@ def main(argv=None):
     s = sub.add_parser("revert", help="eine frühere Fassung zurückholen")
     s.add_argument("fassung")
     s.add_argument("--datei", default=CONFIG)
+    s = sub.add_parser("passwd", help="Passwort ändern: samba und ps2 sofort, web mit dem nächsten Setup")
+    s.add_argument("wofuer", choices=["samba", "ps2", "web"])
+    s.add_argument("--stdin", action="store_true", help="Passwort als eine Zeile von der Standardeingabe")
+    s.add_argument("--datei", default=CONFIG)
     s = sub.add_parser("mark-applied", help="Stand als übernommen merken (macht das Setup nach einem erfolgreichen Lauf)")
     s.add_argument("datei", nargs="?", default=CONFIG)
     args = p.parse_args(argv)
@@ -1044,7 +1114,7 @@ def main(argv=None):
     return {"validate": cmd_validate, "show": cmd_show, "effective": cmd_effective,
             "generate": cmd_generate, "schema": cmd_schema, "get": cmd_get, "set": cmd_set,
             "unset": cmd_unset, "import": cmd_import, "migrate": cmd_migrate, "diff": cmd_diff,
-            "history": cmd_history, "revert": cmd_revert,
+            "history": cmd_history, "revert": cmd_revert, "passwd": cmd_passwd,
             "mark-applied": cmd_mark_applied}[args.befehl](args, schema)
 
 

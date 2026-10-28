@@ -70,6 +70,40 @@
 # Beszel stellt Alarme an interne Ziele (ntfy://ntfy) nur zu, wenn der Besitzer die Rolle
 # "admin" hat; der per USER_EMAIL angelegte Benutzer ist "user" (M4-Test). Die Rolle setzt
 # der Superuser, den Beszel mit denselben Zugangsdaten anlegt.
+# Passwortwechsel: mit dem alten Passwort anmelden (400 = schon gewechselt) und das neue setzen,
+# erst beim Benutzer, dann beim Superuser (dessen Anmeldung danach ungültig wird)
+- name: Beszel-Anmeldung mit dem alten Web-Passwort (Passwortwechsel)
+  ansible.builtin.uri:
+    url: http://127.0.0.1:{{ stacks_ports.beszel }}/api/collections/{{ item }}/auth-with-password
+    method: POST
+    body_format: json
+    body: { identity: "{{ stacks_beszel_email }}", password: "{{ stacks_web_password_alt }}" }
+    status_code: [200, 400]
+  loop: [users, _superusers]
+  register: stacks_beszel_alt_auth
+  until: stacks_beszel_alt_auth.status in [200, 400]
+  retries: 20
+  delay: 3
+  when: stacks_web_password_wechsel
+  no_log: true
+
+- name: Neues Web-Passwort in Beszel
+  ansible.builtin.uri:
+    url: http://127.0.0.1:{{ stacks_ports.beszel }}/api/collections/{{ item.item }}/records/{{ item.json.record.id }}
+    method: PATCH
+    headers: { Authorization: "{{ stacks_beszel_alt_auth.results[1].json.token }}" }
+    body_format: json
+    body: { password: "{{ stacks_web_password }}", passwordConfirm: "{{ stacks_web_password }}" }
+  loop: "{{ stacks_beszel_alt_auth.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item | default('') }}"
+  when:
+    - stacks_web_password_wechsel
+    - item.status == 200
+    - stacks_beszel_alt_auth.results[1].status == 200
+  changed_when: true
+  no_log: true
+
 - name: Beszel-Anmeldung (Benutzer und Superuser)
   ansible.builtin.uri:
     url: http://127.0.0.1:{{ stacks_ports.beszel }}/api/collections/{{ item }}/auth-with-password
