@@ -112,6 +112,10 @@ jobs:
           test "$(ssh_vm -n "stat -c '%a %U' /opt/aunserver")" = "755 root"
           printf 'exit\n' | ssh_vm -tt 2>&1 | tr -d '\r' | grep "aunserver ist installiert"
           if [ "${{ matrix.firmware }}" = uefi ]; then ssh_vm -n "test -d /sys/firmware/efi"; else ssh_vm -n "test ! -d /sys/firmware/efi"; fi
+          # Partitionsrezept aunserver: keine Swap-Partition (zram kommt mit dem Setup)
+          if ssh_vm -n "grep -w swap /etc/fstab"; then exit 1; fi
+          # Cockpit mit der aunserver-Seite schon vor dem Setup (Assistent)
+          ssh_vm -n "test -f /usr/share/cockpit/aunserver/manifest.json && systemctl is-enabled cockpit.socket"
 
       - name: Playwright für die Browser-Tests (Chrome des Runners)
         run: |

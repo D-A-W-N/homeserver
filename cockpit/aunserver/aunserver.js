@@ -638,8 +638,10 @@ async function zeigeEinrichten() {
                 el("input", { type: "text", id: "bestaetigung", autocomplete: "off", spellcheck: "false" })));
     }
 
-    const host = el("input", { type: "text", id: "a-hostname", value: s.hostname.standard });
-    const domain = el("input", { type: "text", id: "a-domain", value: s.hostname.standard + ".home.arpa" });
+    // Vorschlag: der Name aus dem Installer
+    const name = ((await cockpit.spawn(["hostname", "-s"], { err: "ignore" }).catch(() => "")) || "").trim() || s.hostname.standard;
+    const host = el("input", { type: "text", id: "a-hostname", value: name });
+    const domain = el("input", { type: "text", id: "a-domain", value: name + ".home.arpa" });
     let domainSelbst = false;
     domain.addEventListener("input", () => { domainSelbst = true });
     host.addEventListener("input", () => { if (!domainSelbst) domain.value = host.value + ".home.arpa" });

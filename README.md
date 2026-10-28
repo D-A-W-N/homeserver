@@ -14,7 +14,7 @@ installer/build-iso.sh        # erzeugt aunserver-<version>.iso (ohne xorriso: a
 sudo dd if=aunserver-<version>.iso of=/dev/sdX bs=4M status=progress conv=fsync
 ```
 
-Unter Windows mit Rufus im **DD-Modus** schreiben; Ventoy ist nicht getestet. Vom Stick booten (UEFI oder BIOS) und „aunserver installieren“ wählen. Gefragt werden nur Benutzername und Passwort; die Systemplatte wird erkannt und mit Modell, Größe und Seriennummer zur Bestätigung angezeigt, vor dem Partitionieren kommt immer noch eine Rückfrage. Platten mit Label `AUNDATA` und USB-Geräte werden nie angeboten.
+Unter Windows mit Rufus im **DD-Modus** schreiben; Ventoy ist nicht getestet. Vom Stick booten (UEFI oder BIOS) und „aunserver installieren“ wählen. Gefragt werden der Name des NAS, das Netz (DHCP oder feste Adresse), optional ein GitHub-Name für die SSH-Schlüssel, Benutzername und Passwort; die Systemplatte wird erkannt und mit Modell, Größe und Seriennummer zur Bestätigung angezeigt, vor dem Partitionieren kommt immer noch eine Rückfrage. Platten mit Label `AUNDATA` und USB-Geräte werden nie angeboten.
 
 ## Einrichtung nach der Installation
 

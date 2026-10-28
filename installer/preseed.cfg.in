@@ -1,8 +1,8 @@
 ### aunserver – Preseed für den Debian-13-Installer
 # Boot-Parameter: auto=true priority=critical (file=/cdrom/preseed.cfg bzw. url=...)
-# Abgefragt werden nur: Benutzername, Passwort, Systemplatte (select-disk.sh) und die
-# Bestätigung vor dem Partitionieren. Hostname, Domain usw. setzt später aunserver-setup.
-# Platzhalter: @EARLY_CMD@ (lädt und startet select-disk.sh), @LATE_CMD@ (Repo kopieren)
+# Abgefragt werden: Netz (DHCP/fest) und SSH-Schlüssel von GitHub (fragen.sh), Hostname,
+# Benutzername, Passwort, Systemplatte (select-disk.sh) und die Bestätigung vor dem Partitionieren.
+# Platzhalter: @FRAGEN_CMD@ (fragen.sh), @EARLY_CMD@ (select-disk.sh), @LATE_CMD@ (Repo, Cockpit)
 # Getestet in Spike S2 (docs/spikes.md).
 
 ### Sprache, Tastatur, Zeit
@@ -14,7 +14,11 @@ d-i time/zone string Europe/Berlin
 d-i clock-setup/utc boolean true
 d-i clock-setup/ntp boolean true
 
-### Netz und Mirror (Hostname wird vom Installer ignoriert, aunserver-setup setzt ihn)
+### Eigene Fragen vor dem Netz (fragen.sh)
+d-i preseed/early_command string @FRAGEN_CMD@
+
+### Netz und Mirror; Hostname und ggf. feste Adresse belegt fragen.sh vor, das Setup übernimmt
+### den Namen als Vorschlag
 d-i netcfg/choose_interface select auto
 d-i netcfg/get_hostname string nas
 d-i netcfg/get_domain string home.arpa
@@ -34,7 +38,15 @@ d-i passwd/user-password-again seen false
 ### Partitionierung
 d-i partman/early_command string @EARLY_CMD@
 d-i partman-auto/method string regular
-d-i partman-auto/choose_recipe select atomic
+# Eine Partition für alles, ohne Swap (zram, D18); auf GPT dazu BIOS-Boot bzw. EFI-Partition
+d-i partman-auto/expert_recipe string \
+      aunserver :: \
+        1 1 1 free $iflabel{ gpt } $reusemethod{ } method{ biosgrub } . \
+        538 538 1075 free $iflabel{ gpt } $reusemethod{ } method{ efi } format{ } . \
+        8000 20000 -1 ext4 $primary{ } $bootable{ } method{ format } format{ } \
+          use_filesystem{ } filesystem{ ext4 } mountpoint{ / } .
+d-i partman-auto/choose_recipe select aunserver
+d-i partman-basicfilesystems/no_swap boolean false
 d-i partman-lvm/device_remove_lvm boolean true
 d-i partman-md/device_remove_md boolean true
 d-i partman-partitioning/confirm_write_new_label boolean true

@@ -130,17 +130,20 @@ sed -i 's/^include gtk.cfg/include aunserver.cfg\ninclude gtk.cfg/' "$WORK/menu.
 [ "$DEV" = 1 ] && sed -i 's/^timeout 0/timeout 50/' "$WORK/isolinux.cfg"
 
 # --- Preseed, Plattenauswahl, Repo ----------------------------------------------------------
+fragen='sh /cdrom/aunserver-installer/fragen.sh'
 early='sh /cdrom/aunserver-installer/select-disk.sh'
-late='cp /cdrom/aunserver-installer/aunserver.tar.gz /target/tmp/ \&\& in-target tar -xzf /tmp/aunserver.tar.gz -C /opt \&\& in-target rm /tmp/aunserver.tar.gz \&\& cp /cdrom/aunserver-installer/aunserver-login.sh /target/etc/profile.d/aunserver.sh \&\& cp /cdrom/aunserver-installer/erststart.sh /target/tmp/ \&\& in-target sh /tmp/erststart.sh'
+# shellcheck disable=SC2016  # $(debconf-get …) wertet erst der Installer aus
+late='cp /cdrom/aunserver-installer/aunserver.tar.gz /target/tmp/ \&\& in-target tar -xzf /tmp/aunserver.tar.gz -C /opt \&\& in-target rm /tmp/aunserver.tar.gz \&\& cp /cdrom/aunserver-installer/aunserver-login.sh /target/etc/profile.d/aunserver.sh \&\& cp /cdrom/aunserver-installer/erststart.sh /target/tmp/ \&\& in-target sh /tmp/erststart.sh "$(debconf-get passwd/username)" "$(debconf-get aunserver/ssh-github 2>/dev/null)"'
 if [ "$DEV" = 1 ]; then
   early="AUN_YES=1 $early"
+  fragen="AUN_YES=1 $fragen"
   late="$late \&\& mkdir -p /target/home/nasadmin/.ssh \&\& cp /cdrom/aunserver-installer/authorized_keys /target/home/nasadmin/.ssh/ \&\& chmod 700 /target/home/nasadmin/.ssh \&\& in-target chown -R nasadmin:nasadmin /home/nasadmin/.ssh"
   cp "$DEV_KEY" "$WORK/aunserver-installer/authorized_keys"
 fi
-sed -e "s|@EARLY_CMD@|$early|" -e "s|@LATE_CMD@|$late|" "$REPO/installer/preseed.cfg.in" > "$WORK/preseed.cfg"
+sed -e "s|@FRAGEN_CMD@|$fragen|" -e "s|@EARLY_CMD@|$early|" -e "s|@LATE_CMD@|$late|" "$REPO/installer/preseed.cfg.in" > "$WORK/preseed.cfg"
 [ "$DEV" = 1 ] && cat "$REPO/dev/preseed-dev.cfg" >> "$WORK/preseed.cfg"
 
-cp "$REPO/installer/select-disk.sh" "$REPO/installer/aunserver-login.sh" "$REPO/installer/erststart.sh" "$WORK/aunserver-installer/"
+cp "$REPO/installer/select-disk.sh" "$REPO/installer/fragen.sh" "$REPO/installer/aunserver-login.sh" "$REPO/installer/erststart.sh" "$WORK/aunserver-installer/"
 info "Repo-Stand $VERSION einpacken"
 # "git stash create" liefert einen Commit mit nicht committeten Änderungen (ohne den Arbeitsstand
 # anzufassen), sonst HEAD; nicht versionierte Dateien (.vm, .venv, *.iso) bleiben draußen

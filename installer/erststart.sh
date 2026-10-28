@@ -3,7 +3,23 @@
 # damit die Ersteinrichtung auch im Browser geht (D24, https://<IP>:9090 → aunserver).
 # Cockpit aus den Backports wie später im Setup (D2); die Paketquellen schreibt das Setup ohnehin
 # neu (debian.sources), die Zeile hier entfernt es mit der alten sources.list.
+#   erststart.sh <admin-benutzer> [<github-name>]   (Werte aus dem Installer, fragen.sh)
 set -e
+benutzer=${1:-}
+github=${2:-}
+
+# SSH-Schlüssel von GitHub für den Admin (aunserver-setup übernimmt authorized_keys)
+if [ -n "$github" ] && [ -n "$benutzer" ]; then
+  if schluessel=$(curl -fsS --max-time 20 "https://github.com/$github.keys") && [ -n "$schluessel" ]; then
+    install -d -m 0700 -o "$benutzer" -g "$benutzer" "/home/$benutzer/.ssh"
+    printf '%s\n' "$schluessel" >> "/home/$benutzer/.ssh/authorized_keys"
+    chown "$benutzer:$benutzer" "/home/$benutzer/.ssh/authorized_keys"
+    chmod 0600 "/home/$benutzer/.ssh/authorized_keys"
+  else
+    echo "Keine SSH-Schlüssel von github.com/$github.keys" >&2
+  fi
+fi
+
 # Die Quelle vom Installationsmedium (deb cdrom:) ist danach nicht mehr da, apt-get update
 # bräche an ihr ab ("enthält keine Release-Datei", im M10-Test gefunden)
 sed -i 's/^deb cdrom:/# deb cdrom:/' /etc/apt/sources.list 2>/dev/null || true
