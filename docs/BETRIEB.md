@@ -112,6 +112,8 @@ Einmalig nach dem Setup im Tailscale-Konto:
 
 **Exit-Node (optional):** Mit `network_tailscale_exit_node: true` in `/etc/aunserver/config.yml` und `sudo aunserver-setup` bietet sich das NAS als Exit-Node an. Danach unter **Machines → nas → Edit route settings** „Use as exit node“ einschalten und am Handy in der Tailscale-App das NAS als Exit-Node wählen. Dann geht der ganze Internetverkehr des Handys verschlüsselt nach Hause und von dort über den Router hinaus (Tempo durch den Upload des Anschlusses begrenzt). Wer das NAS als Exit-Node nutzt, erreicht darüber auch das übrige Heimnetz, solange die Tailscale-ACL das nicht einschränkt. Abschalten: Wert auf `false`, `sudo aunserver-setup`.
 
+**Namen über den Exit-Node:** Mit Exit-Node gehen alle DNS-Anfragen des Handys an das NAS selbst, Split DNS greift dann nicht. Das NAS fragt sonst den DNS aus DHCP (meist den Router), der die `….nas.home.arpa`-Namen nicht kennt: Namen und ntfy gehen nicht, Apps per IP schon. Abhilfe: `network_dns_adguard: true` und `sudo aunserver-setup`. Das NAS fragt dann zuerst AdGuard (`/etc/resolv.conf.head` mit `nameserver 127.0.0.1`, die DNS-Server aus DHCP bleiben als Rückfall; nur mit DHCP über dhcpcd). AdGuard filtert und protokolliert dann auch diese Anfragen, im Protokoll als `127.0.0.1`; 127.0.0.1 ist vom Rate-Limit ausgenommen.
+
 Ist das NAS abgemeldet (z. B. nach einer Neuinstallation), steht das oben in der Zugangsübersicht. Neu anmelden mit `sudo tailscale up`.
 
 ## Updates
