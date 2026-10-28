@@ -145,6 +145,28 @@ jobs:
           # die zusammengeführte Datei mit den Passwörtern gibt es nur während des Laufs
           ssh_vm "printf '%s\n' aunserver | sudo -S -p '' test ! -e /run/aunserver/effective.yml"
 
+      - name: Konfiguration ändern (Passwörter in secrets/, diff, --reconfigure behält übrige Werte)
+        run: |
+          s() { ssh -n -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost \
+                  "printf '%s\n' aunserver | sudo -S -p '' $*"; }
+          konfig=$(s cat /etc/aunserver/config.yml)
+          grep -q "^config_version: 2" <<<"$konfig"
+          if grep -E 'ci-test-123|ci-ps2-123' <<<"$konfig"; then exit 1; fi
+          test "$(s stat -c %a /etc/aunserver/secrets/samba_password)" = 600
+          s aunserver-config diff | grep "Keine Änderungen"
+          s aunserver-config set emby_dlna_renderers "'[10.0.2.50]'"
+          rc=0; s aunserver-config diff || rc=$?
+          test "$rc" = 3
+          # ohne Terminal: bisherige Werte übernehmen, nichts fragen, nichts verlieren
+          s /opt/aunserver/bin/aunserver-setup --yes --reconfigure --no-playbook
+          test "$(s aunserver-config get emby_dlna_renderers)" = "[10.0.2.50]"
+          test "$(s aunserver-config get samba_legacy.enabled)" = true
+          test "$(s aunserver-config get backup.repository)" = /var/backups/aunserver-ci
+          test "$(s aunserver-config get hostname)" = nas
+          s aunserver-config history | grep -q "aunserver-setup"
+          s aunserver-config unset emby_dlna_renderers
+          s aunserver-config diff | grep "Keine Änderungen"
+
       - name: Login-Hinweis aufs Setup nach der Einrichtung weg
         run: |
           ssh_vm() { ssh -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost "$@"; }

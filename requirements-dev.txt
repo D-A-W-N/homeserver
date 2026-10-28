@@ -4,3 +4,4 @@ ansible==12.0.*        # bündelt ansible-core 2.19 + Collections, wie das Debia
 ansible-lint==26.*
 yamllint==1.*
 shellcheck-py==0.11.*   # gleiche shellcheck-Version lokal und in der CI
+ruamel.yaml==0.18.10   # wie python3-ruamel.yaml in Debian 13 (Kommentare in config.yml bleiben beim Ändern erhalten)

@@ -5,12 +5,21 @@ braucht nur Abweichungen vom Standard: Vor jedem Ansible-Lauf wird sie geprüft 
 Standardwerten zusammengeführt. Blöcke wie apps oder backup werden dabei Schlüssel für
 Schlüssel ergänzt; ein bloßes `-e @config.yml` würde sie als Ganzes ersetzen.
 
-Nur Standardbibliothek und PyYAML (kommt mit dem Debian-Paket ansible).
+Ändern (set, unset, import, revert) schreibt die Datei mit ruamel.yaml, damit eigene Kommentare
+erhalten bleiben, legt jede Fassung im Verlauf ab und hält die Sperre, die auch Setup und Update
+nehmen. Passwörter und Schlüssel liegen als Dateien in /etc/aunserver/secrets/ (D23).
+
+Nur Standardbibliothek, PyYAML (kommt mit dem Debian-Paket ansible) und zum Schreiben
+python3-ruamel.yaml (ohne gehen Kommentare verloren).
 """
 
 import argparse
+import contextlib
 import copy
+import datetime
 import difflib
+import fcntl
+import io
 import ipaddress
 import json
 import os
@@ -22,7 +31,15 @@ import yaml
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCHEMA = os.path.join(REPO, "config", "schema.yml")
-CONFIG = "/etc/aunserver/config.yml"
+# Für Tests umlenkbar: AUNSERVER_ETC, AUNSERVER_STATE, AUNSERVER_LOCK
+ETC = os.environ.get("AUNSERVER_ETC", "/etc/aunserver")
+CONFIG = os.path.join(ETC, "config.yml")
+SECRETS_DIR = os.path.join(ETC, "secrets")
+HISTORY_DIR = os.path.join(ETC, "verlauf")
+APPLIED = os.path.join(os.environ.get("AUNSERVER_STATE", "/var/lib/aunserver"), "config.angewendet.yml")
+LOCK = os.environ.get("AUNSERVER_LOCK", "/run/lock/aunserver.lock")
+HISTORY_KEEP = 30
+CONFIG_VERSION = 2
 GROUP_VARS_DIR = os.path.join(REPO, "ansible", "group_vars", "all")
 GENERATED = {
     "group_vars": os.path.join(GROUP_VARS_DIR, "einstellungen.yml"),
@@ -282,6 +299,9 @@ def validate(schema, config, internal=None):
                 res.warnings.append(f"{path}: unbekannte Einstellung, wird ignoriert{suggest(path, names)}")
 
     walk(config, "")
+    for path, spec in schema.leaves.items():
+        if spec.get("geheim") and get_path(config, path) is not None:
+            res.warnings.append(f"{path}: steht in der config.yml, das Setup verschiebt es nach {SECRETS_DIR}/ (D23)")
     if not res.errors:
         eff = merge(schema, config)
         for path, spec in schema.leaves.items():
@@ -424,13 +444,20 @@ def render_docs(schema):
         "Die Beschreibung steht in [config/schema.yml](../config/schema.yml).",
         "",
         "```bash",
-        "sudo nano /etc/aunserver/config.yml",
-        "sudo aunserver-config validate      # Tippfehler und falsche Werte finden",
-        "sudo aunserver-setup                # übernehmen",
+        "sudo aunserver-config set apps.emby false     # ändern (prüft den Wert, Kommentare bleiben)",
+        "sudo aunserver-config unset apps.emby         # zurück auf den Standard",
+        "sudo aunserver-config diff                    # was noch nicht übernommen ist",
+        "sudo aunserver-setup                          # übernehmen",
+        "sudo aunserver-config history                 # frühere Fassungen; zurück: revert <Fassung>",
         "```",
         "",
+        "Wer die Datei lieber selbst bearbeitet (`sudo nano /etc/aunserver/config.yml`), prüft sie mit",
+        "`sudo aunserver-config validate`; das Setup prüft sie vor jedem Lauf auch.",
+        "",
         "Stufen: **basis** fragt das Setup ab, **erweitert** nur bei Bedarf, **fest** setzt das Setup",
-        "(nicht von Hand ändern). Geheime Werte (Passwörter) zeigt `aunserver-config show` nicht an.",
+        "(nicht von Hand ändern). **Geheime** Werte (Passwörter, Schlüssel) stehen nicht in der",
+        "config.yml, sondern als Dateien in `/etc/aunserver/secrets/` (D23); ältere Dateien stellt",
+        "das Setup selbst um (`config_version: 2`).",
         "",
     ]
     for bereich, title in schema.bereiche.items():
@@ -515,6 +542,249 @@ def report(res, path, quiet=False):
         print(f"{path}: in Ordnung" + (f" ({len(res.warnings)} Warnungen)" if res.warnings else ""))
 
 
+
+# --- Passwörter und Schlüssel (D23) ---------------------------------------------------------------
+
+def secret_file(path):
+    return os.path.join(SECRETS_DIR, path.replace(".", "_"))
+
+
+def read_secrets(schema):
+    found = {}
+    for path, spec in schema.leaves.items():
+        f = secret_file(path)
+        if spec.get("geheim") and os.path.isfile(f):
+            with open(f, encoding="utf-8") as fh:
+                found[path] = fh.read().rstrip("\n")
+    return found
+
+
+def write_secret(path, value):
+    os.makedirs(SECRETS_DIR, mode=0o700, exist_ok=True)
+    write_atomic(secret_file(path), f"{value}\n", 0o600)
+
+
+def remove_secret(path):
+    with contextlib.suppress(FileNotFoundError):
+        os.unlink(secret_file(path))
+
+
+def strip_secrets(schema, config):
+    stripped = copy.deepcopy(config)
+    for path, spec in schema.leaves.items():
+        if spec.get("geheim"):
+            del_path(stripped, path)
+    return stripped
+
+
+# --- Schreiben, Sperre, Verlauf ---------------------------------------------------------------------
+
+def del_path(tree, path):
+    """Wert entfernen, leer gewordene Blöcke darüber auch."""
+    parts = path.split(".")
+    nodes = [tree]
+    for part in parts[:-1]:
+        if not isinstance(nodes[-1], dict) or part not in nodes[-1]:
+            return False
+        nodes.append(nodes[-1][part])
+    if not isinstance(nodes[-1], dict) or parts[-1] not in nodes[-1]:
+        return False
+    del nodes[-1][parts[-1]]
+    for i in range(len(parts) - 1, 0, -1):
+        if nodes[i] == {}:
+            del nodes[i - 1][parts[i - 1]]
+    return True
+
+
+def rt_yaml():
+    try:
+        from ruamel.yaml import YAML
+    except ImportError:
+        return None
+    y = YAML()
+    y.preserve_quotes = True
+    y.indent(mapping=2, sequence=4, offset=2)
+    y.width = 160
+    y.explicit_start = True
+    return y
+
+
+def load_for_edit(path):
+    """Konfiguration zum Ändern laden (mit Kommentaren, wenn ruamel.yaml da ist)."""
+    if not os.path.exists(path):
+        return {}
+    y = rt_yaml()
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = y.load(f) if y else yaml.safe_load(f)
+    except Exception as e:  # noqa: BLE001 – beide Parser haben eigene Fehlerklassen
+        die(f"{path} ist kein gültiges YAML: {e}")
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        die(f"{path} enthält keine Einstellungen")
+    return data
+
+
+def to_plain(obj):
+    """ruamel-Objekte (CommentedMap, ScalarInt …) in einfache Python-Werte."""
+    if isinstance(obj, dict):
+        return {str(k): to_plain(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [to_plain(v) for v in obj]
+    if isinstance(obj, bool) or obj is None:
+        return obj
+    for t in (int, float, str):
+        if isinstance(obj, t):
+            return t(obj)
+    return obj
+
+
+def dump_for_edit(data):
+    y = rt_yaml()
+    if y is None:
+        print("Hinweis: python3-ruamel.yaml fehlt, Kommentare in der config.yml gehen beim Schreiben verloren.",
+              file=sys.stderr)
+        return dump(to_plain(data))
+    buf = io.StringIO()
+    y.dump(data, buf)
+    return buf.getvalue()
+
+
+@contextlib.contextmanager
+def locked():
+    """Dieselbe Sperre wie aunserver-setup und aunserver-update (die sie an uns weitergeben)."""
+    if os.environ.get("AUNSERVER_LOCK_HELD") == "1":
+        yield
+        return
+    os.makedirs(os.path.dirname(LOCK), exist_ok=True)
+    fd = os.open(LOCK, os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            die("Setup, Update oder eine andere Änderung läuft gerade; danach erneut versuchen.")
+        yield
+    finally:
+        os.close(fd)
+
+
+def history_entries():
+    if not os.path.isdir(HISTORY_DIR):
+        return []
+    return sorted(f[:-4] for f in os.listdir(HISTORY_DIR) if f.endswith(".yml"))
+
+
+def history_read(entry):
+    path = os.path.join(HISTORY_DIR, entry + ".yml")
+    if not os.path.isfile(path):
+        die(f"Keine Fassung {entry} im Verlauf (aunserver-config history)")
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    grund = ""
+    first = text.splitlines()[0] if text else ""
+    if first.startswith("# Grund: "):
+        grund = first[len("# Grund: "):]
+    return grund, text, yaml.safe_load(text) or {}
+
+
+def history_add(schema, text_without_secrets, grund):
+    os.makedirs(HISTORY_DIR, mode=0o700, exist_ok=True)
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    name, n = stamp, 1
+    while os.path.exists(os.path.join(HISTORY_DIR, name + ".yml")):
+        n += 1
+        name = f"{stamp}-{n}"
+    grund = grund.replace("\n", " ")
+    write_atomic(os.path.join(HISTORY_DIR, name + ".yml"), f"# Grund: {grund}\n{text_without_secrets}", 0o600)
+    for old in history_entries()[:-HISTORY_KEEP]:
+        os.unlink(os.path.join(HISTORY_DIR, old + ".yml"))
+    return name
+
+
+def save_config(schema, data, grund, secrets=None, path=None):
+    """Prüfen, Passwörter nach secrets/, Fassung in den Verlauf, Datei ersetzen."""
+    path = path or CONFIG
+    secrets = dict(secrets or {})
+    for p, spec in schema.leaves.items():
+        if spec.get("geheim"):
+            value = get_path(data, p)
+            if value is not None:
+                secrets[p] = value
+                del_path(data, p)
+    res = validate(schema, to_plain(data))
+    for w in res.warnings:
+        print(f"Warnung: {w}", file=sys.stderr)
+    if res.errors:
+        for e in res.errors:
+            print(f"Fehler: {e}", file=sys.stderr)
+        die("nichts geändert")
+    for p, value in secrets.items():
+        if value in (None, ""):
+            remove_secret(p)
+        else:
+            write_secret(p, value)
+    # die bisherige Fassung kommt beim ersten Mal mit in den Verlauf, ohne Passwörter
+    if not history_entries() and os.path.exists(path):
+        history_add(schema, dump(strip_secrets(schema, load_config(path))), "Stand vor der ersten Änderung")
+    text = dump_for_edit(data)
+    os.makedirs(os.path.dirname(os.path.abspath(path)), mode=0o700, exist_ok=True)
+    write_atomic(path, text, 0o600)
+    return history_add(schema, text, grund)
+
+
+def flatten(schema, config):
+    """Pfad -> Wert für alle Einstellungen des Schemas, dazu unbekannte oberste Schlüssel."""
+    flat = {p: get_path(config, p) for p in schema.leaves
+            if p != "config_version" and get_path(config, p) is not None}
+    for key, value in (config or {}).items():
+        if key not in schema.leaves and key not in schema.prefixes:
+            flat[key] = value
+    return flat
+
+
+def changes(schema, old, new):
+    a, b = flatten(schema, old), flatten(schema, new)
+    out = []
+    for p in list(dict.fromkeys(list(a) + list(b))):
+        if a.get(p) != b.get(p):
+            geheim = schema.leaves.get(p, {}).get("geheim")
+            show = (lambda v: MASK if v is not None else None) if geheim else (lambda v: v)
+            out.append((p, show(a.get(p)), show(b.get(p))))
+    return out
+
+
+def fmt_change(path, old, new):
+    def f(v):
+        return "(Standard)" if v is None else flow(v)
+    return f"  {path}: {f(old)} → {f(new)}"
+
+
+def parse_value(spec, raw):
+    if spec["typ"] == "text":
+        return raw
+    try:
+        return yaml.safe_load(raw)
+    except yaml.YAMLError as e:
+        die(f"{raw!r} ist kein gültiger Wert: {e}")
+
+
+def migrate(schema, data):
+    """Alte Fassungen auf CONFIG_VERSION bringen. Gibt die Änderungen als Text zurück."""
+    done = []
+    version = data.get("config_version", 1)
+    # D23 (ab Fassung 2): Passwörter und Schlüssel gehören nach secrets/, save_config verschiebt sie
+    for p, spec in schema.leaves.items():
+        if spec.get("geheim") and get_path(data, p) is not None:
+            done.append(f"{p} nach secrets/ verschoben")
+    if version < CONFIG_VERSION:
+        if hasattr(data, "insert"):
+            data.insert(0, "config_version", CONFIG_VERSION)
+        else:
+            data["config_version"] = CONFIG_VERSION
+        done.append(f"config_version {version} → {CONFIG_VERSION}")
+    return done
+
 # --- Befehle ------------------------------------------------------------------------------------
 
 def cmd_validate(args, schema):
@@ -541,8 +811,12 @@ def cmd_effective(args, schema):
     report(res, args.datei, quiet=True)
     if res.errors:
         return 1
-    text = "# Erzeugt von aunserver-config aus " + args.datei + " und den Standardwerten, nicht ändern.\n"
-    write_atomic(args.out, text + dump(merge(schema, config)))
+    eff = merge(schema, config)
+    for path, value in read_secrets(schema).items():
+        if get_path(eff, path) is None:
+            set_path(eff, path, value)
+    text = "# Erzeugt von aunserver-config aus " + args.datei + ", secrets/ und den Standardwerten, nicht ändern.\n"
+    write_atomic(args.out, text + dump(eff))
     return 0
 
 
@@ -571,6 +845,150 @@ def cmd_generate(args, schema):
     return 0
 
 
+def leaf_or_die(schema, key):
+    if key in schema.leaves:
+        return schema.leaves[key]
+    if key in schema.prefixes:
+        kids = [p for p in schema.leaves if p.startswith(key + ".")]
+        die(f"{key} ist ein Block, bitte einzeln setzen, z. B. {kids[0]}")
+    die(f"unbekannte Einstellung {key}{suggest(key, list(schema.leaves))} (docs/KONFIGURATION.md)")
+
+
+def cmd_get(args, schema):
+    spec = leaf_or_die(schema, args.schluessel)
+    if spec.get("geheim"):
+        die(f"{args.schluessel} ist geheim und wird nicht angezeigt (steht in {secret_file(args.schluessel)})")
+    value = get_path(merge(schema, load_config(args.datei) if os.path.exists(args.datei) else {}), args.schluessel)
+    if value is None:
+        return 1
+    print(value if isinstance(value, str) else flow(value))
+    return 0
+
+
+def cmd_set(args, schema):
+    spec = leaf_or_die(schema, args.schluessel)
+    value = parse_value(spec, args.wert)
+    with locked():
+        data = load_for_edit(args.datei)
+        before = to_plain(data)
+        set_path(data, args.schluessel, value)
+        entry = save_config(schema, data, args.grund or f"set {args.schluessel}", path=args.datei)
+    if spec.get("geheim"):
+        print(f"{args.schluessel} gespeichert ({secret_file(args.schluessel)}).")
+    else:
+        for c in changes(schema, before, load_config(args.datei)):
+            print(fmt_change(*c))
+    print(f"Fassung {entry}. Übernehmen: sudo aunserver-setup")
+    return 0
+
+
+def cmd_unset(args, schema):
+    spec = leaf_or_die(schema, args.schluessel)
+    with locked():
+        data = load_for_edit(args.datei)
+        if spec.get("geheim"):
+            remove_secret(args.schluessel)
+            del_path(data, args.schluessel)
+            save_config(schema, data, args.grund or f"unset {args.schluessel}", path=args.datei)
+            print(f"{args.schluessel} entfernt.")
+            return 0
+        if not del_path(data, args.schluessel):
+            print(f"{args.schluessel} steht schon auf dem Standard.")
+            return 0
+        entry = save_config(schema, data, args.grund or f"unset {args.schluessel}", path=args.datei)
+    print(f"{args.schluessel} wieder auf dem Standard ({flow(schema.leaves[args.schluessel].get('standard'))}). "
+          f"Fassung {entry}. Übernehmen: sudo aunserver-setup")
+    return 0
+
+
+def cmd_import(args, schema):
+    """Werte aus einer Datei übernehmen, alles andere bleibt (aunserver-setup, --reconfigure)."""
+    incoming = load_config(args.quelle)
+    res = validate(schema, incoming)
+    unknown = [w for w in res.warnings if "unbekannte Einstellung" in w or "interner Wert" in w]
+    if res.errors or unknown:
+        report(res, args.quelle, quiet=True)
+        die(f"{args.quelle}: nur bekannte Einstellungen können übernommen werden")
+    with locked():
+        data = load_for_edit(args.datei)
+        migrate(schema, data)
+        for path in flatten(schema, incoming):
+            set_path(data, path, copy.deepcopy(get_path(incoming, path)))
+        entry = save_config(schema, data, args.grund or f"import {os.path.basename(args.quelle)}", path=args.datei)
+    print(f"Konfiguration geschrieben: {args.datei} (Fassung {entry})")
+    return 0
+
+
+def cmd_migrate(args, schema):
+    if not os.path.exists(args.datei):
+        return 0
+    with locked():
+        data = load_for_edit(args.datei)
+        done = migrate(schema, data)
+        if not done:
+            return 0
+        save_config(schema, data, "Migration: " + "; ".join(done), path=args.datei)
+    for d in done:
+        print(f"== Konfiguration: {d}")
+    return 0
+
+
+def cmd_diff(args, schema):
+    current = merge(schema, load_config(args.datei))
+    if args.standard:
+        base, title = schema.defaults(), "Abweichungen vom Standard"
+    elif os.path.exists(APPLIED):
+        base, title = load_config(APPLIED), "Noch nicht übernommen (seit dem letzten Setup)"
+    else:
+        base, title = schema.defaults(), "Noch nie übernommen, Abweichungen vom Standard"
+    found = changes(schema, strip_secrets(schema, base), strip_secrets(schema, current))
+    if not found:
+        print("Keine Änderungen." if not args.standard else "Alles auf dem Standard.")
+        return 0
+    print(f"{title}:")
+    for c in found:
+        print(fmt_change(*c))
+    return 3 if not args.standard else 0
+
+
+def cmd_history(args, schema):
+    entries = history_entries()
+    if not entries:
+        print("Noch keine Fassungen im Verlauf.")
+        return 0
+    prev = {}
+    lines = []
+    for entry in entries:
+        grund, _, data = history_read(entry)
+        diff = changes(schema, prev, data)
+        prev = data
+        detail = ", ".join(p for p, _, _ in diff[:4]) + (" …" if len(diff) > 4 else "")
+        lines.append(f"{entry}  {grund}" + (f"  [{detail}]" if detail and len(lines) else ""))
+    print("\n".join(reversed(lines)))
+    print("\nZurückholen: sudo aunserver-config revert <Fassung>")
+    return 0
+
+
+def cmd_revert(args, schema):
+    grund, text, data = history_read(args.fassung)
+    with locked():
+        before = load_config(args.datei) if os.path.exists(args.datei) else {}
+        y = rt_yaml()
+        target = y.load(text) if y else data
+        entry = save_config(schema, target or {}, f"Zurück auf {args.fassung} ({grund})", path=args.datei)
+    for c in changes(schema, strip_secrets(schema, before), data):
+        print(fmt_change(*c))
+    print(f"Fassung {args.fassung} wiederhergestellt (neu: {entry}). Übernehmen: sudo aunserver-setup")
+    return 0
+
+
+def cmd_mark_applied(args, schema):
+    eff = strip_secrets(schema, merge(schema, load_config(args.datei)))
+    os.makedirs(os.path.dirname(APPLIED), exist_ok=True)
+    write_atomic(APPLIED, "# Zuletzt erfolgreich übernommen (aunserver-setup), ohne Passwörter\n" + dump(eff), 0o600)
+    return 0
+
+
 def cmd_schema(args, schema):
     json.dump(schema.as_json(), sys.stdout, ensure_ascii=False, indent=1)
     print()
@@ -591,13 +1009,43 @@ def main(argv=None):
     s = sub.add_parser("generate", help="group_vars, config.example.yml und Doku aus dem Schema erzeugen")
     s.add_argument("--check", action="store_true", help="nur prüfen, ob die Dateien aktuell sind")
     sub.add_parser("schema", help="Schema als JSON (für den Editor)")
+    s = sub.add_parser("get", help="einen Wert anzeigen (mit Standard), Rückgabe 1 wenn keiner gesetzt ist")
+    s.add_argument("schluessel")
+    s.add_argument("--datei", default=CONFIG)
+    s = sub.add_parser("set", help="einen Wert setzen, z. B. set apps.emby false oder set lan_subnets '[192.168.1.0/24]'")
+    s.add_argument("schluessel")
+    s.add_argument("wert")
+    s.add_argument("--grund", help="Text für den Verlauf")
+    s.add_argument("--datei", default=CONFIG)
+    s = sub.add_parser("unset", help="einen Wert entfernen, dann gilt der Standard")
+    s.add_argument("schluessel")
+    s.add_argument("--grund")
+    s.add_argument("--datei", default=CONFIG)
+    s = sub.add_parser("import", help="Werte aus einer Datei übernehmen, alle übrigen bleiben")
+    s.add_argument("quelle")
+    s.add_argument("--grund")
+    s.add_argument("--datei", default=CONFIG)
+    s = sub.add_parser("migrate", help="ältere config.yml auf den aktuellen Stand bringen (macht das Setup selbst)")
+    s.add_argument("datei", nargs="?", default=CONFIG)
+    s = sub.add_parser("diff", help="was seit dem letzten Setup geändert und noch nicht übernommen ist (Rückgabe 3)")
+    s.add_argument("datei", nargs="?", default=CONFIG)
+    s.add_argument("--standard", action="store_true", help="stattdessen alle Abweichungen vom Standard")
+    s = sub.add_parser("history", help="frühere Fassungen der config.yml")
+    s = sub.add_parser("revert", help="eine frühere Fassung zurückholen")
+    s.add_argument("fassung")
+    s.add_argument("--datei", default=CONFIG)
+    s = sub.add_parser("mark-applied", help="Stand als übernommen merken (macht das Setup nach einem erfolgreichen Lauf)")
+    s.add_argument("datei", nargs="?", default=CONFIG)
     args = p.parse_args(argv)
     try:
         schema = Schema()
     except SchemaError as e:
         die(f"Schema fehlerhaft:\n{e}")
     return {"validate": cmd_validate, "show": cmd_show, "effective": cmd_effective,
-            "generate": cmd_generate, "schema": cmd_schema}[args.befehl](args, schema)
+            "generate": cmd_generate, "schema": cmd_schema, "get": cmd_get, "set": cmd_set,
+            "unset": cmd_unset, "import": cmd_import, "migrate": cmd_migrate, "diff": cmd_diff,
+            "history": cmd_history, "revert": cmd_revert,
+            "mark-applied": cmd_mark_applied}[args.befehl](args, schema)
 
 
 if __name__ == "__main__":

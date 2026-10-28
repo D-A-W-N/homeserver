@@ -14,7 +14,7 @@
 #   stufe     basis (Setup fragt) | erweitert | fest (setzt das Setup, nicht von Hand ändern)
 #   text      Beschreibung (eine Zeile)
 #   hinweis   optional, längere Erklärung
-#   geheim    true = Passwort/Schlüssel, nie anzeigen
+#   geheim    true = Passwort/Schlüssel: liegt als Datei in /etc/aunserver/secrets/<name>, nie anzeigen
 #   format    bei text: ip | netz | zeit | hostname | zeitzone
 #   muster    bei text: regulärer Ausdruck
 #   werte     bei auswahl: erlaubte Werte
@@ -42,6 +42,14 @@ gruppen:
   samba_legacy: SMB1-Freigabe für PS2/OPL in einer getrennten Samba-Instanz (D19)
 
 einstellungen:
+  config_version:
+    typ: zahl
+    min: 1
+    bereich: system
+    stufe: fest
+    beispiel: false
+    text: Fassung des Dateiformats, setzt aunserver-config (fehlt = 1)
+
   # --- System ---
   hostname:
     typ: text
@@ -342,7 +350,7 @@ einstellungen:
     geheim: true
     bereich: freigaben
     stufe: basis
-    text: Samba-Passwort des Admins (wirkt bisher nur beim ersten Lauf, D23)
+    text: Samba-Passwort des Admins, liegt in /etc/aunserver/secrets/ (D23)
   samba_legacy.enabled:
     typ: bool
     standard: false
