@@ -180,7 +180,7 @@ jobs:
           s /opt/aunserver/bin/aunserver-setup --yes > "$RUNNER_TEMP/run3.log"
           sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/run3.log" | grep -E 'localhost +: ok=[0-9]+ +changed=[0-9]+ +unreachable=0 +failed=0'
           s test ! -e /etc/aunserver/secrets/web_password.alt
-          s grep -q "Passwort: $neu" /etc/aunserver/zugaenge.txt
+          s grep -qF "'Passwort: $neu'" /etc/aunserver/zugaenge.txt
           # Caddy (Basic Auth vor SABnzbd): neu ja, alt nein
           code() { s curl -sk -o /dev/null -w '%{http_code}' -u "nasadmin:$1" \
                      --resolve sabnzbd.nas.home.arpa:443:127.0.0.1 https://sabnzbd.nas.home.arpa/; }
@@ -195,7 +195,8 @@ jobs:
               http://127.0.0.1:3030/api/collections/$c/auth-with-password
           done
           # Sonarr: Anmeldung per Formular leitet ohne loginFailed weiter
-          ziel=$(s curl -s -o /dev/null -w '%{redirect_url}' -d "username=nasadmin&password=$neu&rememberMe=on" http://127.0.0.1:3102/login)
+          # (Anführungszeichen für die Shell auf der VM: & trennt dort sonst Befehle)
+          ziel=$(s curl -s -o /dev/null -w "'%{redirect_url}'" -d "'username=nasadmin&password=$neu&rememberMe=on'" http://127.0.0.1:3102/login)
           echo "Sonarr leitet weiter nach: $ziel"
           if grep -q loginFailed <<<"$ziel"; then exit 1; fi
 
