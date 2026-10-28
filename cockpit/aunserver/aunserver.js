@@ -262,9 +262,18 @@ function eingabeFuer(pfad, spec, wert, gesperrt) {
     return eingabe;
 }
 
+// Wird das Feld mit dem Fokus entfernt, feuert der Browser dabei noch einmal "change"
+// (blur) und wir kämen hier verschachtelt wieder an: dann nicht doppelt ersetzen
+let zeichneGerade = false;
 function zeichneFeld(pfad) {
-    const alt = document.querySelector(`[data-pfad="${CSS.escape(pfad)}"]`);
-    if (alt) alt.replaceWith(feld(pfad));
+    if (zeichneGerade) return;
+    zeichneGerade = true;
+    try {
+        const alt = document.querySelector(`[data-pfad="${CSS.escape(pfad)}"]`);
+        if (alt && alt.isConnected) alt.replaceWith(feld(pfad));
+    } finally {
+        zeichneGerade = false;
+    }
 }
 
 function feld(pfad) {
