@@ -412,7 +412,8 @@ async function starteLauf(art, zusatz = [], admin = null) {
     try {
         // eigene Unit: läuft weiter, wenn das Fenster zu ist; SUDO_USER wie bei "sudo aunserver-setup"
         await cockpit.spawn(["systemd-run", "--unit=" + einheit, "--description=aunserver: " + (art === "setup" ? "übernehmen" : "aktualisieren"),
-            "--property=Type=exec", "--setenv=SUDO_USER=" + admin, "--setenv=TERM=dumb", ...befehl],
+            "--property=Type=exec", "--setenv=SUDO_USER=" + admin, "--setenv=TERM=dumb",
+            "--setenv=AUNSERVER_AUS_COCKPIT=1", ...befehl],
         { superuser: "require", err: "message" });
     } catch (ex) {
         melde("Konnte nicht starten:\n" + fehlertext(ex), "fehler");
@@ -436,7 +437,8 @@ function verfolge(art, invocation) {
         $("#update-starten").disabled = true;
     }
     ziel.textContent = "";
-    const args = invocation ? ["journalctl", "_SYSTEMD_INVOCATION_ID=" + invocation, "-f", "-o", "cat"]
+    // nur die Ausgabe des Laufs, nicht die Syslog-Zeilen der Ansible-Module
+    const args = invocation ? ["journalctl", "_SYSTEMD_INVOCATION_ID=" + invocation, "_TRANSPORT=stdout", "-f", "-o", "cat"]
         : ["journalctl", "-u", einheit, "-f", "-o", "cat", "-n", "200"];
     const leser = cockpit.spawn(args, { superuser: "require", err: "out" });
     leser.stream(daten => {
@@ -445,11 +447,22 @@ function verfolge(art, invocation) {
     });
     leser.catch(() => {});
     zustand.lauf = { art, leser };
+    let ausfaelle = 0;
     const takt = window.setInterval(async () => {
         let w;
         try {
             w = await systemctlShow(einheit);
+            ausfaelle = 0;
         } catch (_) {
+            // Verbindung zu Cockpit weg (z. B. Neustart): der Lauf geht als Unit weiter
+            if (++ausfaelle === 5) {
+                window.clearInterval(takt);
+                zustand.lauf = null;
+                marke.className = "marke warn";
+                marke.textContent = "Verbindung unterbrochen";
+                melde("Die Verbindung zu Cockpit ist abgebrochen. Der Lauf geht auf dem NAS weiter; Seite neu laden (ggf. neu anmelden), dann erscheint das Protokoll wieder.", "fehler");
+                $("#meldung").insertBefore(el("button", { class: "primaer", text: "Neu laden", onclick: () => window.location.reload() }), $("#meldung").lastChild);
+            }
             return;
         }
         if (["active", "activating", "reloading"].includes(w.ActiveState)) return;

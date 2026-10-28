@@ -431,7 +431,9 @@ run_playbook() {
     || die "$CONFIG ist fehlerhaft (siehe oben). Erklärung aller Werte: $REPO/docs/KONFIGURATION.md"
   # Log nur für root: enthält Pfade, Benutzer und Ablauf der Einrichtung
   install -m 0600 /dev/null "$LOG"
-  (cd "$REPO/ansible" && ansible-playbook -i localhost, -c local site.yml -e "@$eff_dir/effective.yml") 2>&1 | tee "$LOG"
+  # aus Cockpit gestartet (AUNSERVER_AUS_COCKPIT): Cockpit nicht neu starten, sonst endet die Sitzung
+  (cd "$REPO/ansible" && ansible-playbook -i localhost, -c local site.yml -e "@$eff_dir/effective.yml" \
+     -e "cockpit_neustart_aufschieben=${AUNSERVER_AUS_COCKPIT:-0}") 2>&1 | tee "$LOG"
   rc=${PIPESTATUS[0]}
   rm -f "$eff_dir/effective.yml"
   [ "$rc" = 0 ] || die "Das Playbook ist fehlgeschlagen, Details in $LOG. Danach erneut ausführen."

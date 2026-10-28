@@ -1,16 +1,9 @@
 ---
-# Ein Neustart beendet alle Anmeldungen in Cockpit, auch die des Assistenten, der dieses Setup
-# gestartet hat (D24). Ist jemand angemeldet, wartet die neue cockpit.conf deshalb bis zum
-# nächsten Start von cockpit-ws (socket-aktiviert, beendet sich nach der letzten Abmeldung).
+# Ein Neustart beendet alle Anmeldungen in Cockpit, auch die der Seite, die dieses Setup gestartet
+# hat (Assistent, „Übernehmen“; D24). Dann wartet die neue cockpit.conf bis zum nächsten Start von
+# cockpit-ws (socket-aktiviert, beendet sich nach der letzten Abmeldung).
 - name: Cockpit neu starten
-  ansible.builtin.shell: |
-    set -o pipefail
-    if loginctl list-sessions --no-legend | awk '{print $1}' \
-        | xargs -r -n1 loginctl show-session -p Service --value | grep -qx cockpit; then
-      echo "Cockpit-Anmeldung aktiv, Neustart aufgeschoben"
-    else
-      systemctl restart cockpit.service
-    fi
-  args:
-    executable: /bin/bash
-  changed_when: true
+  ansible.builtin.systemd_service:
+    name: cockpit.service
+    state: restarted
+  when: not (cockpit_neustart_aufschieben | default(false) | bool)
