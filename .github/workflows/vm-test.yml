@@ -45,10 +45,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # weg: wie die Ersteinrichtung läuft (D24): Kommandozeile, Assistent in Cockpit,
+        # persönliches ISO (richtet sich beim ersten Start selbst ein)
         include:
-          - { firmware: uefi, scenario: "1" }
-          - { firmware: bios, scenario: "2" }
-    name: vm (${{ matrix.firmware }})
+          - { firmware: uefi, scenario: "1", weg: cli }
+          - { firmware: bios, scenario: "2", weg: assistent }
+          - { firmware: uefi, scenario: "1", weg: iso }
+    name: vm (${{ matrix.firmware }}, ${{ matrix.weg }})
     defaults:
       run:
         # ausdrücklich bash: dann mit "-eo pipefail", sonst überdeckt "| tee" Fehlschläge
@@ -68,7 +71,7 @@ jobs:
       - name: Werkzeuge installieren
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf libarchive-tools e2fsprogs rsync xorriso
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf libarchive-tools e2fsprogs rsync xorriso python3-yaml
 
       - name: Name des aktuellen Debian-ISOs
         id: iso
@@ -90,7 +93,23 @@ jobs:
         run: ssh-keygen -q -t ed25519 -N '' -f ~/.ssh/id_ed25519
 
       - name: Dev-ISO bauen
-        run: installer/build-iso.sh --dev --dev-key ~/.ssh/id_ed25519.pub --out .vm/aunserver-dev.iso
+        run: |
+          persoenlich=()
+          if [ "${{ matrix.weg }}" = iso ]; then
+            # dieselben Angaben wie die Einrichtung über die Kommandozeile
+            cat > "$RUNNER_TEMP/persoenlich.yml" <<EOF
+          hostname: nas
+          admin_user: nasadmin
+          domain: nas.home.arpa
+          ssh_authorized_keys: ['$(cat ~/.ssh/id_ed25519.pub)']
+          samba_password: ci-test-123
+          samba_legacy: {enabled: true}
+          samba_legacy_password: ci-ps2-123
+          backup: {repository: /var/backups/aunserver-ci}
+          EOF
+            persoenlich=(--config "$RUNNER_TEMP/persoenlich.yml" --datenplatte aundata0)
+          fi
+          installer/build-iso.sh --dev --dev-key ~/.ssh/id_ed25519.pub --out .vm/aunserver-dev.iso "${persoenlich[@]}"
 
       # SSD + leere HDD, also genau der Zustand nach der Installation vom Stick; das Repo kommt aus dem ISO
       - name: Vom ISO installieren (${{ matrix.firmware }})
@@ -110,7 +129,8 @@ jobs:
           ssh_vm -n "test -x /opt/aunserver/bin/aunserver-setup"
           # Repo gehört root und ist nicht gruppenbeschreibbar (git archive mit tar.umask=022)
           test "$(ssh_vm -n "stat -c '%a %U' /opt/aunserver")" = "755 root"
-          printf 'exit\n' | ssh_vm -tt 2>&1 | tr -d '\r' | grep "aunserver ist installiert"
+          if [ "${{ matrix.weg }}" = iso ]; then hinweis="richtet sich gerade selbst ein"; else hinweis="aunserver ist installiert"; fi
+          printf 'exit\n' | ssh_vm -tt 2>&1 | tr -d '\r' | grep "$hinweis"
           if [ "${{ matrix.firmware }}" = uefi ]; then ssh_vm -n "test -d /sys/firmware/efi"; else ssh_vm -n "test ! -d /sys/firmware/efi"; fi
           # Partitionsrezept aunserver: keine Swap-Partition (zram kommt mit dem Setup)
           if ssh_vm -n "grep -w swap /etc/fstab"; then exit 1; fi
@@ -126,7 +146,7 @@ jobs:
       # Ersteinrichtung: UEFI über die Kommandozeile, BIOS mit dem Assistenten in Cockpit (D24);
       # beide mit denselben Angaben, die folgenden Schritte prüfen dasselbe
       - name: aunserver-setup, erster Lauf (formatiert die Datenplatte)
-        if: matrix.firmware == 'uefi'
+        if: matrix.weg == 'cli'
         run: |
           ssh_vm() { ssh -n -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost "$@"; }
           # Gerätenamen wechseln zwischen Boots; die Datenplatte über ihre Seriennummer finden
@@ -140,8 +160,23 @@ jobs:
                --backup-repo /var/backups/aunserver-ci" < /dev/null \
             | tee "$RUNNER_TEMP/run1.log"
 
+      - name: Ersteinrichtung vom persönlichen ISO (aunserver-erststart beim ersten Start)
+        if: matrix.weg == 'iso'
+        run: |
+          s() { ssh -n -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost \
+                  "printf '%s\n' aunserver | sudo -S -p '' $*"; }
+          # oneshot: "activating", solange das Setup läuft
+          timeout 2700 bash -c "while [ \"\$(ssh -n -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            nasadmin@localhost systemctl show -p ActiveState --value aunserver-erststart)\" = activating ]; do sleep 20; done"
+          s journalctl -u aunserver-erststart -o cat --no-pager | tail -40
+          s cat /var/log/aunserver-setup.log > "$RUNNER_TEMP/run1.log"
+          grep -E 'localhost +: ok=[0-9]+ +changed=[0-9]+ +unreachable=0 +failed=0' "$RUNNER_TEMP/run1.log"
+          # einmal: die Markierung ist weg, die Unit startet nicht wieder
+          s test ! -e /etc/aunserver/erststart.env
+          s test -e /etc/aunserver/config.yml
+
       - name: Ersteinrichtung mit dem Assistenten in Cockpit (formatiert die Datenplatte)
-        if: matrix.firmware == 'bios'
+        if: matrix.weg == 'assistent'
         run: |
           node "$RUNNER_TEMP/pw/cockpit-test.mjs" einrichten nasadmin aunserver "$RUNNER_TEMP/bilder" aundata0 "$(cat ~/.ssh/id_ed25519.pub)"
           # das Protokoll des Laufs für die Prüfung auf Warnungen
@@ -200,7 +235,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: cockpit-${{ matrix.firmware }}
+          name: cockpit-${{ matrix.firmware }}-${{ matrix.weg }}
           path: ${{ runner.temp }}/bilder
           if-no-files-found: ignore
 

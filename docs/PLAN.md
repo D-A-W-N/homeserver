@@ -264,6 +264,9 @@ aunserver/
 │   ├── select-disk.sh
 │   ├── fragen.sh                # eigene Fragen: Name, Netz (DHCP/fest), SSH-Schlüssel von GitHub
 │   ├── erststart.sh             # im neuen System: Cockpit + aunserver-Seite für den Assistenten
+│   ├── persoenlich.sh           # persönliches ISO: Konfiguration und Erststart ins neue System
+│   ├── erststart-lauf.sh        # aunserver-erststart.service: Setup beim ersten Start
+│   └── aunserver-erststart.service
 │   └── aunserver-login.sh       # Login-Hinweis aufs Setup
 ├── bin/
 │   ├── aunserver-setup
@@ -427,7 +430,7 @@ Je Phase ein PR mit VM-Test; jede neue Einstellung hat als Standard das bisherig
 - [x] **P3 Cockpit-Plugin:** Übersicht, Formular aus dem Schema (Basis/Erweitert), Diff, Anwenden als `aunserver-apply.service` mit Live-Log, Verlauf, Passwörter, Update, Zugänge
 - [x] **P4 Erststart im Browser:** Der Installer bringt Cockpit (Backports) und die aunserver-Seite mit; ohne `config.yml` zeigt sie den Assistenten (Datenplatte aus `aunserver-setup --disks`, Formatieren nur nach Eintippen des Gerätenamens, Restore mit vorhandenem Backup-Passwort). Er schreibt per `aunserver-config import` und startet das Setup als Unit. Läuft das Setup aus Cockpit (Assistent, „Übernehmen“), startet es Cockpit nicht neu (`AUNSERVER_AUS_COCKPIT`), sonst endete die Sitzung; cockpit-ws liest die Datei beim nächsten Start. Der VM-Test richtet BIOS mit dem Assistenten ein, UEFI über die Kommandozeile. whiptail bleibt, seine Fragen entsprechen den Basiswerten des Schemas
 - [x] **P5 Installer:** Name, Netz (DHCP oder feste Adresse), SSH-Schlüssel von GitHub (`installer/fragen.sh`, eigene Fragen mit Priorität critical, belegen netcfg vor); Partitionsrezept ohne Swap; VM-Test prüft fstab. Abweichungen: Sprache und Tastatur bleiben Deutsch (nur Konsole, frühe Abfrage im Auto-Modus heikel); die feste Adresse ist im VM-Test nicht abgedeckt (dort DHCP); eine Adresse später ändern bleibt Handarbeit (`/etc/network/interfaces`), nicht im Editor (Gefahr, sich auszusperren)
-- [ ] **P6 Persönliches ISO:** `build-iso.sh --config`, automatischer Erststart, Restore aus Backup ohne Dialoge
+- [x] **P6 Persönliches ISO:** `build-iso.sh --config`, automatischer Erststart, Restore aus Backup ohne Dialoge
 - [ ] **P7 Umfang:** Medien-Stack abschaltbar, Profile; weitere Schalter (Neustart, Update-Check, Backup-Zeitplan, Recyclarr-Größen, Backports-Kernel)
 
 ```
@@ -450,6 +453,8 @@ M9 → M10 (Konfiguration und Installation)
 | 8 | – | HDD mit `AUNDATA` | wird nur eingehängt, nicht formatiert |
 | 9 | – | Port-Scan von außen | nur die freigegebenen Ports offen |
 | 10 | – | SMB1 an Port 445 und SMB2/3 an Port 1445 | beides abgelehnt; SMB1 an 1445 mit `ps2` erlaubt |
+| 11 | BIOS | wie 2, Einrichtung mit dem Assistenten in Cockpit | dasselbe Ergebnis wie über die Kommandozeile (VM-Test `assistent`) |
+| 12 | UEFI | wie 1, persönliches ISO (`--config`, `--datenplatte`) | richtet sich beim ersten Start selbst ein, einmal (VM-Test `iso`) |
 
 ## 11. Offene Fragen
 

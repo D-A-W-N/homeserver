@@ -7,17 +7,26 @@
 #   aunserver/ssh-github  GitHub-Benutzer, dessen öffentliche Schlüssel (github.com/<name>.keys)
 #                         installer/erststart.sh als SSH-Schlüssel einträgt
 # AUN_YES=1 (nur dev/vm-test.sh): nichts fragen, Name nas, DHCP, kein Schlüssel.
+# AUN_PERSOENLICH=<name> (persönliches ISO): nichts fragen, dieser Name, DHCP; die Schlüssel stehen
+# in der mitgebrachten Konfiguration.
 
 LOG=/var/log/aunserver-fragen.log
 log() { echo "fragen: $*" >>"$LOG"; }
 
+# shellcheck disable=SC1091  # nur im Installer vorhanden
+. /usr/share/debconf/confmodule
+
+if [ -n "${AUN_PERSOENLICH:-}" ]; then
+  db_set netcfg/hostname "$AUN_PERSOENLICH"
+  db_set netcfg/get_hostname "$AUN_PERSOENLICH"
+  db_fset netcfg/get_hostname seen true
+  log "persönliches ISO: $AUN_PERSOENLICH, DHCP"
+  exit 0
+fi
 if [ "${AUN_YES:-}" = 1 ]; then
   log "AUN_YES: nas, DHCP, kein Schlüssel"
   exit 0
 fi
-
-# shellcheck disable=SC1091  # nur im Installer vorhanden
-. /usr/share/debconf/confmodule
 cat >/tmp/aunserver-fragen.templates <<'TPL'
 Template: aunserver/hostname
 Type: string

@@ -2,11 +2,17 @@
 # Baut aus dem offiziellen Debian-13-netinst-ISO das aunserver-Installations-ISO (Plan, Abschnitt 7.1).
 #
 #   installer/build-iso.sh [--iso DEBIAN.iso] [--out aunserver.iso] [--dev --dev-key KEY.pub]
+#                          [--config config.yml [--datenplatte SERIENNUMMER] [--backup-passwort-datei DATEI]]
 #
 # Ergebnis: Bootmenü-Eintrag "aunserver installieren" (UEFI und BIOS), Preseed und Plattenauswahl
 # auf dem Stick, das Repo (git HEAD) als Archiv; der Installer entpackt es nach /opt/aunserver.
 # --dev: zusätzlich dev/preseed-dev.cfg (keine Rückfragen, Passwort "aunserver"), SSH-Schlüssel,
 #        Bootmenü startet nach 5 s von selbst. NUR für Tests, nie auf einen echten Stick.
+# --config: persönliches ISO (D24). Die Konfiguration kommt mit aufs ISO; Name und Benutzer
+#        übernimmt der Installer daraus, gefragt werden nur noch Passwort und Systemplatte. Beim
+#        ersten Start richtet sich das NAS selbst ein (aunserver-erststart.service). Formatiert wird
+#        nur die Platte mit --datenplatte SERIENNUMMER; mit --backup-passwort-datei wird das letzte
+#        Backup zurückgespielt. Das ISO enthält dann Passwörter: nicht weitergeben.
 #
 # Braucht xorriso; fehlt es, läuft das Skript automatisch in einem Debian-13-Container (Docker).
 set -euo pipefail
@@ -18,15 +24,18 @@ ISO_BASE=https://cdimage.debian.org/debian-cd/current/amd64/iso-cd
 die() { echo "Fehler: $*" >&2; exit 1; }
 info() { echo "== $*"; }
 
-ISO_IN="$REPO/.vm/debian-netinst.iso" ISO_OUT="" DEV=0 DEV_KEY="" VERIFY=1
+ISO_IN="$REPO/.vm/debian-netinst.iso" ISO_OUT="" DEV=0 DEV_KEY="" VERIFY=1 KONFIG="" DATENPLATTE="" BACKUP_PW_DATEI=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --iso) ISO_IN=${2:?}; shift ;;
     --out) ISO_OUT=${2:?}; shift ;;
     --dev) DEV=1 ;;
     --dev-key) DEV_KEY=${2:?}; shift ;;
+    --config) KONFIG=${2:?}; shift ;;
+    --datenplatte) DATENPLATTE=${2:?}; shift ;;
+    --backup-passwort-datei) BACKUP_PW_DATEI=${2:?}; shift ;;
     --no-verify) VERIFY=0 ;;
-    -h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "Unbekannte Option: $1" ;;
   esac
   shift
@@ -37,7 +46,8 @@ if ! command -v xorriso >/dev/null; then
   command -v docker >/dev/null || die "xorriso fehlt (Paket xorriso bzw. libisoburn) und Docker ist nicht da."
   info "xorriso fehlt, baue in einem Debian-13-Container"
   iso_dir=$(cd "$(dirname "$(readlink -f "$ISO_IN")")" && pwd)
-  # Im Container nur ins Repo schreibbar: dort bauen, danach an den gewünschten Ort verschieben
+  # Im Container nur ins Repo schreibbar: dort bauen, danach an den gewünschten Ort verschieben.
+  # git stash create legt dabei Objekte in .git an: danach wieder dem Benutzer geben
   tmp_out="aunserver-build-$$.iso"
   args=(--iso "/iso/$(basename "$(readlink -f "$ISO_IN")")" --out "/repo/$tmp_out")
   [ "$DEV" = 1 ] && args+=(--dev)
@@ -45,10 +55,19 @@ if ! command -v xorriso >/dev/null; then
   [ "$VERIFY" = 0 ] && args+=(--no-verify)
   mounts=(-v "$REPO:/repo" -v "$iso_dir:/iso:ro")
   [ -n "$DEV_KEY" ] && mounts+=(-v "$(cd "$(dirname "$DEV_KEY")" && pwd):/key:ro")
+  if [ -n "$KONFIG" ]; then
+    mounts+=(-v "$(readlink -f "$KONFIG"):/persoenlich/config.yml:ro")
+    args+=(--config /persoenlich/config.yml)
+  fi
+  [ -n "$DATENPLATTE" ] && args+=(--datenplatte "$DATENPLATTE")
+  if [ -n "$BACKUP_PW_DATEI" ]; then
+    mounts+=(-v "$(readlink -f "$BACKUP_PW_DATEI"):/persoenlich/backup-passwort:ro")
+    args+=(--backup-passwort-datei /persoenlich/backup-passwort)
+  fi
   docker run --rm "${mounts[@]}" -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" -w /repo debian:trixie-slim \
-    bash -c 'apt-get update -qq && apt-get install -y -qq xorriso git curl ca-certificates >/dev/null \
+    bash -c 'apt-get update -qq && apt-get install -y -qq xorriso git curl ca-certificates python3-yaml >/dev/null \
              && git config --global --add safe.directory /repo \
-             && installer/build-iso.sh "$@"; rc=$?; chown "$HOST_UID:$HOST_GID" /repo/aunserver-build-*.iso 2>/dev/null; exit $rc' \
+             && installer/build-iso.sh "$@"; rc=$?; chown -R "$HOST_UID:$HOST_GID" /repo/aunserver-build-*.iso /repo/.git 2>/dev/null; exit $rc' \
     _ "${args[@]}"
   if [ -z "$ISO_OUT" ]; then
     version=$(git -C "$REPO" describe --tags --always --dirty 2>/dev/null || echo unbekannt)
@@ -74,6 +93,19 @@ if [ "$VERIFY" = 1 ]; then
 fi
 if [ "$DEV" = 1 ]; then
   [ -f "${DEV_KEY:-}" ] || die "--dev braucht --dev-key mit einem öffentlichen SSH-Schlüssel"
+fi
+if [ -n "$KONFIG" ]; then
+  [ -f "$KONFIG" ] || die "$KONFIG fehlt"
+  "$REPO/bin/aunserver-config" validate "$KONFIG" >/dev/null || die "$KONFIG ist fehlerhaft (siehe oben)"
+  P_HOST=$("$REPO/bin/aunserver-config" get hostname --datei "$KONFIG")
+  P_ADMIN=$("$REPO/bin/aunserver-config" get admin_user --datei "$KONFIG")
+  P_SINGLE=$("$REPO/bin/aunserver-config" get single_disk --datei "$KONFIG")
+  [ -z "$BACKUP_PW_DATEI" ] || [ -s "$BACKUP_PW_DATEI" ] || die "$BACKUP_PW_DATEI fehlt oder ist leer"
+  if [ -z "$DATENPLATTE" ] && [ "$P_SINGLE" != true ]; then
+    echo "Hinweis: ohne --datenplatte richtet sich das NAS nur selbst ein, wenn schon eine Platte mit Label AUNDATA" \
+         "steckt (oder single_disk: true); sonst danach im Browser bzw. mit aunserver-setup." >&2
+  fi
+  [[ "$DATENPLATTE" =~ ^[A-Za-z0-9._-]*$ ]] || die "Ungültige Seriennummer: $DATENPLATTE"
 fi
 
 WORK=$(mktemp -d)
@@ -134,6 +166,17 @@ fragen='sh /cdrom/aunserver-installer/fragen.sh'
 early='sh /cdrom/aunserver-installer/select-disk.sh'
 # shellcheck disable=SC2016  # $(debconf-get …) wertet erst der Installer aus
 late='cp /cdrom/aunserver-installer/aunserver.tar.gz /target/tmp/ \&\& in-target tar -xzf /tmp/aunserver.tar.gz -C /opt \&\& in-target rm /tmp/aunserver.tar.gz \&\& cp /cdrom/aunserver-installer/aunserver-login.sh /target/etc/profile.d/aunserver.sh \&\& cp /cdrom/aunserver-installer/erststart.sh /target/tmp/ \&\& in-target sh /tmp/erststart.sh "$(debconf-get passwd/username)" "$(debconf-get aunserver/ssh-github 2>/dev/null)"'
+if [ -n "$KONFIG" ]; then
+  # Name aus der Konfiguration, DHCP, keine Schlüssel-Frage (die Schlüssel stehen in der Konfiguration)
+  fragen="AUN_PERSOENLICH=$P_HOST $fragen"
+  late="$late \&\& sh /cdrom/aunserver-installer/persoenlich.sh"
+  mkdir -p "$WORK/aunserver-installer/persoenlich"
+  install -m 0600 "$KONFIG" "$WORK/aunserver-installer/persoenlich/config.yml"
+  printf 'DATENPLATTE=%s\nRESTORE=%s\nADMIN=%s\n' "$DATENPLATTE" "$([ -n "$BACKUP_PW_DATEI" ] && echo 1 || echo 0)" "$P_ADMIN" \
+    > "$WORK/aunserver-installer/persoenlich/erststart.env"
+  [ -n "$BACKUP_PW_DATEI" ] && install -m 0600 "$BACKUP_PW_DATEI" "$WORK/aunserver-installer/persoenlich/restic_password"
+  cp "$REPO/installer/persoenlich.sh" "$WORK/aunserver-installer/"
+fi
 if [ "$DEV" = 1 ]; then
   early="AUN_YES=1 $early"
   fragen="AUN_YES=1 $fragen"
@@ -141,6 +184,10 @@ if [ "$DEV" = 1 ]; then
   cp "$DEV_KEY" "$WORK/aunserver-installer/authorized_keys"
 fi
 sed -e "s|@FRAGEN_CMD@|$fragen|" -e "s|@EARLY_CMD@|$early|" -e "s|@LATE_CMD@|$late|" "$REPO/installer/preseed.cfg.in" > "$WORK/preseed.cfg"
+if [ -n "$KONFIG" ]; then
+  # Benutzer aus der Konfiguration, nur das Passwort bleibt eine Frage
+  printf '%s\n' "### Persönliches ISO (--config)" "d-i passwd/username string $P_ADMIN" "d-i passwd/username seen true" >> "$WORK/preseed.cfg"
+fi
 [ "$DEV" = 1 ] && cat "$REPO/dev/preseed-dev.cfg" >> "$WORK/preseed.cfg"
 
 cp "$REPO/installer/select-disk.sh" "$REPO/installer/fragen.sh" "$REPO/installer/aunserver-login.sh" "$REPO/installer/erststart.sh" "$WORK/aunserver-installer/"
@@ -162,9 +209,9 @@ md5_of() { md5sum "$1" | cut -d' ' -f1; }
     echo "$(md5_of "$src")  ./isolinux/$f.cfg"
   done
   echo "$(md5_of "$WORK/preseed.cfg")  ./preseed.cfg"
-  for f in "$WORK"/aunserver-installer/*; do
-    echo "$(md5_of "$f")  ./aunserver-installer/$(basename "$f")"
-  done
+  while IFS= read -r f; do
+    echo "$(md5_of "$f")  ./aunserver-installer/${f#"$WORK"/aunserver-installer/}"
+  done < <(find "$WORK/aunserver-installer" -type f | sort)
 } > "$WORK/md5sum.new"
 
 # --- ISO schreiben (Bootfähigkeit für UEFI und BIOS wie im Original) --------------------------
@@ -184,4 +231,5 @@ xorriso -indev "$ISO_REAL" -outdev "$ISO_OUT" \
 [ -s "$ISO_OUT" ] || die "ISO wurde nicht geschrieben"
 info "Fertig: $ISO_OUT ($(du -h "$ISO_OUT" | cut -f1))"
 [ "$DEV" = 1 ] && echo "   ACHTUNG: Dev-ISO (installiert ohne Rückfragen und löscht die erkannte Systemplatte), nur für VMs!"
+[ -n "$KONFIG" ] && echo "   ACHTUNG: persönliches ISO mit Passwörtern aus $KONFIG: nicht weitergeben, den Stick danach neu beschreiben."
 echo "   Auf einen USB-Stick schreiben: sudo dd if=$(basename "$ISO_OUT") of=/dev/sdX bs=4M status=progress conv=fsync"

@@ -1,0 +1,16 @@
+# Persönliches ISO (D24): richtet das NAS beim ersten Start selbst ein, einmal (die Datei
+# erststart.env verschwindet nach Erfolg). Fortschritt: journalctl -fu aunserver-erststart
+[Unit]
+Description=aunserver: Ersteinrichtung aus dem persönlichen ISO
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/etc/aunserver/erststart.env
+
+[Service]
+Type=oneshot
+ExecStart=/opt/aunserver/installer/erststart-lauf.sh
+TimeoutStartSec=infinity
+Environment=TERM=dumb
+
+[Install]
+WantedBy=multi-user.target
