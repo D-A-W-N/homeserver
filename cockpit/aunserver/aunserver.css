@@ -1,0 +1,171 @@
+/* aunserver in Cockpit: schlicht, an PatternFly angelehnt, hell und dunkel (Klasse "dunkel" am <html>) */
+:root {
+  --hg: #f0f0f0;
+  --karte: #ffffff;
+  --rand: #d2d2d2;
+  --text: #151515;
+  --leise: #6a6e73;
+  --akzent: #0066cc;
+  --akzent-text: #ffffff;
+  --akzent-hover: #004080;
+  --gut: #3e8635;
+  --warn: #c58c00;
+  --fehler: #c9190b;
+  --geaendert: #e7f1fa;
+  --code-hg: #f5f5f5;
+  --radius: 6px;
+  color-scheme: light;
+}
+:root.dunkel {
+  --hg: #151515;
+  --karte: #1b1d21;
+  --rand: #3c3f42;
+  --text: #e0e0e0;
+  --leise: #a2a6ab;
+  --akzent: #73bcf7;
+  --akzent-text: #151515;
+  --akzent-hover: #a2d9ff;
+  --gut: #5ba352;
+  --warn: #f0ab00;
+  --fehler: #fe5142;
+  --geaendert: #1c2b3a;
+  --code-hg: #26292d;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--hg);
+  color: var(--text);
+  font: 14px/1.5 "Red Hat Text", "Overpass", system-ui, sans-serif;
+}
+h1, h2, h3 { font-family: "Red Hat Display", "Overpass", system-ui, sans-serif; font-weight: 500; margin: 0; }
+h1 { font-size: 1.4rem; }
+h2 { font-size: 1.1rem; margin-bottom: 0.5rem; display: flex; gap: 0.5rem; align-items: center; }
+h3 { font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+code, pre, .pfad { font-family: "Red Hat Mono", ui-monospace, monospace; font-size: 0.85rem; }
+code { background: var(--code-hg); padding: 0 0.25rem; border-radius: 3px; }
+[hidden] { display: none !important; }
+.leise { color: var(--leise); }
+
+.kopf { background: var(--karte); border-bottom: 1px solid var(--rand); padding: 1rem 1.5rem 0; }
+.kopf-titel { display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap; }
+.reiter { display: flex; gap: 0.25rem; margin-top: 0.75rem; overflow-x: auto; }
+.reiter button {
+  border: 0; background: none; color: var(--leise); padding: 0.5rem 0.9rem; cursor: pointer;
+  border-bottom: 3px solid transparent; font: inherit; white-space: nowrap;
+}
+.reiter button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--akzent); }
+.reiter button:hover { color: var(--text); }
+.zaehler {
+  display: inline-block; min-width: 1.4em; padding: 0 0.35em; border-radius: 1em; margin-left: 0.25rem;
+  background: var(--akzent); color: var(--akzent-text); font-size: 0.75rem; text-align: center;
+}
+
+main { padding: 1.5rem; max-width: 72rem; }
+.seite { display: flex; flex-direction: column; gap: 1rem; }
+.karten { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 1rem; }
+.karte { background: var(--karte); border: 1px solid var(--rand); border-radius: var(--radius); padding: 1rem 1.25rem; }
+.knoepfe { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+
+button.primaer, button.sekundaer, button.klein {
+  font: inherit; border-radius: var(--radius); padding: 0.4rem 1rem; cursor: pointer; border: 1px solid var(--akzent);
+}
+button.primaer { background: var(--akzent); color: var(--akzent-text); }
+button.primaer:hover:not(:disabled) { background: var(--akzent-hover); border-color: var(--akzent-hover); }
+button.sekundaer { background: transparent; color: var(--akzent); }
+button.klein { padding: 0.1rem 0.5rem; font-size: 0.8rem; background: transparent; color: var(--akzent); border-color: transparent; }
+button.klein:hover { border-color: var(--akzent); }
+button:disabled { opacity: 0.5; cursor: default; }
+button.gefahr { border-color: var(--fehler); color: var(--fehler); }
+
+input[type="text"], input[type="number"], input[type="search"], input[type="password"], select, textarea {
+  font: inherit; color: var(--text); background: var(--karte); border: 1px solid var(--rand);
+  border-bottom-color: var(--leise); border-radius: 3px; padding: 0.35rem 0.5rem; width: 100%; max-width: 32rem;
+}
+textarea { font-family: "Red Hat Mono", ui-monospace, monospace; font-size: 0.85rem; min-height: 4.5rem; }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--akzent); outline-offset: -1px; }
+input:disabled, select:disabled, textarea:disabled { opacity: 0.6; }
+
+.werkzeuge { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+.werkzeuge input[type="search"] { max-width: 24rem; }
+.schalter-text { display: inline-flex; gap: 0.4rem; align-items: center; cursor: pointer; }
+
+.bereich { background: var(--karte); border: 1px solid var(--rand); border-radius: var(--radius); }
+.bereich > h2 { padding: 0.75rem 1.25rem; margin: 0; border-bottom: 1px solid var(--rand); }
+.feld {
+  display: grid; grid-template-columns: minmax(14rem, 1fr) minmax(14rem, 1.2fr); gap: 0.25rem 1.5rem;
+  padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--rand);
+}
+.feld:last-child { border-bottom: 0; }
+.feld.ungespeichert { background: var(--geaendert); box-shadow: inset 3px 0 0 var(--akzent); }
+.feld.ohne-wirkung .eingabe { opacity: 0.6; }
+.feld-text { display: flex; flex-direction: column; gap: 0.15rem; }
+.feld-text .pfad { color: var(--leise); }
+.feld-text .hinweis { color: var(--leise); font-size: 0.85rem; }
+.feld .eingabe { display: flex; flex-direction: column; gap: 0.3rem; align-items: flex-start; }
+.feld .zeile { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.feld .fehler-text { color: var(--fehler); font-size: 0.85rem; }
+@media (max-width: 52rem) { .feld { grid-template-columns: 1fr; } }
+
+.marke {
+  display: inline-block; font-size: 0.75rem; padding: 0 0.5rem; border-radius: 1em; border: 1px solid var(--rand);
+  color: var(--leise); font-weight: normal; font-family: inherit;
+}
+.marke.eigen { border-color: var(--akzent); color: var(--akzent); }
+.marke.gut { border-color: var(--gut); color: var(--gut); }
+.marke.warn { border-color: var(--warn); color: var(--warn); }
+.marke.fehler { border-color: var(--fehler); color: var(--fehler); }
+
+/* Schalter für Ja/Nein */
+.schalter { position: relative; display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+.schalter input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.schalter .bahn {
+  width: 2.5rem; height: 1.4rem; border-radius: 1rem; background: var(--rand); position: relative; transition: background 0.15s;
+}
+.schalter .bahn::after {
+  content: ""; position: absolute; top: 0.15rem; left: 0.15rem; width: 1.1rem; height: 1.1rem; border-radius: 50%;
+  background: #fff; transition: transform 0.15s;
+}
+.schalter input:checked + .bahn { background: var(--akzent); }
+.schalter input:checked + .bahn::after { transform: translateX(1.1rem); }
+.schalter input:focus-visible + .bahn { outline: 2px solid var(--akzent); outline-offset: 2px; }
+.schalter input:disabled + .bahn { opacity: 0.5; }
+
+.speicherleiste {
+  position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+  flex-wrap: wrap; background: var(--karte); border: 1px solid var(--akzent); border-radius: var(--radius);
+  padding: 0.75rem 1.25rem; box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.tabelle { width: 100%; border-collapse: collapse; }
+.tabelle th, .tabelle td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--rand); vertical-align: top; }
+.tabelle th { color: var(--leise); font-weight: 500; }
+.tabelle td.wert { font-family: "Red Hat Mono", ui-monospace, monospace; font-size: 0.85rem; word-break: break-all; }
+
+.protokoll, .kurzlog {
+  background: var(--code-hg); border-radius: var(--radius); padding: 0.75rem; margin: 0.5rem 0 0;
+  max-height: 32rem; overflow: auto; white-space: pre-wrap; word-break: break-word;
+}
+.kurzlog { max-height: 12rem; }
+
+.meldung {
+  margin: 1rem 1.5rem 0; max-width: 69rem; padding: 0.75rem 1rem; border-radius: var(--radius);
+  border: 1px solid var(--rand); border-left: 4px solid var(--akzent); background: var(--karte);
+  display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; white-space: pre-wrap;
+}
+.meldung.fehler { border-left-color: var(--fehler); }
+.meldung.gut { border-left-color: var(--gut); }
+
+.befund { margin: 0.25rem 0; font-size: 0.9rem; }
+.befund.fehler { color: var(--fehler); }
+.befund.warn { color: var(--warn); }
+
+.verlauf-eintrag { border-bottom: 1px solid var(--rand); padding: 0.6rem 0; }
+.verlauf-eintrag:last-child { border-bottom: 0; }
+.verlauf-kopf { display: flex; justify-content: space-between; gap: 1rem; align-items: center; flex-wrap: wrap; }
+.verlauf-aend { margin: 0.25rem 0 0 1rem; font-size: 0.85rem; }
+
+.pw-form { display: flex; flex-direction: column; gap: 0.5rem; }
+.pw-form label { display: flex; flex-direction: column; gap: 0.15rem; }

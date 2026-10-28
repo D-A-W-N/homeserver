@@ -31,7 +31,7 @@ jobs:
           # erst einsammeln: "| grep -q" kann git mit SIGPIPE beenden
           geaendert=$(git diff --name-only HEAD^1 HEAD)
           if [ "$EVENT" != pull_request ] \
-            || grep -qE '^(ansible|installer|dev|stacks|bin|lib|config)/|^\.github/workflows/vm-test\.yml$' <<<"$geaendert"; then
+            || grep -qE '^(ansible|installer|dev|stacks|bin|lib|config|cockpit)/|^\.github/workflows/vm-test\.yml$' <<<"$geaendert"; then
             echo "vm=true" >> "$GITHUB_OUTPUT"
           else
             echo "vm=false" >> "$GITHUB_OUTPUT"
@@ -166,6 +166,24 @@ jobs:
           s aunserver-config history | grep -q "aunserver-setup"
           s aunserver-config unset emby_dlna_renderers
           s aunserver-config diff | grep "Keine Änderungen"
+
+      - name: Cockpit-Seite im Browser (Playwright mit dem Chrome des Runners)
+        run: |
+          mkdir -p "$RUNNER_TEMP/bilder" "$RUNNER_TEMP/pw"
+          cp dev/cockpit-test.mjs "$RUNNER_TEMP/pw/"
+          (cd "$RUNNER_TEMP/pw" && npm init -y >/dev/null && npm install --no-audit --no-fund --silent playwright-core@1.48.2)
+          node "$RUNNER_TEMP/pw/cockpit-test.mjs" nasadmin aunserver "$RUNNER_TEMP/bilder"
+          # die Seite hat ntfy_ios_push gespeichert: wieder auf den Standard
+          ssh -n -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost \
+            "printf '%s\n' aunserver | sudo -S -p '' aunserver-config unset ntfy_ios_push"
+
+      - name: Bilder der Cockpit-Seite
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cockpit-${{ matrix.firmware }}
+          path: ${{ runner.temp }}/bilder
+          if-no-files-found: ignore
 
       - name: Passwörter ändern (Samba sofort, Web-Passwort mit dem Setup in allen Apps)
         run: |

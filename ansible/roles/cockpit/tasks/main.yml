@@ -40,6 +40,16 @@
     masked: true
   loop: "{{ cockpit_masked_units }}"
 
+# Einstellungen, Übernehmen, Verlauf und Passwörter im Browser (D22); schreibt nur über aunserver-config
+- name: Seite aunserver in Cockpit
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../cockpit/aunserver/"
+    dest: /usr/share/cockpit/aunserver/
+    owner: root
+    group: root
+    mode: "0644"
+    directory_mode: "0755"
+
 - name: Cockpit-Anmeldeseite
   ansible.builtin.copy:
     dest: /etc/cockpit/cockpit.conf
