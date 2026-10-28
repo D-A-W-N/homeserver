@@ -4,3 +4,5 @@ ansible==12.0.*        # bündelt ansible-core 2.19 + Collections, wie das Debia
 ansible-lint==26.*
 yamllint==1.*
 shellcheck-py==0.11.*   # gleiche shellcheck-Version lokal und in der CI
+# ruamel.yaml (für aunserver-config) kommt mit ansible-lint; auf dem NAS python3-ruamel.yaml 0.18.10 aus Debian 13,
+# lib/aunserver_config.py nutzt nur die Grundfunktionen (Laden und Schreiben mit Kommentaren)

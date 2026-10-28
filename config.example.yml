@@ -113,7 +113,7 @@ backup:
     # Monatliche Sicherungen
     monthly: 6
 
-# Samba-Passwort des Admins (wirkt bisher nur beim ersten Lauf, D23)
+# Samba-Passwort des Admins, liegt in /etc/aunserver/secrets/ (D23)
 # samba_password: ''
 # SMB1-Freigabe für PS2/OPL in einer getrennten Samba-Instanz (D19)
 samba_legacy:

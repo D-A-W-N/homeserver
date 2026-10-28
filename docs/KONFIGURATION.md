@@ -8,18 +8,26 @@ innerhalb von Blöcken (`apps: {emby: false}` lässt die übrigen Apps auf ihrem
 Die Beschreibung steht in [config/schema.yml](../config/schema.yml).
 
 ```bash
-sudo nano /etc/aunserver/config.yml
-sudo aunserver-config validate      # Tippfehler und falsche Werte finden
-sudo aunserver-setup                # übernehmen
+sudo aunserver-config set apps.emby false     # ändern (prüft den Wert, Kommentare bleiben)
+sudo aunserver-config unset apps.emby         # zurück auf den Standard
+sudo aunserver-config diff                    # was noch nicht übernommen ist
+sudo aunserver-setup                          # übernehmen
+sudo aunserver-config history                 # frühere Fassungen; zurück: revert <Fassung>
 ```
 
+Wer die Datei lieber selbst bearbeitet (`sudo nano /etc/aunserver/config.yml`), prüft sie mit
+`sudo aunserver-config validate`; das Setup prüft sie vor jedem Lauf auch.
+
 Stufen: **basis** fragt das Setup ab, **erweitert** nur bei Bedarf, **fest** setzt das Setup
-(nicht von Hand ändern). Geheime Werte (Passwörter) zeigt `aunserver-config show` nicht an.
+(nicht von Hand ändern). **Geheime** Werte (Passwörter, Schlüssel) stehen nicht in der
+config.yml, sondern als Dateien in `/etc/aunserver/secrets/` (D23); ältere Dateien stellt
+das Setup selbst um (`config_version: 2`).
 
 ## System
 
 | Einstellung | Typ | Standard | Stufe | Bedeutung |
 |---|---|---|---|---|
+| `config_version` | zahl | – | fest | Fassung des Dateiformats, setzt aunserver-config (fehlt = 1) |
 | `hostname` | text (hostname) | `nas` | basis | Name des NAS im Netz |
 | `admin_user` | text (hostname) | `nasadmin` | fest | Admin-Benutzer, legt der Installer an ("admin" ist in Debian reserviert) |
 | `timezone` | text (zeitzone) | `Europe/Berlin` | basis | Zeitzone |
@@ -85,7 +93,7 @@ Stufen: **basis** fragt das Setup ab, **erweitert** nur bei Bedarf, **fest** set
 
 | Einstellung | Typ | Standard | Stufe | Bedeutung |
 |---|---|---|---|---|
-| `samba_password` | text | geheim | basis | Samba-Passwort des Admins (wirkt bisher nur beim ersten Lauf, D23) |
+| `samba_password` | text | geheim | basis | Samba-Passwort des Admins, liegt in /etc/aunserver/secrets/ (D23) |
 | `samba_legacy.enabled` | bool | `false` | basis | SMB1-Freigabe für die PS2 (Open PS2 Loader) |
 | `samba_legacy.port` | zahl | `1445` | erweitert | Port der SMB1-Instanz (nur mit `samba_legacy.enabled`) |
 | `samba_legacy.allowed_clients` | liste (ip) | `[]` | erweitert | Nur diese IPs (z. B. die PS2); sie erreichen die Freigabe dann auch über Port 445 (nur mit `samba_legacy.enabled`) |

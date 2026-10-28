@@ -44,7 +44,8 @@ Optionen (alle optional; was fehlt, wird gefragt bzw. bei --yes mit Standardwert
   --apps LISTE              kommagetrennt aus: adguard,emby,recommendarr,ps2gamemanager,uptime_kuma
                             (Standard: adguard,emby,recommendarr,ps2gamemanager)
   --no-playbook             nur Konfiguration schreiben (und ggf. formatieren)
-  --reconfigure             vorhandene config.yml neu abfragen statt übernehmen
+  --reconfigure             Grundeinstellungen neu abfragen (Vorschlag: bisherige Werte); alle
+                            übrigen Einstellungen der config.yml bleiben erhalten
   -h, --help                diese Hilfe
 USAGE
 }
@@ -91,6 +92,14 @@ done
 ADMIN=${SUDO_USER:-}
 if [ -z "$ADMIN" ] || [ "$ADMIN" = root ]; then die "Bitte als Admin-Benutzer mit sudo starten, nicht als root."; fi
 id -nG "$ADMIN" | grep -qw sudo || die "$ADMIN ist nicht in der Gruppe sudo."
+
+# Nur ein Lauf zugleich (auch aunserver-update und Änderungen mit aunserver-config); ein
+# aufrufendes aunserver-update hält die Sperre schon und gibt sie weiter
+if [ "${AUNSERVER_LOCK_HELD:-}" != 1 ]; then
+  exec 9>/run/lock/aunserver.lock
+  flock -n 9 || die "Setup, Update oder eine Änderung der Konfiguration läuft gerade; danach erneut versuchen."
+  export AUNSERVER_LOCK_HELD=1
+fi
 
 # --- Dialoge -----------------------------------------------------------------------
 # Interaktiv nur, wenn ein Terminal da ist und nicht --yes gesetzt wurde
@@ -214,9 +223,43 @@ choose_data_disk() {
 yq() { printf "'%s'" "${1//\'/\'\'}"; }   # YAML-String in einfachen Anführungszeichen
 
 app_on() { case ",$APPS," in *",$1,"*) echo true ;; *) echo false ;; esac; }
+onoff() { case ",$2," in *",$1,"*) echo ON ;; *) echo OFF ;; esac; }   # onoff APP LISTE
+
+# Wert aus der vorhandenen config.yml (mit Standard), leer wenn keiner
+cfg() { "$REPO/bin/aunserver-config" get "$1" 2>/dev/null || true; }
+have_secret() { [ -s "$CONFIG_DIR/secrets/$1" ]; }
+
+# Bei --reconfigure: bisherige Werte als Vorschlag, ohne Terminal unverändert übernehmen
+APPS_CURRENT=""
+prefill() {
+  [ -f "$CONFIG" ] || return 0
+  local a list=""
+  HOST=${HOST:-$(cfg hostname)}
+  DOMAIN=${DOMAIN:-$(cfg domain)}
+  TZONE=${TZONE:-$(cfg timezone)}
+  for a in adguard emby recommendarr ps2gamemanager uptime_kuma; do
+    [ "$(cfg "apps.$a")" = true ] && list+="${list:+,}$a"
+  done
+  APPS_CURRENT=${list:-,}
+  if [ "$PS2" = -1 ]; then
+    PS2=0 PS2_ASK=1
+    [ "$(cfg samba_legacy.enabled)" = true ] && PS2=1
+  fi
+  if [ "$TAILSCALE" = -1 ]; then
+    TAILSCALE=0 TS_ASK=1
+    [ "$(cfg apps.tailscale)" = true ] && TAILSCALE=1
+  fi
+  if [ "$BACKUP_ASKED" = 0 ]; then
+    BACKUP_REPO=$(cfg backup.repository)
+    BACKUP_LABEL=$(cfg backup.disk_label)
+  fi
+  return 0
+}
 
 collect() {
-  local existing_keys
+  local existing_keys apps_default
+  PS2_ASK=0 TS_ASK=0
+  prefill
   ask HOST "Hostname des NAS:" "${HOST:-nas}"
   [[ "$HOST" =~ ^[a-z][a-z0-9-]{0,62}$ ]] || die "Ungültiger Hostname: $HOST"
   ask DOMAIN "Name des NAS im Heimnetz (die Apps liegen darunter, z. B. home.$HOST.home.arpa):" "${DOMAIN:-$HOST.home.arpa}"
@@ -236,33 +279,40 @@ collect() {
   fi
 
   if [ -z "$APPS" ]; then
-    APPS="adguard,emby,recommendarr,ps2gamemanager"
+    apps_default=${APPS_CURRENT:-adguard,emby,recommendarr,ps2gamemanager}
+    APPS=$apps_default
     if interactive; then
       APPS=$(whiptail --title "$TITLE" --separate-output --checklist "Welche Apps sollen laufen? (Leertaste = an/aus)" 16 78 6 \
-        adguard "AdGuard Home: DNS und Werbeblocker fürs Heimnetz" ON \
-        emby "Emby: Media-Server" ON \
-        recommendarr "Recommendarr (eigene App)" ON \
-        ps2gamemanager "PS2GameManager (eigene App)" ON \
-        uptime_kuma "Uptime Kuma: Erreichbarkeit der Dienste" OFF \
+        adguard "AdGuard Home: DNS und Werbeblocker fürs Heimnetz" "$(onoff adguard "$apps_default")" \
+        emby "Emby: Media-Server" "$(onoff emby "$apps_default")" \
+        recommendarr "Recommendarr (eigene App)" "$(onoff recommendarr "$apps_default")" \
+        ps2gamemanager "PS2GameManager (eigene App)" "$(onoff ps2gamemanager "$apps_default")" \
+        uptime_kuma "Uptime Kuma: Erreichbarkeit der Dienste" "$(onoff uptime_kuma "$apps_default")" \
         3>&1 1>&2 2>&3 | paste -sd,) || die "Abgebrochen."
     fi
   fi
 
-  if [ "$PS2" = -1 ]; then
+  if [ "$PS2" = -1 ] || [ "$PS2_ASK" = 1 ]; then
     if interactive; then
-      if whiptail --title "$TITLE" --yesno "SMB1-Freigabe für die PS2 (Open PS2 Loader) einrichten?\n\nGetrennte Samba-Instanz auf Port 1445, nur für den PS2-Ordner, eigenes Konto ps2." 12 72; then PS2=1; else PS2=0; fi
-    else PS2=0; fi
+      local no=""
+      [ "$PS2" = 0 ] && no=--defaultno
+      if whiptail --title "$TITLE" $no --yesno "SMB1-Freigabe für die PS2 (Open PS2 Loader) einrichten?\n\nGetrennte Samba-Instanz auf Port 1445, nur für den PS2-Ordner, eigenes Konto ps2." 12 72; then PS2=1; else PS2=0; fi
+    elif [ "$PS2" = -1 ]; then PS2=0; fi
   fi
 
-  if [ "$TAILSCALE" = -1 ]; then
-    TAILSCALE=1
-    if interactive && ! whiptail --title "$TITLE" --yesno "Fernzugriff per Tailscale einrichten?\n\nDamit erreichst du das NAS (und die Benachrichtigungen) von unterwegs, ohne Portfreigabe im Router. Ein kostenloses Konto auf tailscale.com reicht; den Anmeldelink zeigt das Setup am Ende." 13 74; then TAILSCALE=0; fi
+  if [ "$TAILSCALE" = -1 ] || [ "$TS_ASK" = 1 ]; then
+    [ "$TAILSCALE" = -1 ] && TAILSCALE=1
+    if interactive; then
+      local no=""
+      [ "$TAILSCALE" = 0 ] && no=--defaultno
+      if whiptail --title "$TITLE" $no --yesno "Fernzugriff per Tailscale einrichten?\n\nDamit erreichst du das NAS (und die Benachrichtigungen) von unterwegs, ohne Portfreigabe im Router. Ein kostenloses Konto auf tailscale.com reicht; den Anmeldelink zeigt das Setup am Ende." 13 74; then TAILSCALE=1; else TAILSCALE=0; fi
+    fi
   fi
 
   if [ "$BACKUP_ASKED" = 0 ] && interactive; then
-    BACKUP_REPO=$(whiptail --title "$TITLE" --inputbox "Backup-Ziel für die Einstellungen (restic-Repository), z. B.\n\n  /mnt/backup/aunserver      USB-Platte (Label unten angeben)\n  sftp:user@rechner:/pfad    anderer Rechner per SSH\n\nLeer lassen = später in $CONFIG eintragen." 15 78 3>&1 1>&2 2>&3) || die "Abgebrochen."
-    if [[ "$BACKUP_REPO" == /mnt/backup* ]] && [ -z "$BACKUP_LABEL" ]; then
-      BACKUP_LABEL=$(whiptail --title "$TITLE" --inputbox "Label der USB-Backup-Platte (wird unter /mnt/backup eingehängt):" 10 72 AUNBACKUP 3>&1 1>&2 2>&3) || die "Abgebrochen."
+    BACKUP_REPO=$(whiptail --title "$TITLE" --inputbox "Backup-Ziel für die Einstellungen (restic-Repository), z. B.\n\n  /mnt/backup/aunserver      USB-Platte (Label unten angeben)\n  sftp:user@rechner:/pfad    anderer Rechner per SSH\n\nLeer lassen = später in $CONFIG eintragen." 15 78 "$BACKUP_REPO" 3>&1 1>&2 2>&3) || die "Abgebrochen."
+    if [[ "$BACKUP_REPO" == /mnt/backup* ]]; then
+      BACKUP_LABEL=$(whiptail --title "$TITLE" --inputbox "Label der USB-Backup-Platte (wird unter /mnt/backup eingehängt):" 10 72 "${BACKUP_LABEL:-AUNBACKUP}" 3>&1 1>&2 2>&3) || die "Abgebrochen."
     fi
   fi
   if [ -n "$BACKUP_REPO" ] && [ -z "$BACKUP_PW" ] && interactive \
@@ -273,22 +323,21 @@ collect() {
     RESTORE=1
   fi
 
-  [ -n "$SAMBA_PW" ] || ask_password SAMBA_PW "die Samba-Freigaben ($ADMIN)"
-  if [ "$PS2" = 1 ] && [ -z "$PS2_PW" ]; then
+  # vorhandene Passwörter (secrets/) bleiben; ändern: aunserver-config passwd
+  [ -n "$SAMBA_PW" ] || have_secret samba_password || ask_password SAMBA_PW "die Samba-Freigaben ($ADMIN)"
+  if [ "$PS2" = 1 ] && [ -z "$PS2_PW" ] && ! have_secret samba_legacy_password; then
     ask_password PS2_PW "die PS2-Freigabe (Konto ps2; SMB1 überträgt es schwach geschützt, kein wichtiges Passwort verwenden)"
   fi
   COLLECTED=1
 }
 
 write_config() {
-  local k
-  install -d -m 0700 "$CONFIG_DIR"
-  # umask nur für diese Datei (Subshell), nicht für das spätere Playbook
-  (
-  umask 077
+  local k tmp
+  # Nur was das Setup gefragt hat; alle übrigen Einstellungen der config.yml bleiben (D21).
+  # Enthält die Passwörter: nur für root und nur im RAM, aunserver-config legt sie in secrets/ ab
+  install -d -m 0700 "$CONFIG_DIR" /run/aunserver
+  tmp=$(mktemp /run/aunserver/setup.XXXXXX)
   {
-    echo "---"
-    echo "# Geschrieben von aunserver-setup am $(date -Iseconds). Änderungen hier, danach erneut ausführen."
     echo "hostname: $(yq "$HOST")"
     echo "admin_user: $(yq "$ADMIN")"
     echo "timezone: $(yq "$TZONE")"
@@ -300,34 +349,27 @@ write_config() {
       echo "ssh_authorized_keys:"
       for k in "${SSH_KEYS[@]}"; do echo "  - $(yq "$k")"; done
     fi
-    echo "samba_password: $(yq "$SAMBA_PW")"
-    [ "$PS2" = 1 ] && echo "samba_legacy_password: $(yq "$PS2_PW")"
+    [ -n "$SAMBA_PW" ] && echo "samba_password: $(yq "$SAMBA_PW")"
+    [ "$PS2" = 1 ] && [ -n "$PS2_PW" ] && echo "samba_legacy_password: $(yq "$PS2_PW")"
     [ -n "$TS_AUTHKEY" ] && echo "tailscale_authkey: $(yq "$TS_AUTHKEY")"
     echo "backup:"
     echo "  repository: $(yq "$BACKUP_REPO")"
     echo "  disk_label: $(yq "$BACKUP_LABEL")"
-    echo "  env: {}"
-    echo "  schedule: '*-*-* 03:30'"
-    echo "  keep: { daily: 7, weekly: 4, monthly: 6 }"
     echo "apps:"
     echo "  adguard: $(app_on adguard)"
     echo "  tailscale: $([ "$TAILSCALE" = 1 ] && echo true || echo false)"
-    echo "  wireguard: false"
     echo "  uptime_kuma: $(app_on uptime_kuma)"
     echo "  emby: $(app_on emby)"
     echo "  recommendarr: $(app_on recommendarr)"
     echo "  ps2gamemanager: $(app_on ps2gamemanager)"
     echo "samba_legacy:"
     echo "  enabled: $([ "$PS2" = 1 ] && echo true || echo false)"
-    echo "  port: 1445"
-    echo "  allowed_clients: []"
-    echo "  shares:"
-    echo "    - name: PS2SMB"
-    echo "      path: games/ps2"
-  } > "$CONFIG.tmp"
-  )
-  mv "$CONFIG.tmp" "$CONFIG"
-  info "Konfiguration geschrieben: $CONFIG"
+  } > "$tmp"
+  if ! "$REPO/bin/aunserver-config" import "$tmp" --grund "aunserver-setup"; then
+    rm -f "$tmp"
+    die "Konfiguration nicht geschrieben (siehe oben)."
+  fi
+  rm -f "$tmp"
 }
 
 # Passwort eines vorhandenen Backups übernehmen; die Rolle backup erzeugt sonst ein neues
@@ -348,6 +390,7 @@ ensure_tools() {
   command -v ansible-playbook >/dev/null || missing+=(ansible)
   command -v parted >/dev/null || missing+=(parted)
   command -v whiptail >/dev/null || missing+=(whiptail)
+  python3 -c 'import ruamel.yaml' 2>/dev/null || missing+=(python3-ruamel.yaml)
   if [ ${#missing[@]} -gt 0 ]; then
     info "Installiere: ${missing[*]}"
     DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}" >/dev/null
@@ -374,6 +417,8 @@ run_playbook() {
   rc=${PIPESTATUS[0]}
   rm -f "$eff_dir/effective.yml"
   [ "$rc" = 0 ] || die "Das Playbook ist fehlgeschlagen, Details in $LOG. Danach erneut ausführen."
+  # für "aunserver-config diff": was jetzt gilt
+  "$REPO/bin/aunserver-config" mark-applied "$CONFIG"
 }
 
 # Tailscale noch nicht angemeldet: Anmeldelink zeigen und warten (nur interaktiv)
@@ -403,16 +448,20 @@ main() {
     install -d -m 0700 "$CONFIG_DIR"
     install -m 0600 "$CONFIG_IN" "$CONFIG"
     info "Konfiguration übernommen: $CONFIG_IN"
+    "$REPO/bin/aunserver-config" migrate "$CONFIG"
     validate_config
     grep -qE '^single_disk: *true' "$CONFIG" && SINGLE=1
     choose_data_disk
   elif [ -f "$CONFIG" ] && [ "$RECONFIGURE" = 0 ] && { ! interactive || yesno "Es gibt schon eine Konfiguration ($CONFIG).\n\nUnverändert verwenden und das System damit abgleichen?"; }; then
     info "Vorhandene Konfiguration wird verwendet: $CONFIG"
+    "$REPO/bin/aunserver-config" migrate "$CONFIG"
     validate_config
     grep -qE '^single_disk: *true' "$CONFIG" && SINGLE=1
     choose_data_disk
   else
     interactive && whiptail --title "$TITLE" --msgbox "Willkommen! Dieses Skript richtet das NAS ein:\n\n  1. Datenplatte wählen (wird ggf. formatiert)\n  2. Name, SSH-Schlüssel, Apps, Passwörter\n  3. Alles installieren (10–20 Minuten)\n\nAbbrechen ist bis zum Formatieren jederzeit möglich." 15 72
+    # ältere Fassung zuerst umstellen, damit vorhandene Passwörter nicht neu gefragt werden
+    [ -f "$CONFIG" ] && "$REPO/bin/aunserver-config" migrate "$CONFIG"
     choose_data_disk
     collect
   fi

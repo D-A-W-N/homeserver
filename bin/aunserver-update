@@ -73,6 +73,13 @@ run_setup() {
   "$REPO/bin/aunserver-setup" --yes
 }
 
+# Sperre wie aunserver-setup (nicht für --check); das Setup, das wir starten, übernimmt sie
+if [ "$CHECK" = 0 ]; then
+  exec 9>/run/lock/aunserver.lock
+  flock -n 9 || die "Setup, Update oder eine Änderung der Konfiguration läuft gerade; danach erneut versuchen."
+  export AUNSERVER_LOCK_HELD=1
+fi
+
 if [ "$ROLLBACK" = 1 ]; then
   [ -d "$PREV" ] || die "Kein voriger Stand vorhanden ($PREV)."
   info "Zurück zum vorigen Stand"

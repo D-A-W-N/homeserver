@@ -11,6 +11,7 @@ base_packages:
   - lsof
   - needrestart
   - python3-debian
+  - python3-ruamel.yaml   # aunserver-config: Kommentare in der config.yml bleiben beim Ändern erhalten
   - rsync
   - sudo
   - systemd-zram-generator

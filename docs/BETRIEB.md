@@ -134,10 +134,14 @@ Woher neue Versionen kommen: Renovate prüft das Repo und legt montags früh fü
 Alle Einstellungen (Hostname, Apps, Backup-Ziel, PS2-Freigabe …) stehen in `/etc/aunserver/config.yml`. Welche es gibt, mit Standardwert und Erklärung, steht in [KONFIGURATION.md](KONFIGURATION.md). In die Datei gehört nur, was vom Standard abweicht, auch in Blöcken: `apps: {emby: false}` lässt die übrigen Apps auf ihrem Standard. Ändern und danach abgleichen:
 
 ```bash
-sudo nano /etc/aunserver/config.yml
-sudo aunserver-config validate   # findet Tippfehler und falsche Werte, ändert nichts
-sudo aunserver-setup             # übernimmt die Datei und richtet alles danach ein
+sudo aunserver-config set caddy_lan_ports true   # prüft den Wert, eigene Kommentare bleiben
+sudo aunserver-config diff                       # was seit dem letzten Setup geändert ist
+sudo aunserver-setup                             # übernimmt die Datei und richtet alles danach ein
 ```
+
+Mit `unset` gilt wieder der Standard. Jede Änderung (auch durch das Setup) landet im Verlauf: `sudo aunserver-config history` listet die letzten 30 Fassungen, `sudo aunserver-config revert <Fassung>` holt eine zurück (danach `sudo aunserver-setup`). Wer die Datei lieber direkt bearbeitet (`sudo nano /etc/aunserver/config.yml`), prüft sie mit `sudo aunserver-config validate`. Setup, Update und `aunserver-config` sperren sich gegenseitig, es läuft immer nur eins.
+
+**Passwörter** stehen nicht in der `config.yml`, sondern in `/etc/aunserver/secrets/` (nur root). Ältere Dateien stellt das Setup beim nächsten Lauf selbst um. `sudo aunserver-setup --reconfigure` fragt nur die Grundeinstellungen neu (Vorschlag: die bisherigen), alle übrigen Werte und vorhandene Passwörter bleiben.
 
 Das Setup prüft die Datei selbst auch: Bei Fehlern (z. B. `emby: ja` statt `true`) bricht es ab, bevor es etwas ändert; unbekannte Namen meldet es als Warnung mit Vorschlag (`caddy_lan_port` – gemeint: `caddy_lan_ports`?). `sudo aunserver-config show --effective` zeigt alle Werte so, wie Ansible sie bekommt, Passwörter verdeckt. Auch `aunserver-update` prüft vor dem Austausch, ob der neue Stand die Datei versteht, und bricht sonst ohne Änderung ab.
 
