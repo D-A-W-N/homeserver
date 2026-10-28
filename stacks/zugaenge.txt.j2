@@ -25,11 +25,15 @@ Eigenes Konto beim ersten Aufruf festlegen
   Uptime Kuma   https://{{ stacks_hosts.uptime_kuma }}.{{ domain }}
 {% endif %}
 
+{% if apps.medien | bool %}
 Medien (Prowlarr, Sonarr, Radarr, Lidarr: Benutzer {{ admin_user }} + Web-Passwort;
 SABnzbd, Bazarr{{ ', Recommendarr' if apps.recommendarr | bool else '' }}{{ ', PS2GameManager' if apps.ps2gamemanager | bool else '' }}: Passwortabfrage des Browsers, ebenfalls Web-Passwort)
 {% for app in ['prowlarr', 'sonarr', 'radarr', 'lidarr', 'sabnzbd', 'bazarr'] %}
   {{ '%-13s' | format(app | capitalize) }} https://{{ stacks_hosts[app] }}.{{ domain }}
 {% endfor %}
+{% elif apps.emby | bool or apps.recommendarr | bool or apps.ps2gamemanager | bool %}
+Weitere Apps{{ ' (Recommendarr, PS2GameManager: Passwortabfrage des Browsers, Web-Passwort)' if apps.recommendarr | bool or apps.ps2gamemanager | bool else '' }}
+{% endif %}
 {% if apps.emby | bool %}
   Emby          https://{{ stacks_hosts.emby }}.{{ domain }}   (Fernseher/Apps: http://{{ ansible_facts.default_ipv4.address }}:8096; Konto beim ersten Aufruf anlegen)
 {% endif %}
@@ -39,14 +43,19 @@ SABnzbd, Bazarr{{ ', Recommendarr' if apps.recommendarr | bool else '' }}{{ ', P
 {% if apps.ps2gamemanager | bool %}
   PS2GameMgr    https://{{ stacks_hosts.ps2gamemanager }}.{{ domain }}
 {% endif %}
-  Noch einzutragen: Usenet-Server in SABnzbd, Indexer in Prowlarr, Bibliotheken in Emby
+{% if apps.medien | bool %}
+  Noch einzutragen: Usenet-Server in SABnzbd, Indexer in Prowlarr{{ ', Bibliotheken in Emby' if apps.emby | bool else '' }}
+{% elif apps.emby | bool %}
+  Noch einzutragen: Bibliotheken in Emby
+{% endif %}
 
 Ohne Anmeldung (nur aus LAN/VPN erreichbar)
   ntfy          https://{{ stacks_hosts.ntfy }}.{{ domain }}   (Themen: smart, beszel, backup, updates)
 
 {% if caddy_lan_ports | bool %}
 Ohne Namen, nur aus dem LAN (caddy_lan_ports; gleiche Anmeldung wie oben)
-{% for app, port in stacks_lan_ports.items() | sort(attribute='1') if apps[app] | default(true) | bool %}
+{% for app, port in stacks_lan_ports.items() | sort(attribute='1')
+   if (apps[app] if app in apps else (apps.medien if app in ['prowlarr', 'sabnzbd', 'sonarr', 'radarr', 'lidarr', 'bazarr'] else true)) | bool %}
   {{ '%-13s' | format(app | capitalize) }} https://{{ ansible_facts.default_ipv4.address }}:{{ port }}
 {% endfor %}
 

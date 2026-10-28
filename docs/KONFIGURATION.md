@@ -24,6 +24,13 @@ Stufen: **basis** fragt das Setup ab, **erweitert** nur bei Bedarf, **fest** set
 config.yml, sondern als Dateien in `/etc/aunserver/secrets/` (D23); ältere Dateien stellt
 das Setup selbst um (`config_version: 2`).
 
+## Profile
+
+Vorauswahl der Apps bei der Ersteinrichtung (Setup und Assistent); danach gelten die einzelnen Werte.
+
+- **medien-nas**: Medien-NAS: Freigaben, Medien über Usenet, Emby (wie bisher) (`apps.medien: true`, `apps.emby: true`, `apps.recommendarr: true`, `apps.ps2gamemanager: true`)
+- **dateien**: Nur Dateien: Freigaben, Backup und Überwachung, ohne Medien-Apps (`apps.medien: false`, `apps.emby: false`, `apps.recommendarr: false`, `apps.ps2gamemanager: false`)
+
 ## System
 
 | Einstellung | Typ | Standard | Stufe | Bedeutung |
@@ -36,6 +43,7 @@ das Setup selbst um (`config_version: 2`).
 | `kernel_backports` | bool | `false` | erweitert | Kernel aus den Backports (für neue Hardware) |
 | `base_auto_reboot` | bool | `true` | erweitert | Nach Sicherheitsupdates automatisch neu starten, wenn nötig |
 | `base_auto_reboot_time` | text (zeit) | `'04:00'` | erweitert | Uhrzeit für den automatischen Neustart (nur mit `base_auto_reboot`) |
+| `update_check` | bool | `true` | erweitert | Täglich nach neuen Ständen von aunserver suchen und per ntfy melden (installiert wird per Hand) |
 
 ## Netz und Zugriff
 
@@ -58,9 +66,10 @@ das Setup selbst um (`config_version: 2`).
 | `apps.adguard` | bool | `true` | basis | AdGuard Home: DNS und Werbeblocker fürs Heimnetz |
 | `apps.tailscale` | bool | `true` | basis | Tailscale: Fernzugriff ohne Portfreigabe |
 | `apps.wireguard` | bool | `false` | fest | WireGuard (nicht umgesetzt, D12) |
+| `apps.medien` | bool | `true` | basis | Medien über Usenet: Prowlarr, SABnzbd, Sonarr, Radarr, Lidarr, Bazarr, Recyclarr. Abschalten entfernt die Container, ihre Einstellungen in /srv/appdata bleiben. |
 | `apps.uptime_kuma` | bool | `false` | basis | Uptime Kuma: Erreichbarkeit der Dienste |
 | `apps.emby` | bool | `true` | basis | Emby: Media-Server |
-| `apps.recommendarr` | bool | `true` | basis | Recommendarr (eigene App) |
+| `apps.recommendarr` | bool | `true` | basis | Recommendarr (eigene App) (nur mit `apps.medien`) |
 | `apps.ps2gamemanager` | bool | `true` | basis | PS2GameManager (eigene App) |
 
 ## Medien
@@ -68,9 +77,9 @@ das Setup selbst um (`config_version: 2`).
 | Einstellung | Typ | Standard | Stufe | Bedeutung |
 |---|---|---|---|---|
 | `emby_dlna_renderers` | liste (ip) | `[]` | erweitert | DLNA-Abspielgeräte (z. B. Sonos) für Emby „Wiedergabe auf“, feste IPs (nur mit `apps.emby`) |
-| `recyclarr_eigene_config` | bool | `false` | erweitert | Eigene recyclarr.yml im appdata-Ordner statt der TRaSH-Vorlage. Ansible schreibt die Vorlage dann nicht mehr darüber (docs/BETRIEB.md, Indexer) |
-| `stacks_recyclarr_upgrade_until_score` | zahl | `13500` | erweitert | Upgrades nur, bis ein Release diese Custom-Format-Punktzahl erreicht (13500 = gutes German DL) DL 11000 + 1080p 700 + WEB-Stufe ab 1800. Die TRaSH-Vorlage ersetzte sonst vorhandene WEB-Releases durch viel größere Bluray-Encodes (doppelter Download). |
-| `stacks_recyclarr_groessen` | objekt (liste) | siehe Schema | erweitert | Größengrenzen in MB pro Minute Laufzeit, je App eine Liste (60 MB/min = 3,6 GB pro Stunde) Die TRaSH-Vorlage hat kein Maximum (Bluray-Encodes mit ~150 MB/min) und lehnte kleine x265-Encodes als zu klein ab. Eine App hier angeben ersetzt nur deren Liste. |
+| `recyclarr_eigene_config` | bool | `false` | erweitert | Eigene recyclarr.yml im appdata-Ordner statt der TRaSH-Vorlage. Ansible schreibt die Vorlage dann nicht mehr darüber (docs/BETRIEB.md, Indexer) (nur mit `apps.medien`) |
+| `stacks_recyclarr_upgrade_until_score` | zahl | `13500` | erweitert | Upgrades nur, bis ein Release diese Custom-Format-Punktzahl erreicht (13500 = gutes German DL) DL 11000 + 1080p 700 + WEB-Stufe ab 1800. Die TRaSH-Vorlage ersetzte sonst vorhandene WEB-Releases durch viel größere Bluray-Encodes (doppelter Download). (nur mit `apps.medien`) |
+| `stacks_recyclarr_groessen` | objekt (liste) | siehe Schema | erweitert | Größengrenzen in MB pro Minute Laufzeit, je App eine Liste (60 MB/min = 3,6 GB pro Stunde) Die TRaSH-Vorlage hat kein Maximum (Bluray-Encodes mit ~150 MB/min) und lehnte kleine x265-Encodes als zu klein ab. Eine App hier angeben ersetzt nur deren Liste. (nur mit `apps.medien`) |
 
 ## Benachrichtigungen
 

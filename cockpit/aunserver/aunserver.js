@@ -652,6 +652,15 @@ async function zeigeEinrichten() {
 
     const apps = Object.keys(s).filter(p => p.startsWith("apps.") && s[p].stufe === "basis");
     const appFelder = apps.map(p => zeile(s[p].text, schalter("a-" + p.replace(".", "-"), s[p].standard, "")));
+    // Profile (D25): setzen nur die Vorauswahl, danach gilt jeder Schalter einzeln
+    const profile = Object.entries(zustand.schema.profile || {});
+    const profilWahl = el("div", { class: "eingabe" }, profile.map(([name, p], i) => el("label", { class: "schalter-text" },
+        el("input", {
+            type: "radio", name: "profil", value: name, checked: i === 0,
+            onchange: () => {
+                for (const pfad of apps) $("#a-" + pfad.replace(".", "-")).checked = p.werte[pfad] ?? s[pfad].standard;
+            },
+        }), p.text)));
     const samba = passwortPaar("a-samba");
     const ps2An = schalter("a-ps2", false, "");
     const ps2 = passwortPaar("a-ps2pw");
@@ -669,7 +678,7 @@ async function zeigeEinrichten() {
             zeile(s.hostname.text, host), zeile(s.domain.text, domain), zeile(s.timezone.text, zone),
             zeile("SSH-Schlüssel", keys, s.ssh_authorized_keys.text + " (einer pro Zeile)"),
             zeile("Samba-Passwort für " + benutzer.name, el("div", { class: "eingabe" }, samba), "Mindestens 8 Zeichen")),
-        abschnitt("Apps", ...appFelder),
+        abschnitt("Apps", profile.length ? zeile("Wofür ist das NAS?", profilWahl, "Vorauswahl; die Apps lassen sich danach einzeln an- und abschalten") : null, ...appFelder),
         abschnitt("PS2-Freigabe",
             zeile(s["samba_legacy.enabled"].text, ps2An),
             zeile("Passwort für das Konto ps2", el("div", { class: "eingabe" }, ps2), s.samba_legacy_password.text)),

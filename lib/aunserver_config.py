@@ -68,6 +68,7 @@ class Schema:
         self.version = raw["version"]
         self.bereiche = raw["bereiche"]
         self.gruppen = raw.get("gruppen", {})
+        self.profile = raw.get("profile", {})
         self.leaves = raw["einstellungen"]  # Pfad mit Punkten -> Beschreibung, in Schema-Reihenfolge
         self.prefixes = set()
         for path in self.leaves:
@@ -104,6 +105,12 @@ class Schema:
         for group in self.gruppen:
             if group not in self.prefixes:
                 problems.append(f"gruppen: {group} ist keine Gruppe von Einstellungen")
+        for name, profil in self.profile.items():
+            for path, value in profil.get("werte", {}).items():
+                if path not in self.leaves:
+                    problems.append(f"profile.{name}: unbekannte Einstellung {path}")
+                else:
+                    problems += [f"profile.{name}: {e}" for e in check_value(self.leaves[path], value, path)]
         if problems:
             raise SchemaError("\n".join(problems))
 
@@ -136,7 +143,7 @@ class Schema:
 
     def as_json(self):
         return {"version": self.version, "bereiche": self.bereiche, "gruppen": self.gruppen,
-                "einstellungen": self.leaves}
+                "profile": self.profile, "einstellungen": self.leaves}
 
 
 def set_path(tree, path, value):
@@ -308,8 +315,14 @@ def validate(schema, config, internal=None):
         eff = merge(schema, config)
         for path, spec in schema.leaves.items():
             dep = spec.get("braucht")
-            if dep and get_path(config, path) is not None and get_path(eff, dep) is False \
-                    and get_path(config, path) != spec.get("standard"):
+            if not dep or get_path(eff, dep) is not False:
+                continue
+            # Schalter: nur wenn er (auch per Standard) an ist; sonst nur ausdrücklich gesetzte Werte
+            if spec["typ"] == "bool":
+                ohne_wirkung = get_path(eff, path) is True
+            else:
+                ohne_wirkung = get_path(config, path) is not None and get_path(config, path) != spec.get("standard")
+            if ohne_wirkung:
                 res.warnings.append(f"{path}: wirkt nur mit {dep}: true")
     return res
 
@@ -463,6 +476,11 @@ def render_docs(schema):
         "das Setup selbst um (`config_version: 2`).",
         "",
     ]
+    if schema.profile:
+        out += ["## Profile", "", "Vorauswahl der Apps bei der Ersteinrichtung (Setup und Assistent); danach gelten die einzelnen Werte.", ""]
+        out += [f"- **{name}**: {md_cell(p['text'])} ({', '.join(f'`{k}: {flow(v)}`' for k, v in p['werte'].items())})"
+                for name, p in schema.profile.items()]
+        out.append("")
     for bereich, title in schema.bereiche.items():
         rows = [(p, s) for p, s in schema.leaves.items() if s["bereich"] == bereich]
         if not rows:
@@ -1122,6 +1140,16 @@ def cmd_passwd(args, schema):
     return 0
 
 
+def cmd_profile(args, schema):
+    """Profile für aunserver-setup: je Zeile Name, Text und die damit eingeschalteten Apps
+    (Tabulator getrennt); Apps, die das Profil nicht nennt, stehen auf ihrem Standard."""
+    apps = [p for p, s in schema.leaves.items() if p.startswith("apps.") and s["stufe"] == "basis"]
+    for name, profil in schema.profile.items():
+        an = [p[5:] for p in apps if profil["werte"].get(p, schema.leaves[p]["standard"]) is True]
+        print(f"{name}\t{profil['text']}\t{','.join(an) or ','}")
+    return 0
+
+
 def cmd_schema(args, schema):
     json.dump(schema.as_json(), sys.stdout, ensure_ascii=False, indent=1)
     print()
@@ -1143,6 +1171,7 @@ def main(argv=None):
     s = sub.add_parser("generate", help="group_vars, config.example.yml und Doku aus dem Schema erzeugen")
     s.add_argument("--check", action="store_true", help="nur prüfen, ob die Dateien aktuell sind")
     sub.add_parser("schema", help="Schema als JSON (für den Editor)")
+    sub.add_parser("profile", help="Profile (Vorauswahl der Apps) für das Setup")
     s = sub.add_parser("get", help="einen Wert anzeigen (mit Standard), Rückgabe 1 wenn keiner gesetzt ist")
     s.add_argument("schluessel")
     s.add_argument("--datei", default=CONFIG)
@@ -1187,6 +1216,7 @@ def main(argv=None):
             "generate": cmd_generate, "schema": cmd_schema, "get": cmd_get, "set": cmd_set,
             "unset": cmd_unset, "import": cmd_import, "migrate": cmd_migrate, "diff": cmd_diff,
             "history": cmd_history, "revert": cmd_revert, "passwd": cmd_passwd, "edit": cmd_edit,
+            "profile": cmd_profile,
             "mark-applied": cmd_mark_applied}[args.befehl](args, schema)
 
 

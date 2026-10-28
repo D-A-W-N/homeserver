@@ -71,6 +71,7 @@ http://{{ domain }} {
 {% endif %}
 
 # --- Medien (M5) ---
+{% if apps.medien | bool %}
 {% for app in ['prowlarr', 'sonarr', 'radarr', 'lidarr'] %}
 {{ stacks_hosts[app] }}.{{ domain }}{{ lan(app) }} {
 	reverse_proxy 127.0.0.1:{{ stacks_ports[app] }}
@@ -85,6 +86,7 @@ http://{{ domain }} {
 }
 
 {% endfor %}
+{% endif %}
 {% if apps.emby | bool %}
 {{ stacks_hosts.emby }}.{{ domain }} {
 	reverse_proxy 127.0.0.1:{{ stacks_ports.emby }}

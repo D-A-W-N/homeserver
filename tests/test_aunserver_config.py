@@ -67,10 +67,14 @@ class ValidateTest(unittest.TestCase):
 
     def test_vollstaendige_konfiguration_bleibt_unveraendert(self):
         # So wie aunserver-setup sie schreibt: zusammengeführt kommt bei Ansible dasselbe an
+        # (neue Einstellungen kommen mit ihrem Standard dazu, z. B. apps.medien)
         config = load("setup.yml")
         eff = ac.merge(self.schema, config)
         for key, value in config.items():
-            self.assertEqual(eff[key], value, key)
+            if isinstance(value, dict):
+                self.assertEqual({k: eff[key][k] for k in value}, value, key)
+            else:
+                self.assertEqual(eff[key], value, key)
 
     def test_tippfehler_wird_gemeldet(self):
         res = self.check({"caddy_lan_port": True, "apps": {"embi": False}})
@@ -100,6 +104,9 @@ class ValidateTest(unittest.TestCase):
         res = self.check({"apps": {"emby": False}, "emby_dlna_renderers": ["192.168.1.110"]})
         self.assertEqual(res.errors, [])
         self.assertIn("wirkt nur mit apps.emby", res.warnings[0])
+        # Schalter: Recommendarr steht per Standard an, ohne Medien wirkt es nicht
+        self.assertIn("apps.recommendarr: wirkt nur mit apps.medien", self.check({"apps": {"medien": False}}).warnings[0])
+        self.assertEqual(self.check({"apps": {"medien": False, "recommendarr": False}}).warnings, [])
 
     def test_keine_einstellungen(self):
         self.assertEqual(self.check({}).errors, [])
@@ -373,6 +380,15 @@ class AendernTest(unittest.TestCase):
                 self.assertNotEqual(self.run_cli("edit")[0], 0)
         self.run_cli("mark-applied")
         self.assertEqual(json.loads(self.run_cli("diff", "--json")[1])["aenderungen"], [])
+
+    def test_profile(self):
+        rc, out, _ = self.run_cli("profile")
+        zeilen = dict((z.split("\t")[0], z.split("\t")[2]) for z in out.splitlines())
+        self.assertEqual(zeilen["medien-nas"], "adguard,tailscale,medien,emby,recommendarr,ps2gamemanager")
+        self.assertEqual(zeilen["dateien"], "adguard,tailscale")
+        # das Standard-Profil entspricht den Standardwerten (bisheriges Verhalten)
+        for pfad, wert in self.schema.profile["medien-nas"]["werte"].items():
+            self.assertEqual(self.schema.leaves[pfad]["standard"], wert, pfad)
 
     def test_get(self):
         self.write("---\nhostname: a\n")

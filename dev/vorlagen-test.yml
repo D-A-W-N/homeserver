@@ -1,0 +1,43 @@
+---
+# Vorlagen mit einer Konfiguration rendern und prüfen, ohne VM (CI lint, D25):
+#   ansible-playbook -i localhost, -c local dev/vorlagen-test.yml -e @<effective.yml> -e ziel=<ordner>
+# Danach prüft lint.yml die Compose-Dateien (docker compose config) und das Caddyfile (caddy adapt).
+- name: Vorlagen rendern
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  gather_subset: [network]
+  vars_files:
+    - ../ansible/group_vars/all/intern.yml
+    - ../ansible/group_vars/all/einstellungen.yml
+    - ../ansible/roles/stacks/defaults/main.yml
+  vars:
+    # Werte, die sonst das Playbook erzeugt
+    puid: "1000"
+    pgid: "1000"
+    stacks_web_password: test-passwort
+    stacks_web_password_hash: "$2a$14$abcdefghijklmnopqrstuuJ1lZ0lYb3lZ3h1z9yR0x2E1n7mN0QyO"
+    stacks_beszel_email: "{{ admin_user }}@{{ domain }}"
+    stacks_arcane_encryption_key: x
+    stacks_arcane_jwt_secret: x
+    network_tailscale_state: Running
+    stacks_ps2_gid: "1001"
+  tasks:
+    - name: Ordner
+      ansible.builtin.file:
+        path: "{{ ziel }}/{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: [media, ps2, proxy, dashboard]
+
+    - name: Vorlagen
+      ansible.builtin.template:
+        src: "../stacks/{{ item }}.j2"
+        dest: "{{ ziel }}/{{ item | replace('/caddy/', '/') | replace('/homepage/', '/') }}"
+        mode: "0644"
+      loop:
+        - media/compose.yaml
+        - ps2/compose.yaml
+        - proxy/caddy/Caddyfile
+        - dashboard/homepage/services.yaml
+        - zugaenge.txt

@@ -35,8 +35,17 @@ bereiche:
   freigaben: Freigaben
   speicher: Speicher
 
+# Vorauswahl für Setup und Assistent (D25); setzt nur die genannten Werte, nichts zur Laufzeit
+profile:
+  medien-nas:
+    text: "Medien-NAS: Freigaben, Medien über Usenet, Emby (wie bisher)"
+    werte: {apps.medien: true, apps.emby: true, apps.recommendarr: true, apps.ps2gamemanager: true}
+  dateien:
+    text: "Nur Dateien: Freigaben, Backup und Überwachung, ohne Medien-Apps"
+    werte: {apps.medien: false, apps.emby: false, apps.recommendarr: false, apps.ps2gamemanager: false}
+
 gruppen:
-  apps: Apps an/aus. Die Plattform-Dienste (Caddy, Cockpit, Arcane, Monitoring, Medien) laufen immer
+  apps: Apps an/aus. Die Plattform-Dienste (Caddy, Cockpit, Arcane, Monitoring) laufen immer
   backup: Backup der Einstellungen mit restic (M8)
   backup.keep: Wie viele Sicherungen restic aufhebt
   samba_legacy: SMB1-Freigabe für PS2/OPL in einer getrennten Samba-Instanz (D19)
@@ -212,6 +221,13 @@ einstellungen:
     bereich: apps
     stufe: fest
     text: WireGuard (nicht umgesetzt, D12)
+  apps.medien:
+    typ: bool
+    standard: true
+    bereich: apps
+    stufe: basis
+    text: "Medien über Usenet: Prowlarr, SABnzbd, Sonarr, Radarr, Lidarr, Bazarr, Recyclarr"
+    hinweis: Abschalten entfernt die Container, ihre Einstellungen in /srv/appdata bleiben.
   apps.uptime_kuma:
     typ: bool
     standard: false
@@ -230,12 +246,20 @@ einstellungen:
     bereich: apps
     stufe: basis
     text: Recommendarr (eigene App)
+    braucht: apps.medien
   apps.ps2gamemanager:
     typ: bool
     standard: true
     bereich: apps
     stufe: basis
     text: PS2GameManager (eigene App)
+
+  update_check:
+    typ: bool
+    standard: true
+    bereich: system
+    stufe: erweitert
+    text: Täglich nach neuen Ständen von aunserver suchen und per ntfy melden (installiert wird per Hand)
 
   # --- Medien ---
   emby_dlna_renderers:
@@ -250,6 +274,7 @@ einstellungen:
     typ: bool
     standard: false
     bereich: medien
+    braucht: apps.medien
     stufe: erweitert
     text: Eigene recyclarr.yml im appdata-Ordner statt der TRaSH-Vorlage
     hinweis: Ansible schreibt die Vorlage dann nicht mehr darüber (docs/BETRIEB.md, Indexer)
@@ -258,6 +283,7 @@ einstellungen:
     min: 0
     standard: 13500
     bereich: medien
+    braucht: apps.medien
     stufe: erweitert
     text: Upgrades nur, bis ein Release diese Custom-Format-Punktzahl erreicht (13500 = gutes German DL)
     hinweis: >-
@@ -287,6 +313,7 @@ einstellungen:
         - { name: WEBDL-1080p, min: 15, preferred: 45, max: 70 }
         - { name: Bluray-1080p, min: 15, preferred: 45, max: 70 }
     bereich: medien
+    braucht: apps.medien
     stufe: erweitert
     text: Größengrenzen in MB pro Minute Laufzeit, je App eine Liste (60 MB/min = 3,6 GB pro Stunde)
     hinweis: >-

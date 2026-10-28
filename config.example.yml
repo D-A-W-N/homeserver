@@ -65,7 +65,7 @@ network_dns_adguard: false
 
 # Auth-Key für Tailscale statt Anmeldelink (nur für die erste Anmeldung)
 # tailscale_authkey: ''
-# Apps an/aus. Die Plattform-Dienste (Caddy, Cockpit, Arcane, Monitoring, Medien) laufen immer
+# Apps an/aus. Die Plattform-Dienste (Caddy, Cockpit, Arcane, Monitoring) laufen immer
 apps:
   # AdGuard Home: DNS und Werbeblocker fürs Heimnetz
   adguard: true
@@ -73,6 +73,8 @@ apps:
   tailscale: true
   # WireGuard (nicht umgesetzt, D12)
   wireguard: false
+  # Medien über Usenet: Prowlarr, SABnzbd, Sonarr, Radarr, Lidarr, Bazarr, Recyclarr
+  medien: true
   # Uptime Kuma: Erreichbarkeit der Dienste
   uptime_kuma: false
   # Emby: Media-Server
@@ -81,6 +83,9 @@ apps:
   recommendarr: true
   # PS2GameManager (eigene App)
   ps2gamemanager: true
+
+# Täglich nach neuen Ständen von aunserver suchen und per ntfy melden (installiert wird per Hand)
+update_check: true
 
 # DLNA-Abspielgeräte (z. B. Sonos) für Emby „Wiedergabe auf“, feste IPs
 emby_dlna_renderers: []
