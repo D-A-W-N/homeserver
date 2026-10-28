@@ -24,7 +24,7 @@ const browser = await chromium.launch({
 });
 const kontext = await browser.newContext({ ignoreHTTPSErrors: true, locale: "de-DE", viewport: { width: 1280, height: 900 } });
 const seite = await kontext.newPage();
-seite.on("pageerror", e => fehler.push("pageerror: " + e.message));
+seite.on("pageerror", e => fehler.push(`pageerror (${new Date().toISOString()}): ${e.name}: ${e.message}\n${e.stack || ""}`));
 // 401 gehört zur Anmeldeseite von Cockpit (Abfrage vor dem Login), kein Fehler der Seite
 seite.on("console", m => {
     if (m.type() === "error" && !/status of 401 \(Authentication failed\)/.test(m.text())) fehler.push("console: " + m.text());
