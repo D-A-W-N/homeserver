@@ -6,9 +6,11 @@
  */
 "use strict";
 
-const CLI = "/usr/local/sbin/aunserver-config";
-const SETUP = "/usr/local/sbin/aunserver-setup";
-const UPDATE = "/usr/local/sbin/aunserver-update";
+// direkt aus dem Repo: der Assistent läuft schon vor dem ersten Setup (das die Links anlegt)
+const CLI = "/opt/aunserver/bin/aunserver-config";
+const SETUP = "/opt/aunserver/bin/aunserver-setup";
+const UPDATE = "/opt/aunserver/bin/aunserver-update";
+const KONFIG = "/etc/aunserver/config.yml";
 const EINHEIT = { setup: "aunserver-apply", update: "aunserver-update-run" };
 
 const zustand = {
@@ -17,6 +19,7 @@ const zustand = {
     entwurf: new Map(),   // Pfad -> {wert} oder {standard: true}
     ungueltig: new Map(), // Pfad -> {fehler, roh}: Eingabe, die sich nicht lesen ließ
     lauf: null,           // laufende Verfolgung eines Setup-/Update-Laufs
+    ersteinrichtung: false,
 };
 
 /* --- Hilfen --------------------------------------------------------------------------------- */
@@ -104,6 +107,7 @@ function zeigeReiter(name) {
         seite.hidden = seite.id !== name;
     cockpit.location.go([name]);
     const laden = { uebersicht: ladeUebersicht, aenderungen: ladeAenderungen, verlauf: ladeVerlauf, passwoerter: zeigePasswoerter };
+    if (zustand.ersteinrichtung) return;
     if (laden[name]) laden[name]().catch(ex => melde(fehlertext(ex), "fehler"));
 }
 
@@ -397,18 +401,19 @@ async function laufStatus(einheit) {
     return { aktiv, fehlgeschlagen: w.ActiveState === "failed", invocation: w.InvocationID };
 }
 
-async function starteLauf(art) {
+async function starteLauf(art, zusatz = [], admin = null) {
     const einheit = EINHEIT[art];
     if (zustand.lauf) return;
     const status = await laufStatus(einheit);
     if (status.aktiv) return verfolge(art, status.invocation);
-    const admin = (zustand.konfig && zustand.konfig.wirksam.admin_user) || "nasadmin";
-    const befehl = art === "setup" ? [SETUP, "--yes"] : [UPDATE, "--yes"];
+    admin = admin || (zustand.konfig && zustand.konfig.wirksam.admin_user) || "nasadmin";
+    const befehl = art === "setup" ? [SETUP, "--yes", ...zusatz] : [UPDATE, "--yes"];
     await cockpit.spawn(["systemctl", "reset-failed", einheit], { superuser: "require", err: "ignore" }).catch(() => {});
     try {
         // eigene Unit: läuft weiter, wenn das Fenster zu ist; SUDO_USER wie bei "sudo aunserver-setup"
         await cockpit.spawn(["systemd-run", "--unit=" + einheit, "--description=aunserver: " + (art === "setup" ? "übernehmen" : "aktualisieren"),
-            "--property=Type=exec", "--setenv=SUDO_USER=" + admin, "--setenv=TERM=dumb", ...befehl],
+            "--property=Type=exec", "--setenv=SUDO_USER=" + admin, "--setenv=TERM=dumb",
+            "--setenv=AUNSERVER_AUS_COCKPIT=1", ...befehl],
         { superuser: "require", err: "message" });
     } catch (ex) {
         melde("Konnte nicht starten:\n" + fehlertext(ex), "fehler");
@@ -432,7 +437,8 @@ function verfolge(art, invocation) {
         $("#update-starten").disabled = true;
     }
     ziel.textContent = "";
-    const args = invocation ? ["journalctl", "_SYSTEMD_INVOCATION_ID=" + invocation, "-f", "-o", "cat"]
+    // nur die Ausgabe des Laufs, nicht die Syslog-Zeilen der Ansible-Module
+    const args = invocation ? ["journalctl", "_SYSTEMD_INVOCATION_ID=" + invocation, "_TRANSPORT=stdout", "-f", "-o", "cat"]
         : ["journalctl", "-u", einheit, "-f", "-o", "cat", "-n", "200"];
     const leser = cockpit.spawn(args, { superuser: "require", err: "out" });
     leser.stream(daten => {
@@ -441,11 +447,22 @@ function verfolge(art, invocation) {
     });
     leser.catch(() => {});
     zustand.lauf = { art, leser };
+    let ausfaelle = 0;
     const takt = window.setInterval(async () => {
         let w;
         try {
             w = await systemctlShow(einheit);
+            ausfaelle = 0;
         } catch (_) {
+            // Verbindung zu Cockpit weg (z. B. Neustart): der Lauf geht als Unit weiter
+            if (++ausfaelle === 5) {
+                window.clearInterval(takt);
+                zustand.lauf = null;
+                marke.className = "marke warn";
+                marke.textContent = "Verbindung unterbrochen";
+                melde("Die Verbindung zu Cockpit ist abgebrochen. Der Lauf geht auf dem NAS weiter; Seite neu laden (ggf. neu anmelden), dann erscheint das Protokoll wieder.", "fehler");
+                $("#meldung").insertBefore(el("button", { class: "primaer", text: "Neu laden", onclick: () => window.location.reload() }), $("#meldung").lastChild);
+            }
             return;
         }
         if (["active", "activating", "reloading"].includes(w.ActiveState)) return;
@@ -457,7 +474,12 @@ function verfolge(art, invocation) {
             marke.className = "marke " + (ok ? "gut" : "fehler");
             marke.textContent = ok ? "fertig" : "fehlgeschlagen";
             $("#uebernehmen").disabled = false;
-            ladeAenderungen().catch(() => {});
+            if (zustand.ersteinrichtung) {
+                if (ok) window.setTimeout(() => window.location.reload(), 3000);   // jetzt mit allen Reitern
+                else $("#assistent-start").disabled = false;
+            } else {
+                ladeAenderungen().catch(() => {});
+            }
         } else {
             $("#update-starten").disabled = false;
         }
@@ -563,6 +585,170 @@ async function zugaengeZeigen() {
     pre.hidden = false;
 }
 
+
+/* --- Ersteinrichtung (D24): solange es keine config.yml gibt ------------------------------------ */
+
+function abschnitt(titel, ...felder) {
+    return el("section", { class: "bereich" }, el("h2", { text: titel }), felder);
+}
+
+function zeile(beschriftung, eingabe, hinweis) {
+    return el("div", { class: "feld" },
+        el("div", { class: "feld-text" }, el("label", { for: eingabe.id, text: beschriftung }),
+            hinweis ? el("span", { class: "hinweis", text: hinweis }) : null),
+        el("div", { class: "eingabe" }, eingabe));
+}
+
+function schalter(id, an, text) {
+    return el("label", { class: "schalter" }, el("input", { type: "checkbox", id, checked: an }), el("span", { class: "bahn" }), el("span", { text }));
+}
+
+function passwortPaar(id) {
+    return [el("input", { type: "password", id, autocomplete: "new-password" }),
+        el("input", { type: "password", id: id + "-2", autocomplete: "new-password", placeholder: "wiederholen" })];
+}
+
+async function zeigeEinrichten() {
+    zustand.schema = zustand.schema || await cliJson(["schema"]);
+    const s = zustand.schema.einstellungen;
+    const benutzer = await cockpit.user();
+    const [platten, schluessel, zonen] = await Promise.all([
+        cockpit.spawn([SETUP, "--disks"], { superuser: "require", err: "message" }),
+        cockpit.file(benutzer.home + "/.ssh/authorized_keys").read().catch(() => ""),
+        cockpit.spawn(["timedatectl", "list-timezones"], { err: "ignore" }).catch(() => ""),
+    ]);
+    const vorhanden = platten.split("\n").find(z => z.startsWith("vorhanden\t"));
+    const kandidaten = platten.split("\n").filter(z => z.startsWith("platte\t")).map(z => {
+        const [, name, modell, groesse, seriennummer] = z.split("\t");
+        return { name, modell: modell || "unbekannt", groesse, seriennummer: seriennummer || "unbekannt" };
+    });
+
+    let plattenTeil;
+    if (vorhanden) {
+        plattenTeil = el("p", { text: `Datenplatte gefunden (${vorhanden.split("\t")[1]}, Label AUNDATA): wird eingehängt, nicht formatiert.` });
+    } else {
+        const wahl = kandidaten.map((k, i) => el("label", { class: "schalter-text" },
+            el("input", { type: "radio", name: "platte", value: k.name, checked: i === 0, "data-serie": k.seriennummer }),
+            `/dev/${k.name}: ${k.modell}, ${k.groesse}, Seriennummer ${k.seriennummer}`));
+        wahl.push(el("label", { class: "schalter-text" },
+            el("input", { type: "radio", name: "platte", value: "", checked: kandidaten.length === 0 }),
+            "Keine eigene Datenplatte: Daten auf der Systemplatte"));
+        plattenTeil = el("div", { class: "eingabe" }, ...wahl,
+            el("label", { id: "bestaetigung-feld" }, "ACHTUNG, alle Daten auf der gewählten Platte werden gelöscht. Zum Bestätigen den Gerätenamen eintippen:",
+                el("input", { type: "text", id: "bestaetigung", autocomplete: "off", spellcheck: "false" })));
+    }
+
+    const host = el("input", { type: "text", id: "a-hostname", value: s.hostname.standard });
+    const domain = el("input", { type: "text", id: "a-domain", value: s.hostname.standard + ".home.arpa" });
+    let domainSelbst = false;
+    domain.addEventListener("input", () => { domainSelbst = true });
+    host.addEventListener("input", () => { if (!domainSelbst) domain.value = host.value + ".home.arpa" });
+    const zone = el("input", { type: "text", id: "a-zeitzone", value: s.timezone.standard, list: "zonen" });
+    const keys = el("textarea", { id: "a-ssh", spellcheck: "false", placeholder: "ssh-ed25519 AAAA… ich@laptop" });
+    keys.value = (schluessel || "").split("\n").filter(z => /^(ssh-|ecdsa-|sk-)/.test(z)).join("\n");
+
+    const apps = Object.keys(s).filter(p => p.startsWith("apps.") && s[p].stufe === "basis");
+    const appFelder = apps.map(p => zeile(s[p].text, schalter("a-" + p.replace(".", "-"), s[p].standard, "")));
+    const samba = passwortPaar("a-samba");
+    const ps2An = schalter("a-ps2", false, "");
+    const ps2 = passwortPaar("a-ps2pw");
+    const repo = el("input", { type: "text", id: "a-repo", placeholder: "/mnt/backup/aunserver oder sftp:user@rechner:/pfad" });
+    const label = el("input", { type: "text", id: "a-label", value: "AUNBACKUP" });
+    const zurueck = schalter("a-restore", false, "");
+    const backupPw = el("input", { type: "password", id: "a-backup-pw", autocomplete: "off" });
+
+    const start = el("button", { class: "primaer", id: "assistent-start", type: "submit", text: "Einrichten" });
+    const form = $("#assistent");
+    form.replaceChildren(
+        abschnitt("Datenplatte", el("div", { class: "feld" }, el("div", { class: "feld-text" },
+            el("span", { text: "Für Medien und Freigaben. Die Systemplatte und USB-Geräte stehen nicht zur Wahl." })), plattenTeil)),
+        abschnitt("Name und Zugang",
+            zeile(s.hostname.text, host), zeile(s.domain.text, domain), zeile(s.timezone.text, zone),
+            zeile("SSH-Schlüssel", keys, s.ssh_authorized_keys.text + " (einer pro Zeile)"),
+            zeile("Samba-Passwort für " + benutzer.name, el("div", { class: "eingabe" }, samba), "Mindestens 8 Zeichen")),
+        abschnitt("Apps", ...appFelder),
+        abschnitt("PS2-Freigabe",
+            zeile(s["samba_legacy.enabled"].text, ps2An),
+            zeile("Passwort für das Konto ps2", el("div", { class: "eingabe" }, ps2), s.samba_legacy_password.text)),
+        abschnitt("Backup der Einstellungen",
+            zeile(s["backup.repository"].text, repo, "Leer lassen = später eintragen"),
+            zeile(s["backup.disk_label"].text, label),
+            zeile("Vorhandenes Backup zurückspielen (Neuinstallation)", zurueck),
+            zeile("Passwort des vorhandenen Backups", backupPw, "Steht in der alten Zugangsübersicht")),
+        el("datalist", { id: "zonen" }, (zonen || "").split("\n").filter(Boolean).map(z => el("option", { value: z }))),
+        el("div", { class: "speicherleiste" }, el("span", { text: "Bis zum Start wird nichts verändert." }), start));
+
+    const sichtbar = () => {
+        const p = form.querySelector('input[name="platte"]:checked');
+        if ($("#bestaetigung-feld")) $("#bestaetigung-feld").hidden = !p || !p.value;
+        for (const e of ps2) e.closest(".feld").hidden = !$("#a-ps2").checked;
+        label.closest(".feld").hidden = !repo.value.startsWith("/mnt/backup");
+        zurueck.closest(".feld").hidden = !repo.value.trim();
+        backupPw.closest(".feld").hidden = !repo.value.trim() || !$("#a-restore").checked;
+    };
+    form.addEventListener("input", sichtbar);
+    form.addEventListener("change", sichtbar);
+    sichtbar();
+    form.onsubmit = ev => {
+        ev.preventDefault();
+        einrichten(benutzer.name, kandidaten).catch(ex => { melde(fehlertext(ex), "fehler"); start.disabled = false });
+    };
+}
+
+async function einrichten(admin, kandidaten) {
+    const wert = id => $(id).value.trim();
+    const probleme = [];
+    const platte = (document.querySelector('input[name="platte"]:checked') || {}).value;
+    const formatieren = !!platte;
+    if (formatieren && wert("#bestaetigung") !== platte) probleme.push(`Zum Formatieren den Gerätenamen ${platte} eintippen.`);
+    if (!/^[a-z][a-z0-9-]{0,62}$/.test(wert("#a-hostname"))) probleme.push("Name des NAS: Kleinbuchstaben, Ziffern, Bindestrich.");
+    const pw = (id, was) => {
+        if ($(id).value.length < 8) probleme.push(`${was}: mindestens 8 Zeichen.`);
+        else if ($(id).value !== $(id + "-2").value) probleme.push(`${was}: die beiden Eingaben stimmen nicht überein.`);
+    };
+    pw("#a-samba", "Samba-Passwort");
+    const ps2 = $("#a-ps2").checked;
+    if (ps2) pw("#a-ps2pw", "Passwort für ps2");
+    const repo = wert("#a-repo");
+    const restore = !!repo && $("#a-restore").checked;
+    if (restore && !$("#a-backup-pw").value) probleme.push("Passwort des vorhandenen Backups fehlt.");
+    if (probleme.length) return melde(probleme.join("\n"), "fehler");
+
+    const k = kandidaten.find(x => x.name === platte);
+    const frage = formatieren
+        ? `/dev/${platte} (${k.modell}, ${k.groesse}, Seriennummer ${k.seriennummer}) wird FORMATIERT, alle Daten darauf gehen verloren.\n\nJetzt einrichten?`
+        : "Jetzt einrichten?";
+    if (!window.confirm(frage)) return;
+    $("#assistent-start").disabled = true;
+
+    const apps = {};
+    for (const p of Object.keys(zustand.schema.einstellungen).filter(x => x.startsWith("apps.") && zustand.schema.einstellungen[x].stufe === "basis"))
+        apps[p.slice(5)] = $("#a-" + p.replace(".", "-")).checked;
+    const konfig = {
+        hostname: wert("#a-hostname"), admin_user: admin, timezone: wert("#a-zeitzone"), domain: wert("#a-domain"),
+        // ohne Auswahl (AUNDATA gefunden) eigene Datenplatte, sonst „keine“ = Systemplatte
+        single_disk: !!document.querySelector('input[name="platte"]') && !platte,
+        ssh_authorized_keys: $("#a-ssh").value.split("\n").map(z => z.trim()).filter(Boolean),
+        samba_password: $("#a-samba").value,
+        apps,
+        samba_legacy: { enabled: ps2 },
+        backup: { repository: repo, disk_label: repo.startsWith("/mnt/backup") ? wert("#a-label") : "" },
+    };
+    if (ps2) konfig.samba_legacy_password = $("#a-ps2pw").value;
+    await cli(["import", "-", "--grund", "Assistent in Cockpit"], JSON.stringify(konfig));
+    if (restore) {
+        await cockpit.spawn(["sh", "-c", "install -d -m 0700 /etc/aunserver/secrets && umask 077 && cat > /etc/aunserver/secrets/restic_password"],
+            { superuser: "require", err: "message" }).input($("#a-backup-pw").value + "\n");
+    }
+    const zusatz = [];
+    if (formatieren) zusatz.push("--data-disk", platte, "--format", "--confirm-disk", platte);
+    if (restore) zusatz.push("--restore");
+    $('[data-reiter="aenderungen"]').hidden = false;
+    zeigeReiter("aenderungen");
+    $("#aenderungen > article:first-child").hidden = true;
+    await starteLauf("setup", zusatz, admin);
+}
+
 /* --- Start ------------------------------------------------------------------------------------- */
 
 function start() {
@@ -592,8 +778,26 @@ function start() {
     });
 
     const ziel = cockpit.location.path[0];
-    ladeEinstellungen()
-        .then(() => zeigeReiter(document.getElementById(ziel) ? ziel : "uebersicht"))
+    cockpit.file(KONFIG, { superuser: "require" }).read()
+        .then(inhalt => {
+            if (inhalt !== null) {
+                return ladeEinstellungen().then(() => zeigeReiter(document.getElementById(ziel) && ziel !== "einrichten" ? ziel : "uebersicht"));
+            }
+            // noch nicht eingerichtet: nur der Assistent (und sein Protokoll)
+            zustand.ersteinrichtung = true;
+            for (const knopf of document.querySelectorAll("[data-reiter]")) knopf.hidden = knopf.dataset.reiter !== "einrichten";
+            zeigeReiter("einrichten");
+            return laufStatus(EINHEIT.setup).then(st => {
+                if (st.aktiv) {   // Einrichtung läuft schon (Seite neu geladen)
+                    $('[data-reiter="aenderungen"]').hidden = false;
+                    zeigeReiter("aenderungen");
+                    $("#aenderungen > article:first-child").hidden = true;
+                    verfolge("setup", st.invocation);
+                } else {
+                    return zeigeEinrichten();
+                }
+            });
+        })
         .catch(ex => melde(fehlertext(ex), "fehler"));
 }
 

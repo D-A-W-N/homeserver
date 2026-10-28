@@ -16,6 +16,7 @@
       <span id="version" class="leise"></span>
     </div>
     <nav class="reiter" role="tablist" aria-label="Bereiche">
+      <button role="tab" data-reiter="einrichten" hidden>Einrichten</button>
       <button role="tab" data-reiter="uebersicht" aria-selected="true">Übersicht</button>
       <button role="tab" data-reiter="einstellungen">Einstellungen</button>
       <button role="tab" data-reiter="aenderungen">Übernehmen <span id="zaehler" class="zaehler" hidden></span></button>
@@ -28,6 +29,15 @@
   <div id="meldung" class="meldung" role="status" hidden></div>
 
   <main>
+    <section id="einrichten" class="seite" hidden>
+      <article class="karte">
+        <h2>Willkommen</h2>
+        <p>Das NAS ist installiert, aber noch nicht eingerichtet. Diese Angaben reichen, alles Weitere lässt sich
+          danach unter „Einstellungen“ ändern. Das Einrichten dauert beim ersten Mal 10–20 Minuten.</p>
+      </article>
+      <form id="assistent" novalidate></form>
+    </section>
+
     <section id="uebersicht" class="seite">
       <div class="karten">
         <article class="karte">

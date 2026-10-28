@@ -44,6 +44,7 @@ Optionen (alle optional; was fehlt, wird gefragt bzw. bei --yes mit Standardwert
   --apps LISTE              kommagetrennt aus: adguard,emby,recommendarr,ps2gamemanager,uptime_kuma
                             (Standard: adguard,emby,recommendarr,ps2gamemanager)
   --no-playbook             nur Konfiguration schreiben (und ggf. formatieren)
+  --disks                   nur die möglichen Datenplatten zeigen (für den Assistenten in Cockpit)
   --reconfigure             Grundeinstellungen neu abfragen (Vorschlag: bisherige Werte); alle
                             übrigen Einstellungen der config.yml bleiben erhalten
   -h, --help                diese Hilfe
@@ -56,7 +57,7 @@ info() { echo "== $*"; }
 # --- Parameter -------------------------------------------------------------------
 COLLECTED=0 FORMAT_TARGET="" YES=0 CONFIG_IN="" DATA_DISK="" FORMAT=0 CONFIRM_DISK="" SINGLE=0 HOST="" DOMAIN="" TZONE=""
 SSH_KEYS=() SAMBA_PW="" PS2_PW="" PS2=-1 APPS="" RUN_PLAYBOOK=1 RECONFIGURE=0
-TAILSCALE=-1 TS_AUTHKEY="" BACKUP_REPO="" BACKUP_LABEL="" BACKUP_ASKED=0 BACKUP_PW="" RESTORE=0
+TAILSCALE=-1 TS_AUTHKEY="" BACKUP_REPO="" BACKUP_LABEL="" BACKUP_ASKED=0 BACKUP_PW="" RESTORE=0 DISKS=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --yes) YES=1 ;;
@@ -82,6 +83,7 @@ while [ $# -gt 0 ]; do
     --restore) RESTORE=1 ;;
     --no-playbook) RUN_PLAYBOOK=0 ;;
     --reconfigure) RECONFIGURE=1 ;;
+    --disks) DISKS=1 ;;
     -h|--help) usage; exit 0 ;;
     *) die "Unbekannte Option: $1 (siehe --help)" ;;
   esac
@@ -90,12 +92,14 @@ done
 
 [ "$(id -u)" = 0 ] || die "Bitte mit sudo ausführen: sudo $0"
 ADMIN=${SUDO_USER:-}
-if [ -z "$ADMIN" ] || [ "$ADMIN" = root ]; then die "Bitte als Admin-Benutzer mit sudo starten, nicht als root."; fi
-id -nG "$ADMIN" | grep -qw sudo || die "$ADMIN ist nicht in der Gruppe sudo."
+if [ "$DISKS" = 0 ]; then
+  if [ -z "$ADMIN" ] || [ "$ADMIN" = root ]; then die "Bitte als Admin-Benutzer mit sudo starten, nicht als root."; fi
+  id -nG "$ADMIN" | grep -qw sudo || die "$ADMIN ist nicht in der Gruppe sudo."
+fi
 
 # Nur ein Lauf zugleich (auch aunserver-update und Änderungen mit aunserver-config); ein
 # aufrufendes aunserver-update hält die Sperre schon und gibt sie weiter
-if [ "${AUNSERVER_LOCK_HELD:-}" != 1 ]; then
+if [ "${AUNSERVER_LOCK_HELD:-}" != 1 ] && [ "$DISKS" = 0 ]; then
   exec 9>/run/lock/aunserver.lock
   flock -n 9 || die "Setup, Update oder eine Änderung der Konfiguration läuft gerade; danach erneut versuchen."
   export AUNSERVER_LOCK_HELD=1
@@ -168,6 +172,20 @@ disk_in_use() { # irgendeine Partition der Platte eingehängt oder als Swap akti
 }
 
 existing_label() { blkid -t "LABEL=$LABEL" -o device 2>/dev/null || true; }
+
+# Für den Assistenten in Cockpit, je Zeile durch Tabulatoren getrennt:
+#   vorhanden <Gerät>                           Platte mit Label AUNDATA (wird nur eingehängt)
+#   platte <Name> <Modell> <Größe> <Seriennummer>
+list_disks() {
+  local d labeled
+  labeled=$(existing_label)
+  [ -n "$labeled" ] && printf 'vorhanden\t%s\n' "$labeled"
+  for d in $(candidate_disks); do
+    printf 'platte\t%s\t%s\t%s\t%s\n' "$d" \
+      "$(lsblk -dn -o MODEL "/dev/$d" | sed 's/ *$//')" "$(lsblk -dn -o SIZE "/dev/$d" | tr -d ' ')" \
+      "$(lsblk -dn -o SERIAL "/dev/$d" | tr -d ' ')"
+  done
+}
 
 format_disk() { # format_disk NAME
   local d=$1 part
@@ -413,7 +431,9 @@ run_playbook() {
     || die "$CONFIG ist fehlerhaft (siehe oben). Erklärung aller Werte: $REPO/docs/KONFIGURATION.md"
   # Log nur für root: enthält Pfade, Benutzer und Ablauf der Einrichtung
   install -m 0600 /dev/null "$LOG"
-  (cd "$REPO/ansible" && ansible-playbook -i localhost, -c local site.yml -e "@$eff_dir/effective.yml") 2>&1 | tee "$LOG"
+  # aus Cockpit gestartet (AUNSERVER_AUS_COCKPIT): Cockpit nicht neu starten, sonst endet die Sitzung
+  (cd "$REPO/ansible" && ansible-playbook -i localhost, -c local site.yml -e "@$eff_dir/effective.yml" \
+     -e "cockpit_neustart_aufschieben=${AUNSERVER_AUS_COCKPIT:-0}") 2>&1 | tee "$LOG"
   rc=${PIPESTATUS[0]}
   rm -f "$eff_dir/effective.yml"
   [ "$rc" = 0 ] || die "Das Playbook ist fehlgeschlagen, Details in $LOG. Danach erneut ausführen."
@@ -442,6 +462,7 @@ tailscale_login() {
 
 # --- Ablauf -------------------------------------------------------------------------
 main() {
+  [ "$DISKS" = 1 ] && { list_disks; exit 0; }
   ensure_tools
   if [ -n "$CONFIG_IN" ]; then
     [ -f "$CONFIG_IN" ] || die "$CONFIG_IN fehlt"
@@ -475,7 +496,8 @@ main() {
   fi
   [ -n "$FORMAT_TARGET" ] && format_disk "$FORMAT_TARGET"
   [ "$COLLECTED" = 1 ] && write_config
-  if [ "$RESTORE" = 1 ] && [ -z "$BACKUP_PW" ]; then
+  # das Passwort kann auch schon in secrets/ liegen (Assistent in Cockpit)
+  if [ "$RESTORE" = 1 ] && [ -z "$BACKUP_PW" ] && ! have_secret restic_password; then
     die "--restore braucht das Passwort des Backups (--backup-password) und das Ziel (--backup-repo)."
   fi
   [ -n "$BACKUP_PW" ] && write_backup_password
