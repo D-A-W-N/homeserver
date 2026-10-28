@@ -165,14 +165,18 @@ jobs:
               | jq -e '.[] | select(.name == "[German] HD Bluray + WEB") | .cutoffFormatScore == 13500'
           done
 
-      - name: Firewall ohne DLNA-Liste und PS2-IP wie bisher (kein SSDP, keine Umleitung)
+      - name: Firewall ohne DLNA-Liste, PS2-IP und LAN-Ports wie bisher (kein SSDP, keine Umleitung, kein 8400)
         run: |
           ssh_vm() { ssh -n -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost "$@"; }
           # Die CI setzt weder emby_dlna_renderers noch samba_legacy.allowed_clients: dann darf weder
-          # 1900 noch das Set noch die Umleitung 445 -> 1445 für die PS2 auftauchen
+          # 1900 noch das Set noch die Umleitung 445 -> 1445 für die PS2 auftauchen; ohne
+          # caddy_lan_ports weder die Ports 8400-8417 noch eine IP-Adresse im Caddyfile
           regeln=$(ssh_vm "printf '%s\n' aunserver | sudo -S -p '' nft list table inet aunserver")
           grep -q "chain input" <<<"$regeln"
-          if grep -E '1900|dlna_renderers|prerouting|redirect' <<<"$regeln"; then exit 1; fi
+          if grep -E '1900|dlna_renderers|prerouting|redirect|8400' <<<"$regeln"; then exit 1; fi
+          caddyfile=$(ssh_vm "printf '%s\n' aunserver | sudo -S -p '' cat /opt/stacks/proxy/caddy/Caddyfile")
+          grep -q "sonarr.nas.home.arpa {" <<<"$caddyfile"
+          if grep -E 'https://[0-9.]+:84' <<<"$caddyfile"; then exit 1; fi
 
       - name: Backup ausführen und Sicherung prüfen
         run: |

@@ -25,6 +25,9 @@ recyclarr_eigene_config: false
 ntfy_default_access: read-write
 # ntfy: Weckruf über ntfy.sh, nur für die iPhone-App nötig (ohne Inhalt, aber mit Zeitpunkt)
 ntfy_ios_push: true
+# Caddy: true = Web-Apps zusätzlich unter https://<LAN-IP>:<Port> (stacks_lan_ports), nur aus dem LAN.
+# Für Geräte, die die Namen nicht auflösen (z. B. Handy mit Mullvad-App, das DNS nur an Mullvad schickt)
+caddy_lan_ports: false
 
 # Speicher (Plan, Abschnitt 5)
 # true = keine eigene Datenplatte, data_mount liegt auf der Systemplatte

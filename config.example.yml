@@ -31,6 +31,9 @@ ntfy_default_access: read-write
 # ntfy: false = kein Weckruf über ntfy.sh (nur für iPhones nötig)
 ntfy_ios_push: true
 
+# Web-Apps zusätzlich über https://<IP>:<Port> aus dem LAN, ohne Namen (docs/BETRIEB.md, Zugänge)
+caddy_lan_ports: false
+
 # SMB1 für PS2/OPL (getrennte Samba-Instanz, nur SMB1, eigener Benutzer ps2)
 samba_legacy:
   enabled: true

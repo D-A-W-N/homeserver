@@ -1,4 +1,6 @@
 # {{ ansible_managed }}
+{# zweite Adresse derselben Seite: https://<LAN-IP>:<Port> (caddy_lan_ports) #}
+{% macro lan(app) %}{% if caddy_lan_ports | bool %}, https://{{ ansible_facts.default_ipv4.address }}:{{ stacks_lan_ports[app] }}{% endif %}{% endmacro %}
 {
 	# eigene CA für alle Seiten (D17); Stammzertifikat unter http://{{ domain }}/ca.crt
 	local_certs
@@ -31,15 +33,15 @@ http://{{ domain }} {
 	reverse_proxy 127.0.0.1:{{ stacks_ports.homepage }}
 }
 
-{{ stacks_hosts.arcane }}.{{ domain }} {
+{{ stacks_hosts.arcane }}.{{ domain }}{{ lan('arcane') }} {
 	reverse_proxy 127.0.0.1:{{ stacks_ports.arcane }}
 }
 
-{{ stacks_hosts.beszel }}.{{ domain }} {
+{{ stacks_hosts.beszel }}.{{ domain }}{{ lan('beszel') }} {
 	reverse_proxy 127.0.0.1:{{ stacks_ports.beszel }}
 }
 
-{{ stacks_hosts.dozzle }}.{{ domain }} {
+{{ stacks_hosts.dozzle }}.{{ domain }}{{ lan('dozzle') }} {
 	import geschuetzt
 	reverse_proxy 127.0.0.1:{{ stacks_ports.dozzle }} {
 		# Dozzle (forward-proxy) übernimmt den bei Caddy angemeldeten Benutzer
@@ -47,17 +49,17 @@ http://{{ domain }} {
 	}
 }
 
-{{ stacks_hosts.scrutiny }}.{{ domain }} {
+{{ stacks_hosts.scrutiny }}.{{ domain }}{{ lan('scrutiny') }} {
 	import geschuetzt
 	reverse_proxy 127.0.0.1:{{ stacks_ports.scrutiny }}
 }
 
-{{ stacks_hosts.ntfy }}.{{ domain }} {
+{{ stacks_hosts.ntfy }}.{{ domain }}{{ lan('ntfy') }} {
 	reverse_proxy 127.0.0.1:{{ stacks_ports.ntfy }}
 }
 {% if apps.adguard | bool %}
 
-{{ stacks_hosts.adguard }}.{{ domain }} {
+{{ stacks_hosts.adguard }}.{{ domain }}{{ lan('adguard') }} {
 	reverse_proxy 127.0.0.1:{{ stacks_ports.adguard_ui }}
 }
 {% endif %}
@@ -70,14 +72,14 @@ http://{{ domain }} {
 
 # --- Medien (M5) ---
 {% for app in ['prowlarr', 'sonarr', 'radarr', 'lidarr'] %}
-{{ stacks_hosts[app] }}.{{ domain }} {
+{{ stacks_hosts[app] }}.{{ domain }}{{ lan(app) }} {
 	reverse_proxy 127.0.0.1:{{ stacks_ports[app] }}
 }
 
 {% endfor %}
 # ohne eigene, automatisch setzbare Anmeldung: Passwort in Caddy
 {% for app in ['sabnzbd', 'bazarr'] %}
-{{ stacks_hosts[app] }}.{{ domain }} {
+{{ stacks_hosts[app] }}.{{ domain }}{{ lan(app) }} {
 	import geschuetzt
 	reverse_proxy 127.0.0.1:{{ stacks_ports[app] }}
 }
@@ -91,7 +93,7 @@ http://{{ domain }} {
 {% endif %}
 {% if apps.recommendarr | bool %}
 # eigene App ohne Login: Passwort in Caddy
-{{ stacks_hosts.recommendarr }}.{{ domain }} {
+{{ stacks_hosts.recommendarr }}.{{ domain }}{{ lan('recommendarr') }} {
 	import geschuetzt
 	reverse_proxy 127.0.0.1:{{ stacks_ports.recommendarr }}
 }
@@ -99,7 +101,7 @@ http://{{ domain }} {
 {% endif %}
 {% if apps.ps2gamemanager | bool %}
 # hat Schreibzugriff auf die ganze Datenplatte: Passwort in Caddy
-{{ stacks_hosts.ps2gamemanager }}.{{ domain }} {
+{{ stacks_hosts.ps2gamemanager }}.{{ domain }}{{ lan('ps2gamemanager') }} {
 	import geschuetzt
 	reverse_proxy 127.0.0.1:{{ stacks_ports.ps2gamemanager }}
 }
