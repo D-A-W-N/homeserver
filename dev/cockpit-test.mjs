@@ -24,10 +24,13 @@ const browser = await chromium.launch({
 });
 const kontext = await browser.newContext({ ignoreHTTPSErrors: true, locale: "de-DE", viewport: { width: 1280, height: 900 } });
 const seite = await kontext.newPage();
-seite.on("pageerror", e => fehler.push(`pageerror (${new Date().toISOString()}): ${e.name}: ${e.message}\n${e.stack || ""}`));
+// Fehler erst ab der aunserver-Seite zählen: die Cockpit-Oberfläche selbst meldet vor dem ersten
+// Setup (ohne cockpit-storaged usw.) gelegentlich einen eigenen Fehler
+let eigeneSeite = false;
+seite.on("pageerror", e => eigeneSeite && fehler.push(`pageerror (${new Date().toISOString()}): ${e.name}: ${e.message}\n${e.stack || ""}`));
 // 401 gehört zur Anmeldeseite von Cockpit (Abfrage vor dem Login), kein Fehler der Seite
 seite.on("console", m => {
-    if (m.type() === "error" && !/status of 401 \(Authentication failed\)/.test(m.text())) fehler.push("console: " + m.text());
+    if (eigeneSeite && m.type() === "error" && !/status of 401 \(Authentication failed\)/.test(m.text())) fehler.push("console: " + m.text());
 });
 
 // Rückfall, falls Cockpit trotzdem eingeschränkt startet: oben rechts umschalten
@@ -58,6 +61,7 @@ try {
     await adminZugriff();
 
     // die Seite direkt, ohne Cockpit-Rahmen (cockpit.js verbindet sich selbst)
+    eigeneSeite = true;
     await seite.goto(basis + "/cockpit/@localhost/aunserver/index.html");
     if (modus === "einrichten") await einrichten();
     else await editor();
