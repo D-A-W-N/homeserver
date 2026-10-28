@@ -126,6 +126,11 @@ mkdir -p "$NEW"
 curl -fsSL --max-time 300 "https://codeload.github.com/$GH_REPO/tar.gz/$REMOTE" \
   | tar -xz --no-same-owner --strip-components=1 -C "$NEW" || die "Download fehlgeschlagen."
 [ -x "$NEW/bin/aunserver-setup" ] && [ -f "$NEW/ansible/site.yml" ] || die "Download unvollständig."
+# Versteht der neue Stand die vorhandene Konfiguration? Sonst abbrechen, bevor etwas ausgetauscht ist
+if [ -x "$NEW/bin/aunserver-config" ] && [ -f /etc/aunserver/config.yml ]; then
+  "$NEW/bin/aunserver-config" validate /etc/aunserver/config.yml >/dev/null \
+    || die "Der neue Stand lehnt /etc/aunserver/config.yml ab (siehe oben); nichts wurde verändert. Werte korrigieren und erneut versuchen."
+fi
 
 rm -rf "$PREV"
 mv "$REPO" "$PREV"

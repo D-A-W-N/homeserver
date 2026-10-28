@@ -47,4 +47,6 @@ vm_sudo install -m 0600 -o root -g root "/home/${VM_USER:-nasadmin}/aunserver-co
 vm rm -f aunserver-config.yml
 
 echo "== Playbook"
-vm_sudo sh -c "cd /opt/aunserver/ansible && ANSIBLE_FORCE_COLOR=1 ansible-playbook -i localhost, -c local site.yml -e @/etc/aunserver/config.yml $*"
+# wie aunserver-setup: geprüft und mit allen Standardwerten (D21)
+vm_sudo sh -c "install -d -m 0700 /run/aunserver && /opt/aunserver/bin/aunserver-config effective /etc/aunserver/config.yml --out /run/aunserver/effective.yml"
+vm_sudo sh -c "cd /opt/aunserver/ansible && ANSIBLE_FORCE_COLOR=1 ansible-playbook -i localhost, -c local site.yml -e @/run/aunserver/effective.yml $*"

@@ -243,9 +243,15 @@ aunserver/
 ├── README.md
 ├── CLAUDE.md                    # Regeln für Claude-Sessions (Gitflow)
 ├── COMMIT                       # git archive trägt den Commit ein (export-subst, D20)
-├── config.example.yml
+├── config.example.yml           # erzeugt aus config/schema.yml
+├── config/
+│   └── schema.yml               # alle einstellbaren Werte: Typ, Standard, Erklärung (D21)
+├── lib/
+│   └── aunserver_config.py      # prüfen, zusammenführen, Vorlagen erzeugen (bin/aunserver-config)
+├── tests/                       # Unit-Tests für aunserver-config, Beispielkonfigurationen
 ├── docs/
 │   ├── PLAN.md                  # dieses Dokument
+│   ├── KONFIGURATION.md         # alle Einstellungen, erzeugt aus config/schema.yml
 │   ├── spikes.md                # Ergebnisse der Vorab-Tests
 │   ├── beispiele/               # z. B. eigene Recyclarr-Profile (nicht ausgerollt)
 │   └── BETRIEB.md               # Bedienung, Updates, Wiederherstellung
@@ -256,10 +262,11 @@ aunserver/
 │   └── aunserver-login.sh       # Login-Hinweis aufs Setup
 ├── bin/
 │   ├── aunserver-setup
-│   └── aunserver-update
+│   ├── aunserver-update
+│   └── aunserver-config         # Konfiguration prüfen und zusammenführen (D21)
 ├── ansible/
 │   ├── site.yml
-│   ├── group_vars/all.yml       # Defaults der config.yml
+│   ├── group_vars/all/          # intern.yml (Pfade, Ordner); einstellungen.yml erzeugt aus config/schema.yml
 │   ├── filter_plugins/          # arr_from_schema
 │   └── roles/
 │       ├── base/                # Pakete, Zeitzone, zram, Updates, Backports
@@ -287,7 +294,7 @@ aunserver/
 │   └── preseed-dev.cfg
 ├── renovate.json
 └── .github/workflows/
-    ├── lint.yml                 # shellcheck, yamllint, ansible-lint, Renovate-Validator, gitleaks
+    ├── lint.yml                 # shellcheck, yamllint, Schema-Tests, ansible-lint, Renovate-Validator, gitleaks
     ├── vm-test.yml              # Dev-ISO bauen, installieren, Setup zweimal, Backup/Restore (UEFI + BIOS); Job vm-test = Pflicht-Check
     ├── iso-cache.yml            # Debian-ISO im Cache von main
     └── release.yml              # ISO bauen bei Tag
@@ -408,7 +415,7 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 
 ### M10 – Konfiguration und Installation (D21–D25)
 Je Phase ein PR mit VM-Test; jede neue Einstellung hat als Standard das bisherige Verhalten. Testkonfigurationen (eigenes NAS anonymisiert, Stil des Kollegen, minimal) müssen nach jeder Migration dasselbe Ergebnis liefern.
-- [ ] **P1 Fundament:** Schema, `aunserver-config validate/show [--effective]`, zusammengeführte Konfiguration für Ansible, generierte `docs/KONFIGURATION.md` und `config.example.yml` (CI prüft Aktualität); VM-Test: Ergebnis gleich wie vorher
+- [x] **P1 Fundament:** Schema, `aunserver-config validate/show [--effective]`, zusammengeführte Konfiguration für Ansible, generierte `docs/KONFIGURATION.md` und `config.example.yml` (CI prüft Aktualität); VM-Test: Ergebnis gleich wie vorher. Umgesetzt: unbekannte Namen sind Warnungen mit Vorschlag (interne Variablen werden ungeprüft durchgereicht), falsche Typen Fehler; Setup und `aunserver-update` prüfen vor jeder Änderung; Ansible bekommt `/run/aunserver/effective.yml` (nur während des Laufs)
 - [ ] **P2 Sicher ändern:** `set/unset/diff/history/revert`, flock mit Setup und Update, nur Abweichungen speichern, `config_version` mit Migration, Passwörter nach `secrets/`, `passwd`; `--reconfigure` behält alle übrigen Einstellungen
 - [ ] **P3 Cockpit-Plugin:** Übersicht, Formular aus dem Schema (Basis/Erweitert), Diff, Anwenden als `aunserver-apply.service` mit Live-Log, Verlauf, Passwörter, Update, Zugänge
 - [ ] **P4 Setup aus dem Schema:** whiptail fragt nur Basiswerte; Erststart-Assistent im Browser, Formatieren nur nach Eintippen des Gerätenamens

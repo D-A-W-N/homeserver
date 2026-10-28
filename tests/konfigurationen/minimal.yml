@@ -1,0 +1,5 @@
+---
+# Nur Abweichungen vom Standard (D21)
+hostname: kleinnas
+apps:
+  emby: false

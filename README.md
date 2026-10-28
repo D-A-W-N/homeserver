@@ -28,7 +28,7 @@ Nach einer Neuinstallation mit vorhandenem Backup: `sudo /opt/aunserver/bin/auns
 
 Das Skript fragt Datenplatte, Hostname, SSH-Schlüssel, Apps und Passwörter ab, formatiert die Datenplatte erst nach Eintippen ihres Gerätenamens und einer letzten Zusammenfassung und richtet dann alles ein (beim ersten Mal 10–20 Minuten). Am Ende zeigt es alle Zugänge (später: `sudo cat /etc/aunserver/zugaenge.txt`).
 
-Es ist jederzeit erneut ausführbar: Eine vorhandene Konfiguration (`/etc/aunserver/config.yml`) und Datenplatte (Label `AUNDATA`) werden weiterverwendet. Änderungen also in der `config.yml` vornehmen und das Skript erneut starten (nach der ersten Einrichtung kurz `sudo aunserver-setup`). Alle Antworten gehen auch als Parameter (`--help`).
+Es ist jederzeit erneut ausführbar: Eine vorhandene Konfiguration (`/etc/aunserver/config.yml`) und Datenplatte (Label `AUNDATA`) werden weiterverwendet. Änderungen also in der `config.yml` vornehmen und das Skript erneut starten (nach der ersten Einrichtung kurz `sudo aunserver-setup`). Alle Einstellungen mit Standardwert stehen in [docs/KONFIGURATION.md](docs/KONFIGURATION.md) (erzeugt aus `config/schema.yml`), prüfen mit `sudo aunserver-config validate`. Alle Antworten gehen auch als Parameter (`--help`).
 
 Updates: Debian und Docker aktualisieren sich selbst; neue Stände von aunserver und den Apps meldet das NAS per ntfy, installiert wird mit `sudo aunserver-update`.
 
@@ -59,7 +59,7 @@ dev/vm-ansible.sh /tmp/test.yml      # Repo in die VM kopieren und das Playbook 
 
 `autoinstall` nutzt den echten Preseed aus `installer/` plus `dev/preseed-dev.cfg` (Benutzer `nasadmin`, Passwort `aunserver`, eigener SSH-Schlüssel, keine Rückfragen). Für manuelle Installationen gibt es weiterhin `install`.
 
-Die CI fährt denselben Ablauf in einer KVM-VM (`.github/workflows/vm-test.yml`, UEFI und BIOS): Dev-ISO bauen, davon installieren, Setup zweimal ausführen (der zweite Lauf muss `changed=0` melden), Backup und Wiederherstellung prüfen. Die VM startet nur, wenn ein PR `ansible/`, `installer/`, `dev/`, `stacks/` oder `bin/` ändert; der Job `vm-test` fasst das Ergebnis zusammen und ist Pflicht-Check im Ruleset von `main`.
+Die CI fährt denselben Ablauf in einer KVM-VM (`.github/workflows/vm-test.yml`, UEFI und BIOS): Dev-ISO bauen, davon installieren, Setup zweimal ausführen (der zweite Lauf muss `changed=0` melden), Backup und Wiederherstellung prüfen. Die VM startet nur, wenn ein PR `ansible/`, `installer/`, `dev/`, `stacks/`, `bin/`, `lib/` oder `config/` ändert; der Job `vm-test` fasst das Ergebnis zusammen und ist Pflicht-Check im Ruleset von `main`.
 
 Image- und Action-Updates kommen per [Renovate](https://docs.renovatebot.com/) als Pull Request.
 

@@ -1,0 +1,38 @@
+---
+# Setup-Datei mit von Hand ergänzten Schaltern (Stil eines zweiten NAS), Werte erfunden
+hostname: 'nas2'
+admin_user: 'nasadmin'
+timezone: 'Europe/Berlin'
+domain: 'nas2.home.arpa'
+single_disk: true
+ssh_authorized_keys: []
+samba_password: 'test-passwort'
+tailscale_authkey: 'tskey-auth-test'
+backup:
+  repository: 'sftp:backup@pc:/srv/backup/nas2'
+  disk_label: ''
+  env: { RESTIC_COMPRESSION: max }
+  schedule: '*-*-* 02:00'
+  keep: { daily: 14, weekly: 8, monthly: 12 }
+apps:
+  adguard: false
+  tailscale: true
+  wireguard: false
+  uptime_kuma: true
+  emby: true
+  recommendarr: false
+  ps2gamemanager: false
+samba_legacy:
+  enabled: false
+  port: 1445
+  allowed_clients: []
+  shares:
+    - name: PS2SMB
+      path: games/ps2
+emby_dlna_renderers: [192.168.178.110, 192.168.178.207]
+network_tailscale_exit_node: true
+recyclarr_eigene_config: true
+ntfy_default_access: write-only
+ntfy_ios_push: false
+caddy_lan_ports: true
+lan_subnets: [192.168.178.0/24]
