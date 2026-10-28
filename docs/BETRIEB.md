@@ -133,6 +133,10 @@ Woher neue Versionen kommen: Renovate prüft das Repo und legt montags früh fü
 
 ## Konfiguration ändern
 
+**Im Browser:** Cockpit (`https://cockpit.nas.home.arpa` oder `https://<IP>:9090`) → **aunserver**. Dort stehen alle Einstellungen nach Bereichen mit Erklärung (erweiterte auf Wunsch), **Übernehmen** zeigt, was sich seit dem letzten Lauf geändert hat, und startet das Setup mit Protokoll (es läuft weiter, auch wenn das Fenster zu ist). Dazu der **Verlauf** mit Zurückholen, **Passwörter** ändern, **Zugänge** und die Suche nach Updates. Nötig ist der Administratorzugriff in Cockpit (oben rechts). Die Seite schreibt nichts selbst, sondern ruft `aunserver-config` auf: dieselben Prüfungen wie auf der Kommandozeile.
+
+**Auf der Kommandozeile:**
+
 Alle Einstellungen (Hostname, Apps, Backup-Ziel, PS2-Freigabe …) stehen in `/etc/aunserver/config.yml`. Welche es gibt, mit Standardwert und Erklärung, steht in [KONFIGURATION.md](KONFIGURATION.md). In die Datei gehört nur, was vom Standard abweicht, auch in Blöcken: `apps: {emby: false}` lässt die übrigen Apps auf ihrem Standard. Ändern und danach abgleichen:
 
 ```bash

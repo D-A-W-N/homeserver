@@ -32,7 +32,7 @@ python3 -m unittest discover -s tests && bin/aunserver-config generate --check
 
 Neue oder geänderte Einstellungen nur in [config/schema.yml](config/schema.yml), danach `bin/aunserver-config generate` (erzeugt `ansible/group_vars/all/einstellungen.yml`, `config.example.yml`, `docs/KONFIGURATION.md`; nie von Hand ändern). Standard = bisheriges Verhalten.
 
-Die CI ([.github/workflows/](.github/workflows/)) prüft dasselbe plus gitleaks; bei Änderungen an `ansible/`, `stacks/`, `bin/`, `lib/`, `config/`, `installer/`, `dev/` läuft zusätzlich der VM-Test (UEFI und BIOS, zweiter Setup-Lauf muss `changed=0` melden); der Pflicht-Check `vm-test` fasst das zusammen und ist sonst sofort grün. Idempotenz also immer mitdenken.
+Die CI ([.github/workflows/](.github/workflows/)) prüft dasselbe plus gitleaks; bei Änderungen an `ansible/`, `stacks/`, `bin/`, `lib/`, `config/`, `cockpit/`, `installer/`, `dev/` läuft zusätzlich der VM-Test (UEFI und BIOS, zweiter Setup-Lauf muss `changed=0` melden); der Pflicht-Check `vm-test` fasst das zusammen und ist sonst sofort grün. Idempotenz also immer mitdenken.
 
 ## Nie einchecken
 

@@ -255,6 +255,7 @@ aunserver/
 │   ├── spikes.md                # Ergebnisse der Vorab-Tests
 │   ├── beispiele/               # z. B. eigene Recyclarr-Profile (nicht ausgerollt)
 │   └── BETRIEB.md               # Bedienung, Updates, Wiederherstellung
+├── cockpit/aunserver/           # Cockpit-Seite: Einstellungen, Übernehmen, Verlauf, Passwörter (D22)
 ├── installer/
 │   ├── build-iso.sh
 │   ├── preseed.cfg.in
@@ -291,6 +292,7 @@ aunserver/
 ├── dev/
 │   ├── vm-test.sh               # QEMU-Testmatrix
 │   ├── vm-ansible.sh            # Repo in die VM, Playbook ausführen
+│   ├── cockpit-test.mjs         # Browser-Test der Cockpit-Seite (Playwright, im VM-Test)
 │   └── preseed-dev.cfg
 ├── renovate.json
 └── .github/workflows/
@@ -418,7 +420,7 @@ Je Phase ein PR mit VM-Test; jede neue Einstellung hat als Standard das bisherig
 - [x] **P1 Fundament:** Schema, `aunserver-config validate/show [--effective]`, zusammengeführte Konfiguration für Ansible, generierte `docs/KONFIGURATION.md` und `config.example.yml` (CI prüft Aktualität); VM-Test: Ergebnis gleich wie vorher. Umgesetzt: unbekannte Namen sind Warnungen mit Vorschlag (interne Variablen werden ungeprüft durchgereicht), falsche Typen Fehler; Setup und `aunserver-update` prüfen vor jeder Änderung; Ansible bekommt `/run/aunserver/effective.yml` (nur während des Laufs)
 - [x] **P2a Sicher ändern:** `get/set/unset/import/diff/history/revert`, Sperre mit Setup und Update, `config_version` 2 mit Migration, Passwörter nach `secrets/`; Setup schreibt nur noch, was es fragt, `--reconfigure` behält alle übrigen Einstellungen und vorhandene Passwörter. Abweichung vom Plan: vorhandene Werte gleich dem Standard bleiben stehen (eine Migration soll nichts still umdeuten); Kommentare bleiben dank ruamel.yaml erhalten
 - [x] **P2b Passwörter ändern:** `aunserver-config passwd samba|ps2|web`, das Web-Passwort wirksam in Caddy, AdGuard, Beszel und den Servarr-Apps
-- [ ] **P3 Cockpit-Plugin:** Übersicht, Formular aus dem Schema (Basis/Erweitert), Diff, Anwenden als `aunserver-apply.service` mit Live-Log, Verlauf, Passwörter, Update, Zugänge
+- [x] **P3 Cockpit-Plugin:** Übersicht, Formular aus dem Schema (Basis/Erweitert), Diff, Anwenden als `aunserver-apply.service` mit Live-Log, Verlauf, Passwörter, Update, Zugänge
 - [ ] **P4 Setup aus dem Schema:** whiptail fragt nur Basiswerte; Erststart-Assistent im Browser, Formatieren nur nach Eintippen des Gerätenamens
 - [ ] **P5 Installer:** Hostname, DHCP/feste IP, Sprache/Tastatur, Benutzer, SSH-Schlüssel; Partitionsrezept ohne Swap; Testmatrix erweitert. Feste IP später nur mit automatischem Rückfall ohne Bestätigung
 - [ ] **P6 Persönliches ISO:** `build-iso.sh --config`, automatischer Erststart, Restore aus Backup ohne Dialoge

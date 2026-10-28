@@ -1,0 +1,17 @@
+{
+    "version": 0,
+    "require": {
+        "cockpit": "300"
+    },
+    "menu": {
+        "index": {
+            "label": "aunserver",
+            "order": 1,
+            "keywords": [
+                {
+                    "matches": ["nas", "einstellungen", "konfiguration", "apps", "passwort", "backup", "update"]
+                }
+            ]
+        }
+    }
+}

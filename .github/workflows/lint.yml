@@ -25,6 +25,11 @@ jobs:
           if [ "${#files[@]}" -gt 0 ]; then shellcheck "${files[@]}"; fi
       - name: yamllint
         run: yamllint .
+      - name: Cockpit-Seite (JavaScript-Syntax, Manifest)
+        run: |
+          node --check cockpit/aunserver/aunserver.js
+          node --check dev/cockpit-test.mjs
+          python3 -m json.tool cockpit/aunserver/manifest.json > /dev/null
       - name: Konfigurationsschema (Tests, erzeugte Dateien aktuell, Beispiel gültig)
         run: |
           python3 -m unittest discover -s tests -v
