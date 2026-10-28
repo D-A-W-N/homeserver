@@ -918,8 +918,14 @@ def cmd_unset(args, schema):
 
 
 def cmd_import(args, schema):
-    """Werte aus einer Datei übernehmen, alles andere bleibt (aunserver-setup, --reconfigure)."""
-    incoming = load_config(args.quelle)
+    """Werte aus einer Datei (- = stdin, YAML oder JSON) übernehmen, alles andere bleibt (Setup, Assistent)."""
+    if args.quelle == "-":
+        try:
+            incoming = yaml.safe_load(sys.stdin) or {}
+        except yaml.YAMLError as e:
+            die(f"stdin ist kein gültiges YAML/JSON: {e}")
+    else:
+        incoming = load_config(args.quelle)
     res = validate(schema, incoming)
     unknown = [w for w in res.warnings if "unbekannte Einstellung" in w or "interner Wert" in w]
     if res.errors or unknown:

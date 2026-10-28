@@ -1,16 +1,20 @@
 // Browser-Test der aunserver-Seite in Cockpit (VM-Test, M10 P3).
 //
-//   node dev/cockpit-test.mjs <benutzer> <passwort> <ordner-für-bilder>
+//   node dev/cockpit-test.mjs editor     <benutzer> <passwort> <ordner-für-bilder>
+//   node dev/cockpit-test.mjs einrichten <benutzer> <passwort> <ordner-für-bilder> <seriennummer> <ssh-schlüssel>
 //
 // Erwartet Cockpit unter https://nas.home.arpa:9090 (VM-Weiterleitung auf localhost:9090; der Name
 // wird im Browser auf 127.0.0.1 gelegt, damit der Origin zu cockpit.conf passt). Braucht
 // playwright-core und Google Chrome (auf den GitHub-Runnern vorhanden).
 //
-// Ablauf: anmelden, Seite laden, eine Einstellung ändern und speichern, die Änderung unter
-// „Übernehmen“ und im Verlauf finden, Bilder ablegen. Keine JavaScript-Fehler erlaubt.
+// editor: anmelden, Seite laden, eine Einstellung ändern und speichern, die Änderung unter
+// „Übernehmen“ und im Verlauf finden, Bilder ablegen.
+// einrichten: Ersteinrichtung mit dem Assistenten wie im VM-Test über die Kommandozeile (Datenplatte
+// über die Seriennummer, formatieren, PS2-Freigabe, Backup-Ziel), warten bis das Setup fertig ist.
+// Keine JavaScript-Fehler erlaubt.
 import { chromium } from "playwright-core";
 
-const [benutzer, passwort, bilder] = process.argv.slice(2);
+const [modus, benutzer, passwort, bilder, seriennummer, sshSchluessel] = process.argv.slice(2);
 const basis = "https://nas.home.arpa:9090";
 const fehler = [];
 
@@ -55,6 +59,46 @@ try {
 
     // die Seite direkt, ohne Cockpit-Rahmen (cockpit.js verbindet sich selbst)
     await seite.goto(basis + "/cockpit/@localhost/aunserver/index.html");
+    if (modus === "einrichten") await einrichten();
+    else await editor();
+} catch (ex) {
+    await bild("fehler").catch(() => {});
+    fehler.push(String(ex));
+}
+await browser.close();
+if (fehler.length) {
+    console.error(fehler.join("\n"));
+    process.exit(1);
+}
+console.log(`Cockpit-Seite in Ordnung (${modus})`);
+
+async function einrichten() {
+    await seite.waitForSelector('#assistent input[name="platte"]', { timeout: 60000 });
+    await bild("0-assistent");
+    const platte = seite.locator(`#assistent input[name="platte"][data-serie="${seriennummer}"]`);
+    await platte.check();
+    const name = await platte.getAttribute("value");
+    await seite.fill("#bestaetigung", name);
+    await seite.fill("#a-hostname", "nas");
+    await seite.fill("#a-ssh", sshSchluessel);
+    await seite.fill("#a-samba", "ci-test-123");
+    await seite.fill("#a-samba-2", "ci-test-123");
+    await seite.locator('label:has(#a-ps2)').click();
+    await seite.fill("#a-ps2pw", "ci-ps2-123");
+    await seite.fill("#a-ps2pw-2", "ci-ps2-123");
+    await seite.fill("#a-repo", "/var/backups/aunserver-ci");
+    await bild("0-assistent-ausgefuellt");
+    seite.on("dialog", d => d.accept());
+    await seite.click("#assistent-start");
+    await seite.waitForSelector("#ae-protokoll-karte:not([hidden])", { timeout: 60000 });
+    // das Setup dauert; danach lädt die Seite neu, jetzt mit allen Reitern
+    await seite.waitForSelector("#ae-status.gut, #ae-status.fehler", { timeout: 45 * 60000 });
+    await bild("0-assistent-fertig");
+    if (await seite.locator("#ae-status.fehler").count()) throw new Error("Einrichtung fehlgeschlagen: " + (await seite.textContent("#ae-protokoll")).slice(-3000));
+    await seite.waitForSelector('[data-reiter="einstellungen"]:not([hidden])', { timeout: 60000 });
+}
+
+async function editor() {
     await seite.waitForSelector("#version:not(:empty)", { timeout: 60000 });
     await bild("1-uebersicht");
 
@@ -97,13 +141,4 @@ try {
     // dunkle Darstellung wie in Cockpit
     await seite.evaluate(() => { localStorage.setItem("shell:style", "dark"); window.dispatchEvent(new StorageEvent("storage", { key: "shell:style" })) });
     await bild("6-einstellungen-dunkel");
-} catch (ex) {
-    await bild("fehler").catch(() => {});
-    fehler.push(String(ex));
 }
-await browser.close();
-if (fehler.length) {
-    console.error(fehler.join("\n"));
-    process.exit(1);
-}
-console.log("Cockpit-Seite in Ordnung");

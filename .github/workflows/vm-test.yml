@@ -113,7 +113,16 @@ jobs:
           printf 'exit\n' | ssh_vm -tt 2>&1 | tr -d '\r' | grep "aunserver ist installiert"
           if [ "${{ matrix.firmware }}" = uefi ]; then ssh_vm -n "test -d /sys/firmware/efi"; else ssh_vm -n "test ! -d /sys/firmware/efi"; fi
 
+      - name: Playwright für die Browser-Tests (Chrome des Runners)
+        run: |
+          mkdir -p "$RUNNER_TEMP/bilder" "$RUNNER_TEMP/pw"
+          cp dev/cockpit-test.mjs "$RUNNER_TEMP/pw/"
+          (cd "$RUNNER_TEMP/pw" && npm init -y >/dev/null && npm install --no-audit --no-fund --silent playwright-core@1.48.2)
+
+      # Ersteinrichtung: UEFI über die Kommandozeile, BIOS mit dem Assistenten in Cockpit (D24);
+      # beide mit denselben Angaben, die folgenden Schritte prüfen dasselbe
       - name: aunserver-setup, erster Lauf (formatiert die Datenplatte)
+        if: matrix.firmware == 'uefi'
         run: |
           ssh_vm() { ssh -n -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost "$@"; }
           # Gerätenamen wechseln zwischen Boots; die Datenplatte über ihre Seriennummer finden
@@ -126,6 +135,15 @@ jobs:
                --ssh-key '$key' --samba-password ci-test-123 --ps2-password ci-ps2-123 \
                --backup-repo /var/backups/aunserver-ci" < /dev/null \
             | tee "$RUNNER_TEMP/run1.log"
+
+      - name: Ersteinrichtung mit dem Assistenten in Cockpit (formatiert die Datenplatte)
+        if: matrix.firmware == 'bios'
+        run: |
+          node "$RUNNER_TEMP/pw/cockpit-test.mjs" einrichten nasadmin aunserver "$RUNNER_TEMP/bilder" aundata0 "$(cat ~/.ssh/id_ed25519.pub)"
+          # das Protokoll des Laufs für die Prüfung auf Warnungen
+          ssh -n -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost \
+            "printf '%s\n' aunserver | sudo -S -p '' cat /var/log/aunserver-setup.log" > "$RUNNER_TEMP/run1.log"
+          grep -E 'localhost +: ok=[0-9]+ +changed=[0-9]+ +unreachable=0 +failed=0' "$RUNNER_TEMP/run1.log"
 
       - name: aunserver-setup, zweiter Lauf (muss changed=0 melden)
         run: |
@@ -169,10 +187,7 @@ jobs:
 
       - name: Cockpit-Seite im Browser (Playwright mit dem Chrome des Runners)
         run: |
-          mkdir -p "$RUNNER_TEMP/bilder" "$RUNNER_TEMP/pw"
-          cp dev/cockpit-test.mjs "$RUNNER_TEMP/pw/"
-          (cd "$RUNNER_TEMP/pw" && npm init -y >/dev/null && npm install --no-audit --no-fund --silent playwright-core@1.48.2)
-          node "$RUNNER_TEMP/pw/cockpit-test.mjs" nasadmin aunserver "$RUNNER_TEMP/bilder"
+          node "$RUNNER_TEMP/pw/cockpit-test.mjs" editor nasadmin aunserver "$RUNNER_TEMP/bilder"
           # die Seite hat ntfy_ios_push gespeichert: wieder auf den Standard
           ssh -n -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null nasadmin@localhost \
             "printf '%s\n' aunserver | sudo -S -p '' aunserver-config unset ntfy_ios_push"

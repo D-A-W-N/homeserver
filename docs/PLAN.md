@@ -219,9 +219,11 @@ Danach schreibst du das ISO mit `dd`, GNOME Disks, balenaEtcher oder Rufus (DD-M
 2. Abgefragt werden nur: **Benutzername** (Vorschlag `nasadmin`, `admin` ist in Debian reserviert) und **Passwort**. Den Hostnamen setzt `aunserver-setup`.
 3. `select-disk.sh` sucht die Systemplatte. Ausgeschlossen werden USB-Geräte, Wechselmedien und Platten mit Label `AUNDATA`. Gibt es genau eine SSD/NVMe, fragt das Skript mit Modell, Größe und Seriennummer nach. Sonst (oder bei „Nein“) fragt der Installer und zeigt Modell und Größe.
 4. **Die Bestätigung vor dem Partitionieren bleibt immer manuell.**
-5. `late_command` kopiert das Repo nach `/opt/aunserver` und richtet den Hinweis für den ersten Login ein.
+5. `late_command` kopiert das Repo nach `/opt/aunserver`, installiert Cockpit mit der aunserver-Seite (`installer/erststart.sh`, D24) und richtet den Hinweis für den ersten Login ein.
 
 ### 7.3 Ersteinrichtung: `aunserver-setup`
+
+Im Browser (`https://<IP>:9090` → aunserver, D24) mit denselben Fragen, oder:
 
 Ein Dialog (whiptail) direkt am Gerät oder per SSH, idempotent und jederzeit erneut ausführbar:
 
@@ -260,6 +262,7 @@ aunserver/
 │   ├── build-iso.sh
 │   ├── preseed.cfg.in
 │   ├── select-disk.sh
+│   ├── erststart.sh             # im neuen System: Cockpit + aunserver-Seite für den Assistenten
 │   └── aunserver-login.sh       # Login-Hinweis aufs Setup
 ├── bin/
 │   ├── aunserver-setup
@@ -421,7 +424,7 @@ Je Phase ein PR mit VM-Test; jede neue Einstellung hat als Standard das bisherig
 - [x] **P2a Sicher ändern:** `get/set/unset/import/diff/history/revert`, Sperre mit Setup und Update, `config_version` 2 mit Migration, Passwörter nach `secrets/`; Setup schreibt nur noch, was es fragt, `--reconfigure` behält alle übrigen Einstellungen und vorhandene Passwörter. Abweichung vom Plan: vorhandene Werte gleich dem Standard bleiben stehen (eine Migration soll nichts still umdeuten); Kommentare bleiben dank ruamel.yaml erhalten
 - [x] **P2b Passwörter ändern:** `aunserver-config passwd samba|ps2|web`, das Web-Passwort wirksam in Caddy, AdGuard, Beszel und den Servarr-Apps
 - [x] **P3 Cockpit-Plugin:** Übersicht, Formular aus dem Schema (Basis/Erweitert), Diff, Anwenden als `aunserver-apply.service` mit Live-Log, Verlauf, Passwörter, Update, Zugänge
-- [ ] **P4 Setup aus dem Schema:** whiptail fragt nur Basiswerte; Erststart-Assistent im Browser, Formatieren nur nach Eintippen des Gerätenamens
+- [x] **P4 Erststart im Browser:** Der Installer bringt Cockpit (Backports) und die aunserver-Seite mit; ohne `config.yml` zeigt sie den Assistenten (Datenplatte aus `aunserver-setup --disks`, Formatieren nur nach Eintippen des Gerätenamens, Restore mit vorhandenem Backup-Passwort). Er schreibt per `aunserver-config import` und startet das Setup als Unit. Cockpit startet das Setup nicht neu, solange jemand angemeldet ist. Der VM-Test richtet BIOS mit dem Assistenten ein, UEFI über die Kommandozeile. whiptail bleibt, seine Fragen entsprechen den Basiswerten des Schemas
 - [ ] **P5 Installer:** Hostname, DHCP/feste IP, Sprache/Tastatur, Benutzer, SSH-Schlüssel; Partitionsrezept ohne Swap; Testmatrix erweitert. Feste IP später nur mit automatischem Rückfall ohne Bestätigung
 - [ ] **P6 Persönliches ISO:** `build-iso.sh --config`, automatischer Erststart, Restore aus Backup ohne Dialoge
 - [ ] **P7 Umfang:** Medien-Stack abschaltbar, Profile; weitere Schalter (Neustart, Update-Check, Backup-Zeitplan, Recyclarr-Größen, Backports-Kernel)

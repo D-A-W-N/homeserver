@@ -18,7 +18,9 @@ Unter Windows mit Rufus im **DD-Modus** schreiben; Ventoy ist nicht getestet. Vo
 
 ## Einrichtung nach der Installation
 
-Nach der Installation vom USB-Stick per SSH (oder am Gerät) anmelden und ausführen:
+**Im Browser:** `https://<IP>:9090` öffnen (die Adresse zeigt die Anmeldung am Gerät), mit dem Benutzer aus der Installation anmelden und links **aunserver** wählen. Der Assistent fragt Datenplatte, Name, SSH-Schlüssel, Apps, PS2-Freigabe, Backup-Ziel und Passwörter, formatiert erst nach Eintippen des Gerätenamens und zeigt das Protokoll des Setups. Das Fenster darf dabei zu, die Einrichtung läuft weiter.
+
+**Oder auf der Kommandozeile:** per SSH (oder am Gerät) anmelden und ausführen:
 
 ```bash
 sudo /opt/aunserver/bin/aunserver-setup
