@@ -172,6 +172,19 @@ einstellungen:
       Freigeben unter Machines → <hostname> → Edit route settings → Use as exit node. Wer das NAS als
       Exit-Node nutzt, erreicht darüber auch das übrige Heimnetz, solange die Tailscale-ACL das nicht einschränkt.
     braucht: apps.tailscale
+  network_dns_adguard:
+    typ: bool
+    standard: false
+    bereich: netz
+    stufe: erweitert
+    text: Das NAS fragt für sich selbst zuerst AdGuard (nötig, damit die Namen über den Exit-Node gehen)
+    hinweis: >-
+      Wer das NAS als Exit-Node nutzt, schickt alle DNS-Anfragen an das NAS; Split DNS greift dann nicht, und das
+      NAS fragt sonst den DNS aus DHCP, der die Namen nicht kennt. Mit true steht 127.0.0.1 vor den DNS-Servern aus
+      DHCP (/etc/resolv.conf.head, nur mit dhcpcd); fällt AdGuard aus, gelten diese weiter. 127.0.0.1 ist vom
+      Rate-Limit in AdGuard ausgenommen. AdGuard filtert und protokolliert dann auch die Anfragen des NAS und der
+      Exit-Node-Geräte (im Protokoll als 127.0.0.1).
+    braucht: apps.adguard
   tailscale_authkey:
     typ: text
     geheim: true

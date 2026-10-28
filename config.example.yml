@@ -60,6 +60,9 @@ network_tailscale_routes: []
 # NAS als Tailscale-Exit-Node anbieten (danach in der Admin-Konsole freigeben)
 network_tailscale_exit_node: false
 
+# Das NAS fragt für sich selbst zuerst AdGuard (nötig, damit die Namen über den Exit-Node gehen)
+network_dns_adguard: false
+
 # Auth-Key für Tailscale statt Anmeldelink (nur für die erste Anmeldung)
 # tailscale_authkey: ''
 # Apps an/aus. Die Plattform-Dienste (Caddy, Cockpit, Arcane, Monitoring, Medien) laufen immer
