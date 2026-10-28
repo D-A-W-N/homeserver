@@ -44,6 +44,13 @@ SABnzbd, Bazarr{{ ', Recommendarr' if apps.recommendarr | bool else '' }}{{ ', P
 Ohne Anmeldung (nur aus LAN/VPN erreichbar)
   ntfy          https://{{ stacks_hosts.ntfy }}.{{ domain }}   (Themen: smart, beszel, backup, updates)
 
+{% if caddy_lan_ports | bool %}
+Ohne Namen, nur aus dem LAN (caddy_lan_ports; gleiche Anmeldung wie oben)
+{% for app, port in stacks_lan_ports.items() | sort(attribute='1') if apps[app] | default(true) | bool %}
+  {{ '%-13s' | format(app | capitalize) }} https://{{ ansible_facts.default_ipv4.address }}:{{ port }}
+{% endfor %}
+
+{% endif %}
 {% if apps.tailscale | bool %}
 Fernzugriff (Tailscale){{ '' if network_tailscale_state | default('') == 'Running' else '  – noch nicht angemeldet: sudo tailscale up' }}
   1. tailscale.com → Machines → {{ hostname }} → "Edit route settings": Route {{ network_routes | default([ansible_facts.default_ipv4.address ~ '/32']) | join(', ') }} freigeben,

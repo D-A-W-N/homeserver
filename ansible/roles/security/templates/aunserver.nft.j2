@@ -41,8 +41,8 @@ table inet aunserver {
 		ip6 saddr @lan6 udp dport { {{ security_udp_ports | join(', ') }} } accept
 {% if caddy_lan_ports | bool %}
 		# Web-Apps über IP und Port (caddy_lan_ports): nur LAN, über VPN gehen die Namen
-		ip saddr @lan4 tcp dport { {{ security_lan_web_ports | join(', ') }} } accept
-		ip6 saddr @lan6 tcp dport { {{ security_lan_web_ports | join(', ') }} } accept
+		ip saddr @lan4 tcp dport { {{ stacks_lan_ports.values() | sort | join(', ') }} } accept
+		ip6 saddr @lan6 tcp dport { {{ stacks_lan_ports.values() | sort | join(', ') }} } accept
 {% endif %}
 {% if samba_legacy.enabled | bool %}
 		ip saddr @ps2_clients tcp dport {{ samba_legacy.port }} accept

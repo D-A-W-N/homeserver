@@ -28,6 +28,22 @@ ntfy_ios_push: true
 # Caddy: true = Web-Apps zusätzlich unter https://<LAN-IP>:<Port> (stacks_lan_ports), nur aus dem LAN.
 # Für Geräte, die die Namen nicht auflösen (z. B. Handy mit Mullvad-App, das DNS nur an Mullvad schickt)
 caddy_lan_ports: false
+# Ports dazu; die Firewall öffnet genau diese (nur LAN). Homepage fehlt (HOMEPAGE_ALLOWED_HOSTS, Links auf Namen)
+stacks_lan_ports:
+  prowlarr: 8400
+  sabnzbd: 8401
+  sonarr: 8402
+  radarr: 8403
+  lidarr: 8404
+  bazarr: 8405
+  ntfy: 8410
+  adguard: 8411
+  dozzle: 8412
+  scrutiny: 8413
+  beszel: 8414
+  arcane: 8415
+  recommendarr: 8416
+  ps2gamemanager: 8417
 
 # Speicher (Plan, Abschnitt 5)
 # true = keine eigene Datenplatte, data_mount liegt auf der Systemplatte
