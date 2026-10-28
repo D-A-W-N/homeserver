@@ -21,7 +21,10 @@ const browser = await chromium.launch({
 const kontext = await browser.newContext({ ignoreHTTPSErrors: true, locale: "de-DE", viewport: { width: 1280, height: 900 } });
 const seite = await kontext.newPage();
 seite.on("pageerror", e => fehler.push("pageerror: " + e.message));
-seite.on("console", m => { if (m.type() === "error") fehler.push("console: " + m.text()) });
+// 401 gehört zur Anmeldeseite von Cockpit (Abfrage vor dem Login), kein Fehler der Seite
+seite.on("console", m => {
+    if (m.type() === "error" && !/status of 401 \(Authentication failed\)/.test(m.text())) fehler.push("console: " + m.text());
+});
 
 // Rückfall, falls Cockpit trotzdem eingeschränkt startet: oben rechts umschalten
 async function adminZugriff() {
