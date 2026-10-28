@@ -30,7 +30,7 @@ Einmalig nötig, damit die Namen wie `https://home.nas.home.arpa` funktionieren:
 | | | 8416 | Recommendarr |
 | | | 8417 | PS2GameManager |
 
-Die Startseite fehlt (sie verlinkt nur die Namen); Emby (`http://<IP>:8096`) und Cockpit (`https://<IP>:9090`) gehen ohnehin per IP. Ports ändern: `stacks_lan_ports` und `security_lan_web_ports` in der `config.yml` überschreiben.
+Die Startseite fehlt (sie verlinkt nur die Namen); Emby (`http://<IP>:8096`) und Cockpit (`https://<IP>:9090`) gehen ohnehin per IP. Ports ändern: `stacks_lan_ports` in der `config.yml` überschreiben (die Firewall übernimmt sie). Die Liste steht auch in der Zugänge-Datei.
 
 Die IP des NAS sollte im Router fest zugewiesen sein (DHCP-Reservierung), sonst ändert sie sich irgendwann und die Namen zeigen ins Leere.
 
