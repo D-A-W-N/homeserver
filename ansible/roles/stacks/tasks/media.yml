@@ -208,7 +208,9 @@
   loop: "{{ stacks_arr_host.results }}"
   loop_control:
     label: "{{ item.item.name }}"
-  when: item.json.authenticationMethod != 'forms' or item.json.username | default('') != admin_user
+  when: >-
+    item.json.authenticationMethod != 'forms' or item.json.username | default('') != admin_user
+    or stacks_web_password_wechsel
   changed_when: true
   no_log: true
 

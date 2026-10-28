@@ -141,7 +141,15 @@ sudo aunserver-setup                             # übernimmt die Datei und rich
 
 Mit `unset` gilt wieder der Standard. Jede Änderung (auch durch das Setup) landet im Verlauf: `sudo aunserver-config history` listet die letzten 30 Fassungen, `sudo aunserver-config revert <Fassung>` holt eine zurück (danach `sudo aunserver-setup`). Wer die Datei lieber direkt bearbeitet (`sudo nano /etc/aunserver/config.yml`), prüft sie mit `sudo aunserver-config validate`. Setup, Update und `aunserver-config` sperren sich gegenseitig, es läuft immer nur eins.
 
-**Passwörter** stehen nicht in der `config.yml`, sondern in `/etc/aunserver/secrets/` (nur root). Ältere Dateien stellt das Setup beim nächsten Lauf selbst um. `sudo aunserver-setup --reconfigure` fragt nur die Grundeinstellungen neu (Vorschlag: die bisherigen), alle übrigen Werte und vorhandene Passwörter bleiben.
+**Passwörter** stehen nicht in der `config.yml`, sondern in `/etc/aunserver/secrets/` (nur root). Ältere Dateien stellt das Setup beim nächsten Lauf selbst um. Ändern:
+
+```bash
+sudo aunserver-config passwd samba   # Samba-Freigaben des Admins, gilt sofort
+sudo aunserver-config passwd ps2     # Konto ps2 der PS2-Freigabe, gilt sofort
+sudo aunserver-config passwd web     # Web-Passwort, danach: sudo aunserver-setup
+```
+
+Das Web-Passwort gilt für die Anmeldung über Caddy (Logs, Platten, SABnzbd, Bazarr, Recommendarr, PS2GameManager), AdGuard, Beszel und die Servarr-Apps; das Setup trägt es überall ein und schreibt es in die Zugangsübersicht. Bricht der Lauf ab, bleibt das alte Passwort in `secrets/web_password.alt` und der nächste Lauf macht weiter. Erlaubt sind mindestens 8 Zeichen ohne Leerzeichen, Anführungszeichen, `\` und `$`. `sudo aunserver-setup --reconfigure` fragt nur die Grundeinstellungen neu (Vorschlag: die bisherigen), alle übrigen Werte und vorhandene Passwörter bleiben.
 
 Das Setup prüft die Datei selbst auch: Bei Fehlern (z. B. `emby: ja` statt `true`) bricht es ab, bevor es etwas ändert; unbekannte Namen meldet es als Warnung mit Vorschlag (`caddy_lan_port` – gemeint: `caddy_lan_ports`?). `sudo aunserver-config show --effective` zeigt alle Werte so, wie Ansible sie bekommt, Passwörter verdeckt. Auch `aunserver-update` prüft vor dem Austausch, ob der neue Stand die Datei versteht, und bricht sonst ohne Änderung ab.
 

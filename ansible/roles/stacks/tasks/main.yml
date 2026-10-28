@@ -56,6 +56,27 @@
     stacks_web_password_hash: "{{ stacks_web_password_hash_raw.content | b64decode | trim }}"
   no_log: true
 
+# Passwortwechsel (aunserver-config passwd web, D23): das alte Passwort liegt bis zum Ende dieses
+# Laufs in web_password.alt. Caddy bekommt den neuen Hash (die CLI löscht den alten), AdGuard,
+# Beszel und die Servarr-Apps, die das Passwort selbst speichern, das neue Passwort.
+- name: Läuft ein Wechsel des Web-Passworts?
+  ansible.builtin.stat:
+    path: "{{ stacks_secrets_dir }}/web_password.alt"
+  register: stacks_web_password_alt_file
+
+- name: Altes Web-Passwort lesen
+  ansible.builtin.slurp:
+    src: "{{ stacks_secrets_dir }}/web_password.alt"
+  register: stacks_web_password_alt_raw
+  when: stacks_web_password_alt_file.stat.exists
+  no_log: true
+
+- name: Wechsel merken
+  ansible.builtin.set_fact:
+    stacks_web_password_wechsel: "{{ stacks_web_password_alt_file.stat.exists }}"
+    stacks_web_password_alt: "{{ (stacks_web_password_alt_raw.content | b64decode | trim) if stacks_web_password_alt_file.stat.exists else '' }}"
+  no_log: true
+
 # --- Gemeinsames ---------------------------------------------------------------
 
 - name: Gemeinsame Docker-Netze
@@ -88,3 +109,9 @@
     - monitoring
     - media
     - ps2
+
+- name: Wechsel des Web-Passworts abgeschlossen
+  ansible.builtin.file:
+    path: "{{ stacks_secrets_dir }}/web_password.alt"
+    state: absent
+  when: stacks_web_password_wechsel

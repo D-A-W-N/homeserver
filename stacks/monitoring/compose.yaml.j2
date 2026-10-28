@@ -8,7 +8,7 @@ services:
     environment:
       APP_URL: https://{{ stacks_hosts.beszel }}.{{ domain }}
       USER_EMAIL: {{ stacks_beszel_email }}
-      USER_PASSWORD: {{ stacks_web_password }}
+      USER_PASSWORD: {{ stacks_web_password | to_json }}
     volumes:
       - {{ appdata_dir }}/beszel/data:/beszel_data
       - {{ appdata_dir }}/beszel/socket:/beszel_socket

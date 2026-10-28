@@ -13,6 +13,7 @@ sudo aunserver-config unset apps.emby         # zurück auf den Standard
 sudo aunserver-config diff                    # was noch nicht übernommen ist
 sudo aunserver-setup                          # übernehmen
 sudo aunserver-config history                 # frühere Fassungen; zurück: revert <Fassung>
+sudo aunserver-config passwd web              # Passwort ändern (samba, ps2, web)
 ```
 
 Wer die Datei lieber selbst bearbeitet (`sudo nano /etc/aunserver/config.yml`), prüft sie mit

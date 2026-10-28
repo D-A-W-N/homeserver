@@ -41,6 +41,25 @@
       changed_when: true
       no_log: true
 
+    # AdGuard hat keine API dafür: Hash in der Datei tauschen, solange AdGuard steht
+    - name: AdGuard für den Passwortwechsel anhalten
+      ansible.builtin.command: docker stop adguard
+      when: stacks_web_password_wechsel and stacks_adguard_conf.stat.exists
+      changed_when: true
+
+    - name: Neues Web-Passwort in AdGuard
+      ansible.builtin.replace:
+        path: "{{ appdata_dir }}/adguard/conf/AdGuardHome.yaml"
+        regexp: '^(\s+password: )\$2[aby]\$\S+$'
+        replace: '\g<1>{{ stacks_web_password_hash }}'
+      when: stacks_web_password_wechsel and stacks_adguard_conf.stat.exists
+      no_log: true
+
+    - name: AdGuard wieder starten
+      ansible.builtin.command: docker start adguard
+      when: stacks_web_password_wechsel and stacks_adguard_conf.stat.exists
+      changed_when: true
+
     - name: Warten, bis die Oberfläche auf dem neuen Port antwortet
       ansible.builtin.uri:
         url: http://127.0.0.1:{{ stacks_ports.adguard_ui }}/control/status
