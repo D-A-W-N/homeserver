@@ -53,6 +53,11 @@ Stand: 2026-10-19 · Status: im Betrieb auf dem echten NAS (`v0.9.0` + Updates),
 | D18 | Zielhardware | AMD A4-5000, 15 GiB RAM, SSD + 3,6-TB-HDD, UEFI | Kein Transcoding: Emby nur mit Direct Play, Monitoring bewusst leichtgewichtig. |
 | D19 | SMB1 für PS2/OPL | **Zweite Samba-Instanz** `smbd-legacy`: nur SMB1, eigener Port (1445), eigene Benutzerdatenbank mit Benutzer `ps2`, nur der PS2-Ordner, Firewall optional auf die IP der Konsole beschränkt; dann leitet sie für diese IP auch Port 445 auf 1445 um (für OPL ohne Port-Einstellung). Freigaben über `config.yml`, nicht über Cockpit | SMB1 gilt in Samba global; die Hauptinstanz bleibt so bei SMB3. Das schwache NTLMv1 trifft nur ein eigenes Konto ohne Login (Spike S5). |
 | D20 | Updates des NAS | **`aunserver-update`** holt den Stand von `main` (GitHub-Tarball, Commit per `export-subst` in `COMMIT`), vorher Backup, danach Setup; täglicher Check meldet per ntfy, installiert wird per Hand (entschieden 2026-10-18) | Jeder Merge in `main` hat den VM-Test bestanden; Renovate-Updates kommen so ohne eigenes Release an, aber nie unbeaufsichtigt. |
+| D21 | Konfiguration | **Ein Schema** (`config/schema.yml`: Typ, Standard, Beschreibung, Bereich, Stufe, geheim, Abhängigkeiten) ist die einzige Quelle für einstellbare Werte. `config.yml` enthält nur Abweichungen vom Standard; vor jedem Lauf werden beide geprüft und zusammengeführt. Doku und `config.example.yml` entstehen daraus (entschieden 2026-10-28) | Heute löscht eine teilweise Angabe (`apps: {emby: false}`) den Rest des Blocks, Tippfehler bleiben unbemerkt, `--reconfigure` verliert von Hand gesetzte Schalter. |
+| D22 | Konfig-Editor | **Cockpit-Plugin „aunserver“ plus CLI `aunserver-config`**. Das Plugin schreibt nie selbst, sondern ruft die CLI auf; Anwenden läuft als systemd-Unit mit Live-Log, Verlauf mit Zurückholen (entschieden 2026-10-28) | Läuft auf dem Host, also auch ohne Docker (D5), Anmeldung und sudo sind schon da, kein neuer Port. Per SSH bleibt alles mit der CLI möglich. |
+| D23 | Passwörter | Nicht mehr in `config.yml`, sondern als Dateien in `/etc/aunserver/secrets/`; `aunserver-config passwd` ändert sie wirksam (Samba, PS2, Web). Bestehende Konfigurationen werden automatisch migriert (entschieden 2026-10-28) | Heute wirkt `samba_password` nur beim ersten Lauf, das Web-Passwort ist nicht änderbar. |
+| D24 | Ersteinrichtung und Installer | Erststart-Assistent **im Browser** (Cockpit) zusätzlich zu whiptail; Installer fragt Hostname, Netz (DHCP/feste IP), Tastatur, SSH-Schlüssel; Rezept ohne Swap-Partition (zram). **Persönliches ISO**: `build-iso.sh --config` legt Antworten und Konfiguration aufs ISO, das Setup startet beim ersten Boot; formatiert wird nur eine per Seriennummer genannte Platte (entschieden 2026-10-28) | Weniger Handarbeit, Neuinstallation mit Restore ohne Dialoge, auch für weitere NAS. |
+| D25 | Umfang | **Medien-Stack abschaltbar**, dazu **Profile** (z. B. „Medien-NAS“ = heutiger Stand, „Nur Dateien“). Standard bleibt das heutige Verhalten (entschieden 2026-10-28) | Nicht jedes NAS braucht Usenet und Servarr. |
 
 ## 3. Architektur
 
@@ -401,9 +406,20 @@ Risikobasiert: Unklares wird zuerst in der VM geprüft. Jeder Meilenstein ist in
 
 **Befunde echter Server (2026-10-19):** Vodafone-Kabelbox erlaubt keinen eigenen DNS-Server → Namen per Tailscale-Split-DNS (`nas.home.arpa`), dokumentiert in BETRIEB.md. Zugangsübersicht meldete Tailscale nach der Anmeldung per Link als „nicht angemeldet“ (#26). Dozzle v11 verlangte eigene Anmeldung und `/data` → Anmeldung über Caddy (forward-proxy), `/data` unter appdata (#27). SABnzbd wies Zugriffe über Tailscale ab (X-Forwarded-For 100.x) → `verify_xff_header=0`, `local_ranges` ist über die API gesperrt (#27). PS2GameManager erreichte SABnzbd nicht (anderes Docker-Netz) → zusätzlich in `media_default` (#28). Einmalige Meldungen bei der Ersteinrichtung (polkit vor Anlage seines Benutzers gestartet, zram beim Umkonfigurieren) ohne Folgen. Last: SABnzbd belegt beim Download mit 84 MB/s etwa 2 der 4 Kerne des A4-5000, sonst Leerlauf.
 
+### M10 – Konfiguration und Installation (D21–D25)
+Je Phase ein PR mit VM-Test; jede neue Einstellung hat als Standard das bisherige Verhalten. Testkonfigurationen (eigenes NAS anonymisiert, Stil des Kollegen, minimal) müssen nach jeder Migration dasselbe Ergebnis liefern.
+- [ ] **P1 Fundament:** Schema, `aunserver-config validate/show [--effective]`, zusammengeführte Konfiguration für Ansible, generierte `docs/KONFIGURATION.md` und `config.example.yml` (CI prüft Aktualität); VM-Test: Ergebnis gleich wie vorher
+- [ ] **P2 Sicher ändern:** `set/unset/diff/history/revert`, flock mit Setup und Update, nur Abweichungen speichern, `config_version` mit Migration, Passwörter nach `secrets/`, `passwd`; `--reconfigure` behält alle übrigen Einstellungen
+- [ ] **P3 Cockpit-Plugin:** Übersicht, Formular aus dem Schema (Basis/Erweitert), Diff, Anwenden als `aunserver-apply.service` mit Live-Log, Verlauf, Passwörter, Update, Zugänge
+- [ ] **P4 Setup aus dem Schema:** whiptail fragt nur Basiswerte; Erststart-Assistent im Browser, Formatieren nur nach Eintippen des Gerätenamens
+- [ ] **P5 Installer:** Hostname, DHCP/feste IP, Sprache/Tastatur, Benutzer, SSH-Schlüssel; Partitionsrezept ohne Swap; Testmatrix erweitert. Feste IP später nur mit automatischem Rückfall ohne Bestätigung
+- [ ] **P6 Persönliches ISO:** `build-iso.sh --config`, automatischer Erststart, Restore aus Backup ohne Dialoge
+- [ ] **P7 Umfang:** Medien-Stack abschaltbar, Profile; weitere Schalter (Neustart, Update-Check, Backup-Zeitplan, Recyclarr-Größen, Backports-Kernel)
+
 ```
 M0 → M1 ─┬→ M2 → M3 → M4 → M5 → M6 ─┬→ M8 → M9
          └→ M7 (Installer, parallel) ─┘
+M9 → M10 (Konfiguration und Installation)
 ```
 
 ## 10. Testmatrix (VM)
