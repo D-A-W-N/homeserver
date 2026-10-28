@@ -2,13 +2,13 @@
 # Updates des NAS selbst (Repo-Stand von GitHub, Plan M9): täglich prüfen und per ntfy melden,
 # installiert wird per Hand mit sudo aunserver-update.
 
-- name: Befehle von aunserver im Pfad (sudo aunserver-setup, sudo aunserver-update)
+- name: Befehle von aunserver im Pfad (sudo aunserver-setup, aunserver-update, aunserver-config)
   ansible.builtin.file:
     src: "{{ playbook_dir | dirname }}/bin/{{ item }}"
     dest: "/usr/local/sbin/{{ item }}"
     state: link
     force: true
-  loop: [aunserver-setup, aunserver-update]
+  loop: [aunserver-setup, aunserver-update, aunserver-config]
 
 - name: Systemd-Units für die Update-Prüfung
   ansible.builtin.template:

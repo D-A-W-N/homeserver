@@ -1,0 +1,33 @@
+---
+# Interne Werte, die nicht in der config.yml gehören (Pfade, Ordner, Start-Freigaben).
+# Die einstellbaren Werte stehen in config/schema.yml, ihre Standards erzeugt
+# bin/aunserver-config generate nach einstellungen.yml daneben.
+
+# Speicher (Plan, Abschnitt 5)
+data_mount: /srv/data
+data_label: AUNDATA
+appdata_dir: /srv/appdata
+stacks_dir: /opt/stacks
+
+data_dirs:
+  - usenet
+  - usenet/incomplete
+  - usenet/complete
+  - usenet/complete/tv
+  - usenet/complete/movies
+  - usenet/complete/music
+  - media
+  - media/tv
+  - media/movies
+  - media/music
+  - media/books
+  - games
+  - shares
+# games/ps2 legt die Samba-Legacy-Rolle an (Gruppe ps2share)
+
+# Start-Freigaben; danach werden Freigaben in Cockpit gepflegt (D6)
+samba_initial_shares:
+  - name: media
+    path: media
+  - name: shares
+    path: shares

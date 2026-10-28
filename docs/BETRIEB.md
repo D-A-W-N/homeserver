@@ -72,7 +72,7 @@ Apps, die andere Apps ansprechen (Recommendarr, PS2GameManager …), nutzen die 
 
 Die Medien-Apps, Recommendarr und der PS2GameManager liegen im selben Docker-Netz. Neue eigene Apps brauchen dieses Netz (`media_default`) ebenfalls.
 
-**Indexer** trägt man nur in Prowlarr ein, es verteilt sie an Sonarr, Radarr und Lidarr. Nicht gelistete Usenet-Indexer: *Add Indexer → Generic Newznab*, URL ohne `/api`, API-Schlüssel des Indexers. Den **Usenet-Provider** trägt man in SABnzbd ein (Zahnrad → Server). Beim Hinzufügen von Filmen und Serien das Qualitätsprofil **„[German] HD Bluray + WEB“** wählen, das Recyclarr täglich nach den TRaSH-Guides pflegt. Abweichend von der Vorlage bevorzugt es x265 stärker, begrenzt die Größe (Serien in 1080p höchstens 60 MB pro Minute, also etwa 3,6 GB pro Stunde; Filme 70 MB pro Minute) und lädt Upgrades nur, bis ein gutes German-DL-Release da ist. Gibt es für eine Folge nur größere Releases, lädt Sonarr nichts; in der manuellen Suche stehen sie dann als zu groß abgelehnt und lassen sich von Hand holen. Die Werte stehen in `ansible/roles/stacks/defaults/main.yml` (`stacks_recyclarr_…`) und lassen sich in `/etc/aunserver/config.yml` überschreiben.
+**Indexer** trägt man nur in Prowlarr ein, es verteilt sie an Sonarr, Radarr und Lidarr. Nicht gelistete Usenet-Indexer: *Add Indexer → Generic Newznab*, URL ohne `/api`, API-Schlüssel des Indexers. Den **Usenet-Provider** trägt man in SABnzbd ein (Zahnrad → Server). Beim Hinzufügen von Filmen und Serien das Qualitätsprofil **„[German] HD Bluray + WEB“** wählen, das Recyclarr täglich nach den TRaSH-Guides pflegt. Abweichend von der Vorlage bevorzugt es x265 stärker, begrenzt die Größe (Serien in 1080p höchstens 60 MB pro Minute, also etwa 3,6 GB pro Stunde; Filme 70 MB pro Minute) und lädt Upgrades nur, bis ein gutes German-DL-Release da ist. Gibt es für eine Folge nur größere Releases, lädt Sonarr nichts; in der manuellen Suche stehen sie dann als zu groß abgelehnt und lassen sich von Hand holen. Die Werte (`stacks_recyclarr_groessen`, `stacks_recyclarr_upgrade_until_score`) stehen in [KONFIGURATION.md](KONFIGURATION.md) und lassen sich in `/etc/aunserver/config.yml` überschreiben; eine App unter `stacks_recyclarr_groessen` angeben ersetzt nur deren Liste.
 
 **Eigene Qualitätsprofile:** Recyclarr synchronisiert jeden Tag um 00:00 die Datei `/srv/appdata/recyclarr/recyclarr.yml` und legt dabei die dort genannten Profile und Größen wieder an. Ohne weitere Einstellung schreibt jedes `aunserver-update` die TRaSH-Vorlage aus dem Repo darüber. Wer eigene Profile pflegt, setzt in `/etc/aunserver/config.yml` `recyclarr_eigene_config: true`: Ansible lässt `recyclarr.yml` (samt `settings.yml` und `custom-formats/`) dann in Ruhe, Recyclarr synchronisiert täglich nur die eigene Datei. Die API-Schlüssel schreibt das Setup bei jedem Lauf in `/srv/appdata/recyclarr/secrets.yml`; in der eigenen Datei stehen sie als `api_key: !secret sonarr_api_key` bzw. `!secret radarr_api_key` und bleiben so auch nach einer Neuinstallation der Apps richtig. Scheitert der Sync mit der eigenen Datei, bricht das Setup nicht ab, sondern zeigt einen Hinweis (`docker exec recyclarr recyclarr sync --preview`). Ein Beispiel mit eigenen Profilen und Custom Formats liegt in [beispiele/recyclarr-eigene-profile/](beispiele/recyclarr-eigene-profile/).
 
@@ -131,12 +131,15 @@ Woher neue Versionen kommen: Renovate prüft das Repo und legt montags früh fü
 
 ## Konfiguration ändern
 
-Alle Einstellungen (Hostname, Apps, Backup-Ziel, PS2-Freigabe …) stehen in `/etc/aunserver/config.yml`. Ändern und danach abgleichen:
+Alle Einstellungen (Hostname, Apps, Backup-Ziel, PS2-Freigabe …) stehen in `/etc/aunserver/config.yml`. Welche es gibt, mit Standardwert und Erklärung, steht in [KONFIGURATION.md](KONFIGURATION.md). In die Datei gehört nur, was vom Standard abweicht, auch in Blöcken: `apps: {emby: false}` lässt die übrigen Apps auf ihrem Standard. Ändern und danach abgleichen:
 
 ```bash
 sudo nano /etc/aunserver/config.yml
+sudo aunserver-config validate   # findet Tippfehler und falsche Werte, ändert nichts
 sudo aunserver-setup             # übernimmt die Datei und richtet alles danach ein
 ```
+
+Das Setup prüft die Datei selbst auch: Bei Fehlern (z. B. `emby: ja` statt `true`) bricht es ab, bevor es etwas ändert; unbekannte Namen meldet es als Warnung mit Vorschlag (`caddy_lan_port` – gemeint: `caddy_lan_ports`?). `sudo aunserver-config show --effective` zeigt alle Werte so, wie Ansible sie bekommt, Passwörter verdeckt. Auch `aunserver-update` prüft vor dem Austausch, ob der neue Stand die Datei versteht, und bricht sonst ohne Änderung ab.
 
 Das Setup ist jederzeit gefahrlos wiederholbar. Es formatiert nur, wenn man ausdrücklich eine neue Datenplatte auswählt und deren Namen eintippt.
 

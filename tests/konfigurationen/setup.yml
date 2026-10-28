@@ -1,0 +1,32 @@
+---
+# So schreibt aunserver-setup die Datei (write_config), Werte erfunden
+hostname: 'nas'
+admin_user: 'nasadmin'
+timezone: 'Europe/Berlin'
+domain: 'nas.home.arpa'
+single_disk: false
+ssh_authorized_keys:
+  - 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBeispielBeispielBeispielBeispiel ich@laptop'
+samba_password: 'test-passwort'
+samba_legacy_password: 'test-ps2'
+backup:
+  repository: '/mnt/backup/aunserver'
+  disk_label: 'AUNBACKUP'
+  env: {}
+  schedule: '*-*-* 03:30'
+  keep: { daily: 7, weekly: 4, monthly: 6 }
+apps:
+  adguard: true
+  tailscale: true
+  wireguard: false
+  uptime_kuma: false
+  emby: true
+  recommendarr: true
+  ps2gamemanager: true
+samba_legacy:
+  enabled: true
+  port: 1445
+  allowed_clients: []
+  shares:
+    - name: PS2SMB
+      path: games/ps2

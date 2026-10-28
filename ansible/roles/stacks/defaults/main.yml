@@ -89,33 +89,6 @@ stacks_beszel_webhook: ntfy://ntfy:80/beszel?scheme=http
 # WEB-Gruppen bis 2100). +1500 lässt ein deutsches WEB-Release mit x265 einen großen Bluray-Encode
 # mit x264 schlagen (Wunsch: platzsparend), ohne DL zu überstimmen.
 stacks_recyclarr_x265_score: 1500
-# Upgrades nur bis "German DL in guter Qualität" (DL 11000 + 1080p 700 + WEB-Stufe ab 1800),
-# nicht weiter bis zur Bluray-Version: die TRaSH-Vorlage ersetzte sonst vorhandene WEB-Releases
-# durch viel größere Bluray-Encodes (doppelter Download)
-stacks_recyclarr_upgrade_until_score: 13500
-# Größen in MB pro Minute Laufzeit. Die TRaSH-Vorlage hat kein Maximum (Befund: Bluray-Encodes
-# mit ~150 MB/min, 8-11 GB pro Folge) und verlangt für Bluray-1080p mindestens ~50 MB/min, was
-# kleine x265-Encodes als "zu klein" ablehnte. 60 MB/min = 3,6 GB pro Stunde.
-stacks_recyclarr_groessen:
-  sonarr:
-    - { name: HDTV-720p, min: 10, preferred: 20, max: 35 }
-    - { name: WEBRip-720p, min: 10, preferred: 20, max: 35 }
-    - { name: WEBDL-720p, min: 10, preferred: 20, max: 35 }
-    - { name: Bluray-720p, min: 10, preferred: 20, max: 35 }
-    - { name: HDTV-1080p, min: 15, preferred: 35, max: 60 }
-    - { name: WEBRip-1080p, min: 15, preferred: 35, max: 60 }
-    - { name: WEBDL-1080p, min: 15, preferred: 35, max: 60 }
-    - { name: Bluray-1080p, min: 15, preferred: 35, max: 60 }
-  radarr:
-    - { name: HDTV-720p, min: 10, preferred: 25, max: 40 }
-    - { name: WEBRip-720p, min: 10, preferred: 25, max: 40 }
-    - { name: WEBDL-720p, min: 10, preferred: 25, max: 40 }
-    - { name: Bluray-720p, min: 10, preferred: 25, max: 40 }
-    - { name: HDTV-1080p, min: 15, preferred: 45, max: 70 }
-    - { name: WEBRip-1080p, min: 15, preferred: 45, max: 70 }
-    - { name: WEBDL-1080p, min: 15, preferred: 45, max: 70 }
-    - { name: Bluray-1080p, min: 15, preferred: 45, max: 70 }
-
 # Servarr-Apps, die per API verbunden werden (Bibliotheksordner, SABnzbd-Kategorie).
 # Eigene Kategorienamen statt SABnzbds Standard-Kategorien tv/movies: deren Ordner gingen
 # im Test nach der Einrichtung wieder verloren, neu angelegte Kategorien blieben stabil (M5).

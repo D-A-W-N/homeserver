@@ -27,9 +27,12 @@ An diesem Repo arbeiten **mehrere Claude-Sessions parallel**. Diese Regeln gelte
 . .venv/bin/activate   # einmalig: uv venv --python 3.13 .venv; danach und nach Updates: uv pip install -r requirements-dev.txt
 yamllint . && (cd ansible && ansible-lint)
 shellcheck bin/* dev/*.sh installer/*.sh
+python3 -m unittest discover -s tests && bin/aunserver-config generate --check
 ```
 
-Die CI ([.github/workflows/](.github/workflows/)) prüft dasselbe plus gitleaks; bei Änderungen an `ansible/`, `stacks/`, `bin/`, `installer/`, `dev/` läuft zusätzlich der VM-Test (UEFI und BIOS, zweiter Setup-Lauf muss `changed=0` melden); der Pflicht-Check `vm-test` fasst das zusammen und ist sonst sofort grün. Idempotenz also immer mitdenken.
+Neue oder geänderte Einstellungen nur in [config/schema.yml](config/schema.yml), danach `bin/aunserver-config generate` (erzeugt `ansible/group_vars/all/einstellungen.yml`, `config.example.yml`, `docs/KONFIGURATION.md`; nie von Hand ändern). Standard = bisheriges Verhalten.
+
+Die CI ([.github/workflows/](.github/workflows/)) prüft dasselbe plus gitleaks; bei Änderungen an `ansible/`, `stacks/`, `bin/`, `lib/`, `config/`, `installer/`, `dev/` läuft zusätzlich der VM-Test (UEFI und BIOS, zweiter Setup-Lauf muss `changed=0` melden); der Pflicht-Check `vm-test` fasst das zusammen und ist sonst sofort grün. Idempotenz also immer mitdenken.
 
 ## Nie einchecken
 
@@ -37,7 +40,7 @@ Echte `config.yml`, Passwörter, Schlüssel, `.env`-Dateien (siehe [.gitignore](
 
 ## Überblick
 
-Debian-13-NAS vom USB-Stick: [installer/](installer/) baut das ISO, [bin/aunserver-setup](bin/aunserver-setup) richtet per Ansible ([ansible/](ansible/), lokal, idempotent) ein, App-Vorlagen in [stacks/](stacks/), gepinnte Images in `ansible/roles/stacks/defaults/main.yml` (Renovate). Ziele, Entscheidungen und Architektur: [docs/PLAN.md](docs/PLAN.md); Bedienung: [docs/BETRIEB.md](docs/BETRIEB.md).
+Debian-13-NAS vom USB-Stick: [installer/](installer/) baut das ISO, [bin/aunserver-setup](bin/aunserver-setup) richtet per Ansible ([ansible/](ansible/), lokal, idempotent) ein, App-Vorlagen in [stacks/](stacks/), gepinnte Images in `ansible/roles/stacks/defaults/main.yml` (Renovate), einstellbare Werte in `config/schema.yml` (D21). Ziele, Entscheidungen und Architektur: [docs/PLAN.md](docs/PLAN.md); Bedienung: [docs/BETRIEB.md](docs/BETRIEB.md).
 
 ## Mit dem Nutzer
 

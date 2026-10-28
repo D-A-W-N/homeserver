@@ -1,44 +1,133 @@
 ---
 # Beispiel für /etc/aunserver/config.yml (pro Maschine, nicht einchecken).
-# Alles hier überschreibt die Defaults aus ansible/group_vars/all.yml.
-hostname: nas
-admin_user: nasadmin   # "admin" ist in Debian reserviert
-timezone: Europe/Berlin
-domain: nas.home.arpa
-ssh_authorized_keys: []
-#  - ssh-ed25519 AAAA... ich@laptop
+# ERZEUGT aus config/schema.yml (bin/aunserver-config generate), nicht von Hand ändern.
+# Es reicht, die Werte einzutragen, die vom Standard abweichen; alle Einstellungen mit
+# Erklärung stehen in docs/KONFIGURATION.md. Prüfen: sudo aunserver-config validate
 
+# Name des NAS im Netz
+hostname: nas
+
+# Admin-Benutzer, legt der Installer an ("admin" ist in Debian reserviert)
+admin_user: nasadmin
+
+# Zeitzone
+timezone: Europe/Berlin
+
+# Öffentliche SSH-Schlüssel des Admins; mit Schlüssel ist der Passwort-Login per SSH aus
+ssh_authorized_keys: []
+
+# Kernel aus den Backports (für neue Hardware)
+kernel_backports: false
+
+# Nach Sicherheitsupdates automatisch neu starten, wenn nötig
+base_auto_reboot: true
+
+# Uhrzeit für den automatischen Neustart
+base_auto_reboot_time: '04:00'
+
+# Voller Name des NAS im Heimnetz, die Apps liegen darunter (https://<app>.<domain>)
+domain: nas.home.arpa
+
+# IPv4-Netze, die auf die NAS-Dienste zugreifen dürfen; leer = Netz der Standard-Schnittstelle
+lan_subnets: []
+
+# IPv6-Netze mit Zugriff, z. B. fd00::/64; Link-Local ist immer erlaubt
+lan6_subnets: []
+
+# Web-Apps zusätzlich unter https://<LAN-IP>:<Port>, nur aus dem LAN
+caddy_lan_ports: false
+
+# Ports für caddy_lan_ports; die Firewall öffnet genau diese (nur LAN). Die Startseite fehlt (Links nur auf Namen)
+stacks_lan_ports:
+  prowlarr: 8400
+  sabnzbd: 8401
+  sonarr: 8402
+  radarr: 8403
+  lidarr: 8404
+  bazarr: 8405
+  ntfy: 8410
+  adguard: 8411
+  dozzle: 8412
+  scrutiny: 8413
+  beszel: 8414
+  arcane: 8415
+  recommendarr: 8416
+  ps2gamemanager: 8417
+
+# Route ins LAN, die das NAS im Tailnet anbietet; leer = nur die eigene Adresse (/32), ganzes LAN z. B. 192.168.1.0/24
+network_tailscale_routes: []
+
+# NAS als Tailscale-Exit-Node anbieten (danach in der Admin-Konsole freigeben)
+network_tailscale_exit_node: false
+
+# Auth-Key für Tailscale statt Anmeldelink (nur für die erste Anmeldung)
+# tailscale_authkey: ''
+# Apps an/aus. Die Plattform-Dienste (Caddy, Cockpit, Arcane, Monitoring, Medien) laufen immer
 apps:
+  # AdGuard Home: DNS und Werbeblocker fürs Heimnetz
   adguard: true
+  # Tailscale: Fernzugriff ohne Portfreigabe
   tailscale: true
+  # WireGuard (nicht umgesetzt, D12)
   wireguard: false
+  # Uptime Kuma: Erreichbarkeit der Dienste
   uptime_kuma: false
+  # Emby: Media-Server
   emby: true
+  # Recommendarr (eigene App)
   recommendarr: true
+  # PS2GameManager (eigene App)
   ps2gamemanager: true
 
 # DLNA-Abspielgeräte (z. B. Sonos) für Emby „Wiedergabe auf“, feste IPs
-emby_dlna_renderers: []   # z. B. [192.168.1.110, 192.168.1.207]
+emby_dlna_renderers: []
 
-# NAS als Tailscale-Exit-Node (z. B. Handy unterwegs), danach in der Admin-Konsole freigeben
-network_tailscale_exit_node: false
-
-# Eigene Recyclarr-Profile statt der TRaSH-Vorlage (docs/BETRIEB.md, Abschnitt Indexer)
+# Eigene recyclarr.yml im appdata-Ordner statt der TRaSH-Vorlage
 recyclarr_eigene_config: false
 
-# ntfy: write-only = Meldungen lesen nur mit ntfy-Benutzer (docs/BETRIEB.md, Benachrichtigungen)
+# Upgrades nur, bis ein Release diese Custom-Format-Punktzahl erreicht (13500 = gutes German DL)
+stacks_recyclarr_upgrade_until_score: 13500
+
+# ntfy ohne Anmeldung: read-write = jeder im Netz liest und sendet; write-only = lesen nur mit ntfy-Benutzer
 ntfy_default_access: read-write
-# ntfy: false = kein Weckruf über ntfy.sh (nur für iPhones nötig)
+
+# Weckruf über ntfy.sh (nur für die iPhone-App nötig; ohne Inhalt, aber mit Zeitpunkt)
 ntfy_ios_push: true
 
-# Web-Apps zusätzlich über https://<IP>:<Port> aus dem LAN, ohne Namen (docs/BETRIEB.md, Zugänge)
-caddy_lan_ports: false
+# Backup der Einstellungen mit restic (M8)
+backup:
+  # restic-Ziel, z. B. /mnt/backup/aunserver, sftp:user@rechner:/pfad, s3:…, b2:…; leer = kein Backup
+  repository: ''
+  # Label einer USB-Platte, die unter /mnt/backup eingehängt wird (z. B. AUNBACKUP)
+  disk_label: ''
+  # Zusätzliche Umgebungsvariablen für restic (z. B. B2_ACCOUNT_ID)
+  env: {}
+  # Zeitpunkt als systemd-OnCalendar
+  schedule: '*-*-* 03:30'
+  # Wie viele Sicherungen restic aufhebt
+  keep:
+    # Tägliche Sicherungen
+    daily: 7
+    # Wöchentliche Sicherungen
+    weekly: 4
+    # Monatliche Sicherungen
+    monthly: 6
 
-# SMB1 für PS2/OPL (getrennte Samba-Instanz, nur SMB1, eigener Benutzer ps2)
+# Samba-Passwort des Admins (wirkt bisher nur beim ersten Lauf, D23)
+# samba_password: ''
+# SMB1-Freigabe für PS2/OPL in einer getrennten Samba-Instanz (D19)
 samba_legacy:
-  enabled: true
+  # SMB1-Freigabe für die PS2 (Open PS2 Loader)
+  enabled: false
+  # Port der SMB1-Instanz
   port: 1445
-  allowed_clients: []    # z. B. [192.168.1.50] = nur die PS2; sie erreicht die Freigabe dann auch über Port 445
+  # Nur diese IPs (z. B. die PS2); sie erreichen die Freigabe dann auch über Port 445
+  allowed_clients: []
+  # Freigaben der SMB1-Instanz (name, path relativ zur Datenplatte)
   shares:
-    - name: PS2SMB
-      path: games/ps2
+    - {name: PS2SMB, path: games/ps2}
+
+# Passwort des Kontos ps2 (SMB1 überträgt es schwach geschützt, kein wichtiges Passwort)
+# samba_legacy_password: ''
+# Keine eigene Datenplatte, die Daten liegen auf der Systemplatte (setzt das Setup)
+single_disk: false

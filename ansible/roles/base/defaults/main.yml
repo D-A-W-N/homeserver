@@ -20,9 +20,5 @@ base_packages:
 # zram: Größe als Ausdruck für systemd-zram-generator
 base_zram_size: "min(ram / 2, 4096)"
 
-# Automatische Updates (Debian, Security, Backports-Updates, Docker-Repo)
-base_auto_reboot: true
-base_auto_reboot_time: "04:00"
-
 # Journal begrenzen (SSD schonen)
 base_journal_max_use: 500M

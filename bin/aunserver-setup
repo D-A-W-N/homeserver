@@ -354,12 +354,26 @@ ensure_tools() {
   fi
 }
 
+# Konfiguration gegen das Schema prüfen (D21); Warnungen zeigen, bei Fehlern abbrechen
+validate_config() {
+  "$REPO/bin/aunserver-config" validate "$CONFIG" >/dev/null \
+    || die "$CONFIG ist fehlerhaft (siehe oben), nichts wurde verändert. Erklärung aller Werte: $REPO/docs/KONFIGURATION.md"
+}
+
 run_playbook() {
+  local eff_dir=/run/aunserver rc
   info "Starte Ansible (Ausgabe auch in $LOG). Das dauert beim ersten Mal 10–20 Minuten."
+  # Ansible bekommt die Konfiguration mit allen Standardwerten: ein Block wie apps: {emby: false}
+  # ersetzt sonst den ganzen Block. Enthält die Passwörter, deshalb nur für root und nur im RAM.
+  install -d -m 0700 "$eff_dir"
+  "$REPO/bin/aunserver-config" effective "$CONFIG" --out "$eff_dir/effective.yml" \
+    || die "$CONFIG ist fehlerhaft (siehe oben). Erklärung aller Werte: $REPO/docs/KONFIGURATION.md"
   # Log nur für root: enthält Pfade, Benutzer und Ablauf der Einrichtung
   install -m 0600 /dev/null "$LOG"
-  (cd "$REPO/ansible" && ansible-playbook -i localhost, -c local site.yml -e "@$CONFIG") 2>&1 | tee "$LOG"
-  [ "${PIPESTATUS[0]}" = 0 ] || die "Das Playbook ist fehlgeschlagen, Details in $LOG. Danach erneut ausführen."
+  (cd "$REPO/ansible" && ansible-playbook -i localhost, -c local site.yml -e "@$eff_dir/effective.yml") 2>&1 | tee "$LOG"
+  rc=${PIPESTATUS[0]}
+  rm -f "$eff_dir/effective.yml"
+  [ "$rc" = 0 ] || die "Das Playbook ist fehlgeschlagen, Details in $LOG. Danach erneut ausführen."
 }
 
 # Tailscale noch nicht angemeldet: Anmeldelink zeigen und warten (nur interaktiv)
@@ -389,10 +403,12 @@ main() {
     install -d -m 0700 "$CONFIG_DIR"
     install -m 0600 "$CONFIG_IN" "$CONFIG"
     info "Konfiguration übernommen: $CONFIG_IN"
+    validate_config
     grep -qE '^single_disk: *true' "$CONFIG" && SINGLE=1
     choose_data_disk
   elif [ -f "$CONFIG" ] && [ "$RECONFIGURE" = 0 ] && { ! interactive || yesno "Es gibt schon eine Konfiguration ($CONFIG).\n\nUnverändert verwenden und das System damit abgleichen?"; }; then
     info "Vorhandene Konfiguration wird verwendet: $CONFIG"
+    validate_config
     grep -qE '^single_disk: *true' "$CONFIG" && SINGLE=1
     choose_data_disk
   else

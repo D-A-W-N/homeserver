@@ -1,0 +1,392 @@
+---
+# Schema der Konfiguration (D21): einzige Quelle für alle einstellbaren Werte.
+#
+# Daraus erzeugt `aunserver-config generate`:
+#   ansible/group_vars/all/einstellungen.yml   Standardwerte für Ansible
+#   config.example.yml                          Beispiel mit allen Werten
+#   docs/KONFIGURATION.md                       Übersicht
+# Nach jeder Änderung hier: bin/aunserver-config generate (die CI prüft, ob alles aktuell ist).
+#
+# Felder je Einstellung (Schlüssel mit Punkt = verschachtelt, z. B. apps.emby):
+#   typ       text | bool | zahl | auswahl | liste | objekt
+#   standard  Standardwert; fehlt er, gibt es den Wert nur, wenn er gesetzt ist
+#   bereich   Abschnitt im Editor und in der Doku (siehe bereiche)
+#   stufe     basis (Setup fragt) | erweitert | fest (setzt das Setup, nicht von Hand ändern)
+#   text      Beschreibung (eine Zeile)
+#   hinweis   optional, längere Erklärung
+#   geheim    true = Passwort/Schlüssel, nie anzeigen
+#   format    bei text: ip | netz | zeit | hostname | zeitzone
+#   muster    bei text: regulärer Ausdruck
+#   werte     bei auswahl: erlaubte Werte
+#   min, max  bei zahl
+#   eintrag   bei liste/objekt: Typ der Elemente (text, zahl, ip, netz, objekt, liste)
+#   ersetzen  bei objekt: true = eigener Wert ersetzt den Standard ganz (sonst Schlüssel einzeln)
+#   braucht   Schlüssel einer bool-Einstellung, die dafür an sein muss
+#   beispiel  false = nicht in config.example.yml (lange Standardwerte)
+version: 1
+
+bereiche:
+  system: System
+  netz: Netz und Zugriff
+  apps: Apps
+  medien: Medien
+  benachrichtigung: Benachrichtigungen
+  backup: Backup
+  freigaben: Freigaben
+  speicher: Speicher
+
+gruppen:
+  apps: Apps an/aus. Die Plattform-Dienste (Caddy, Cockpit, Arcane, Monitoring, Medien) laufen immer
+  backup: Backup der Einstellungen mit restic (M8)
+  backup.keep: Wie viele Sicherungen restic aufhebt
+  samba_legacy: SMB1-Freigabe für PS2/OPL in einer getrennten Samba-Instanz (D19)
+
+einstellungen:
+  # --- System ---
+  hostname:
+    typ: text
+    format: hostname
+    standard: nas
+    bereich: system
+    stufe: basis
+    text: Name des NAS im Netz
+  admin_user:
+    typ: text
+    format: hostname
+    standard: nasadmin
+    bereich: system
+    stufe: fest
+    text: Admin-Benutzer, legt der Installer an ("admin" ist in Debian reserviert)
+  timezone:
+    typ: text
+    format: zeitzone
+    standard: Europe/Berlin
+    bereich: system
+    stufe: basis
+    text: Zeitzone
+  ssh_authorized_keys:
+    typ: liste
+    eintrag: text
+    standard: []
+    bereich: system
+    stufe: basis
+    text: Öffentliche SSH-Schlüssel des Admins; mit Schlüssel ist der Passwort-Login per SSH aus
+  kernel_backports:
+    typ: bool
+    standard: false
+    bereich: system
+    stufe: erweitert
+    text: Kernel aus den Backports (für neue Hardware)
+  base_auto_reboot:
+    typ: bool
+    standard: true
+    bereich: system
+    stufe: erweitert
+    text: Nach Sicherheitsupdates automatisch neu starten, wenn nötig
+  base_auto_reboot_time:
+    typ: text
+    format: zeit
+    standard: "04:00"
+    bereich: system
+    stufe: erweitert
+    text: Uhrzeit für den automatischen Neustart
+    braucht: base_auto_reboot
+
+  # --- Netz und Zugriff ---
+  domain:
+    typ: text
+    muster: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'
+    standard: nas.home.arpa
+    bereich: netz
+    stufe: basis
+    text: Voller Name des NAS im Heimnetz, die Apps liegen darunter (https://<app>.<domain>)
+  lan_subnets:
+    typ: liste
+    eintrag: netz
+    standard: []
+    bereich: netz
+    stufe: erweitert
+    text: IPv4-Netze, die auf die NAS-Dienste zugreifen dürfen; leer = Netz der Standard-Schnittstelle
+  lan6_subnets:
+    typ: liste
+    eintrag: netz
+    standard: []
+    bereich: netz
+    stufe: erweitert
+    text: IPv6-Netze mit Zugriff, z. B. fd00::/64; Link-Local ist immer erlaubt
+  caddy_lan_ports:
+    typ: bool
+    standard: false
+    bereich: netz
+    stufe: erweitert
+    text: Web-Apps zusätzlich unter https://<LAN-IP>:<Port>, nur aus dem LAN
+    hinweis: Für Geräte, die die Namen nicht auflösen (z. B. Handy mit Mullvad-App). Ports siehe stacks_lan_ports
+  stacks_lan_ports:
+    typ: objekt
+    eintrag: zahl
+    standard:
+      prowlarr: 8400
+      sabnzbd: 8401
+      sonarr: 8402
+      radarr: 8403
+      lidarr: 8404
+      bazarr: 8405
+      ntfy: 8410
+      adguard: 8411
+      dozzle: 8412
+      scrutiny: 8413
+      beszel: 8414
+      arcane: 8415
+      recommendarr: 8416
+      ps2gamemanager: 8417
+    bereich: netz
+    stufe: erweitert
+    text: Ports für caddy_lan_ports; die Firewall öffnet genau diese (nur LAN). Die Startseite fehlt (Links nur auf Namen)
+    braucht: caddy_lan_ports
+  network_tailscale_routes:
+    typ: liste
+    eintrag: netz
+    standard: []
+    bereich: netz
+    stufe: erweitert
+    text: Route ins LAN, die das NAS im Tailnet anbietet; leer = nur die eigene Adresse (/32), ganzes LAN z. B. 192.168.1.0/24
+    hinweis: >-
+      Mit /32 erreichen Geräte im VPN die NAS-Dienste unter ihren normalen Namen (AdGuard antwortet mit
+      der LAN-Adresse), aber nicht den Rest des Heimnetzes.
+    braucht: apps.tailscale
+  network_tailscale_exit_node:
+    typ: bool
+    standard: false
+    bereich: netz
+    stufe: erweitert
+    text: NAS als Tailscale-Exit-Node anbieten (danach in der Admin-Konsole freigeben)
+    hinweis: >-
+      Freigeben unter Machines → <hostname> → Edit route settings → Use as exit node. Wer das NAS als
+      Exit-Node nutzt, erreicht darüber auch das übrige Heimnetz, solange die Tailscale-ACL das nicht einschränkt.
+    braucht: apps.tailscale
+  tailscale_authkey:
+    typ: text
+    geheim: true
+    bereich: netz
+    stufe: erweitert
+    text: Auth-Key für Tailscale statt Anmeldelink (nur für die erste Anmeldung)
+    braucht: apps.tailscale
+
+  # --- Apps ---
+  apps.adguard:
+    typ: bool
+    standard: true
+    bereich: apps
+    stufe: basis
+    text: "AdGuard Home: DNS und Werbeblocker fürs Heimnetz"
+  apps.tailscale:
+    typ: bool
+    standard: true
+    bereich: apps
+    stufe: basis
+    text: "Tailscale: Fernzugriff ohne Portfreigabe"
+  apps.wireguard:
+    typ: bool
+    standard: false
+    bereich: apps
+    stufe: fest
+    text: WireGuard (nicht umgesetzt, D12)
+  apps.uptime_kuma:
+    typ: bool
+    standard: false
+    bereich: apps
+    stufe: basis
+    text: "Uptime Kuma: Erreichbarkeit der Dienste"
+  apps.emby:
+    typ: bool
+    standard: true
+    bereich: apps
+    stufe: basis
+    text: "Emby: Media-Server"
+  apps.recommendarr:
+    typ: bool
+    standard: true
+    bereich: apps
+    stufe: basis
+    text: Recommendarr (eigene App)
+  apps.ps2gamemanager:
+    typ: bool
+    standard: true
+    bereich: apps
+    stufe: basis
+    text: PS2GameManager (eigene App)
+
+  # --- Medien ---
+  emby_dlna_renderers:
+    typ: liste
+    eintrag: ip
+    standard: []
+    bereich: medien
+    stufe: erweitert
+    text: DLNA-Abspielgeräte (z. B. Sonos) für Emby „Wiedergabe auf“, feste IPs
+    braucht: apps.emby
+  recyclarr_eigene_config:
+    typ: bool
+    standard: false
+    bereich: medien
+    stufe: erweitert
+    text: Eigene recyclarr.yml im appdata-Ordner statt der TRaSH-Vorlage
+    hinweis: Ansible schreibt die Vorlage dann nicht mehr darüber (docs/BETRIEB.md, Indexer)
+  stacks_recyclarr_upgrade_until_score:
+    typ: zahl
+    min: 0
+    standard: 13500
+    bereich: medien
+    stufe: erweitert
+    text: Upgrades nur, bis ein Release diese Custom-Format-Punktzahl erreicht (13500 = gutes German DL)
+    hinweis: >-
+      DL 11000 + 1080p 700 + WEB-Stufe ab 1800. Die TRaSH-Vorlage ersetzte sonst vorhandene WEB-Releases
+      durch viel größere Bluray-Encodes (doppelter Download).
+  stacks_recyclarr_groessen:
+    typ: objekt
+    eintrag: liste
+    beispiel: false
+    standard:
+      sonarr:
+        - { name: HDTV-720p, min: 10, preferred: 20, max: 35 }
+        - { name: WEBRip-720p, min: 10, preferred: 20, max: 35 }
+        - { name: WEBDL-720p, min: 10, preferred: 20, max: 35 }
+        - { name: Bluray-720p, min: 10, preferred: 20, max: 35 }
+        - { name: HDTV-1080p, min: 15, preferred: 35, max: 60 }
+        - { name: WEBRip-1080p, min: 15, preferred: 35, max: 60 }
+        - { name: WEBDL-1080p, min: 15, preferred: 35, max: 60 }
+        - { name: Bluray-1080p, min: 15, preferred: 35, max: 60 }
+      radarr:
+        - { name: HDTV-720p, min: 10, preferred: 25, max: 40 }
+        - { name: WEBRip-720p, min: 10, preferred: 25, max: 40 }
+        - { name: WEBDL-720p, min: 10, preferred: 25, max: 40 }
+        - { name: Bluray-720p, min: 10, preferred: 25, max: 40 }
+        - { name: HDTV-1080p, min: 15, preferred: 45, max: 70 }
+        - { name: WEBRip-1080p, min: 15, preferred: 45, max: 70 }
+        - { name: WEBDL-1080p, min: 15, preferred: 45, max: 70 }
+        - { name: Bluray-1080p, min: 15, preferred: 45, max: 70 }
+    bereich: medien
+    stufe: erweitert
+    text: Größengrenzen in MB pro Minute Laufzeit, je App eine Liste (60 MB/min = 3,6 GB pro Stunde)
+    hinweis: >-
+      Die TRaSH-Vorlage hat kein Maximum (Bluray-Encodes mit ~150 MB/min) und lehnte kleine x265-Encodes
+      als zu klein ab. Eine App hier angeben ersetzt nur deren Liste.
+
+  # --- Benachrichtigungen ---
+  ntfy_default_access:
+    typ: auswahl
+    werte: [read-write, write-only]
+    standard: read-write
+    bereich: benachrichtigung
+    stufe: erweitert
+    text: "ntfy ohne Anmeldung: read-write = jeder im Netz liest und sendet; write-only = lesen nur mit ntfy-Benutzer"
+  ntfy_ios_push:
+    typ: bool
+    standard: true
+    bereich: benachrichtigung
+    stufe: erweitert
+    text: Weckruf über ntfy.sh (nur für die iPhone-App nötig; ohne Inhalt, aber mit Zeitpunkt)
+
+  # --- Backup ---
+  backup.repository:
+    typ: text
+    standard: ""
+    bereich: backup
+    stufe: basis
+    text: restic-Ziel, z. B. /mnt/backup/aunserver, sftp:user@rechner:/pfad, s3:…, b2:…; leer = kein Backup
+  backup.disk_label:
+    typ: text
+    standard: ""
+    bereich: backup
+    stufe: basis
+    text: Label einer USB-Platte, die unter /mnt/backup eingehängt wird (z. B. AUNBACKUP)
+  backup.env:
+    typ: objekt
+    eintrag: text
+    ersetzen: true
+    standard: {}
+    bereich: backup
+    stufe: erweitert
+    text: Zusätzliche Umgebungsvariablen für restic (z. B. B2_ACCOUNT_ID)
+  backup.schedule:
+    typ: text
+    standard: "*-*-* 03:30"
+    bereich: backup
+    stufe: erweitert
+    text: Zeitpunkt als systemd-OnCalendar
+  backup.keep.daily:
+    typ: zahl
+    min: 0
+    standard: 7
+    bereich: backup
+    stufe: erweitert
+    text: Tägliche Sicherungen
+  backup.keep.weekly:
+    typ: zahl
+    min: 0
+    standard: 4
+    bereich: backup
+    stufe: erweitert
+    text: Wöchentliche Sicherungen
+  backup.keep.monthly:
+    typ: zahl
+    min: 0
+    standard: 6
+    bereich: backup
+    stufe: erweitert
+    text: Monatliche Sicherungen
+
+  # --- Freigaben ---
+  samba_password:
+    typ: text
+    geheim: true
+    bereich: freigaben
+    stufe: basis
+    text: Samba-Passwort des Admins (wirkt bisher nur beim ersten Lauf, D23)
+  samba_legacy.enabled:
+    typ: bool
+    standard: false
+    bereich: freigaben
+    stufe: basis
+    text: SMB1-Freigabe für die PS2 (Open PS2 Loader)
+  samba_legacy.port:
+    typ: zahl
+    min: 1
+    max: 65535
+    standard: 1445
+    bereich: freigaben
+    stufe: erweitert
+    text: Port der SMB1-Instanz
+    braucht: samba_legacy.enabled
+  samba_legacy.allowed_clients:
+    typ: liste
+    eintrag: ip
+    standard: []
+    bereich: freigaben
+    stufe: erweitert
+    text: Nur diese IPs (z. B. die PS2); sie erreichen die Freigabe dann auch über Port 445
+    braucht: samba_legacy.enabled
+  samba_legacy.shares:
+    typ: liste
+    eintrag: objekt
+    standard:
+      - { name: PS2SMB, path: games/ps2 }
+    bereich: freigaben
+    stufe: erweitert
+    text: Freigaben der SMB1-Instanz (name, path relativ zur Datenplatte)
+    braucht: samba_legacy.enabled
+  samba_legacy_password:
+    typ: text
+    geheim: true
+    bereich: freigaben
+    stufe: basis
+    text: Passwort des Kontos ps2 (SMB1 überträgt es schwach geschützt, kein wichtiges Passwort)
+    braucht: samba_legacy.enabled
+
+  # --- Speicher ---
+  single_disk:
+    typ: bool
+    standard: false
+    bereich: speicher
+    stufe: fest
+    text: Keine eigene Datenplatte, die Daten liegen auf der Systemplatte (setzt das Setup)

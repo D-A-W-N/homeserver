@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# aunserver-config – Konfiguration prüfen, anzeigen und für Ansible zusammenführen (D21).
+#
+#   sudo aunserver-config validate          /etc/aunserver/config.yml prüfen
+#   sudo aunserver-config show [--effective] anzeigen (Passwörter verdeckt)
+#   bin/aunserver-config generate [--check] Vorlagen aus config/schema.yml erzeugen (Entwicklung)
+#
+# Die Logik liegt in lib/aunserver_config.py (Python, nur PyYAML aus dem Paket ansible).
+set -euo pipefail
+
+REPO=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+# -I: keine Module aus dem aktuellen Ordner oder PYTHONPATH
+exec python3 -I "$REPO/lib/aunserver_config.py" "$@"
