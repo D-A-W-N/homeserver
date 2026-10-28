@@ -23,17 +23,32 @@ const seite = await kontext.newPage();
 seite.on("pageerror", e => fehler.push("pageerror: " + e.message));
 seite.on("console", m => { if (m.type() === "error") fehler.push("console: " + m.text()) });
 
+// Rückfall, falls Cockpit trotzdem eingeschränkt startet: oben rechts umschalten
+async function adminZugriff() {
+    const knopf = seite.locator("#super-user-indicator button, #super-user-indicator-mobile button").first();
+    if (!(await knopf.count()) || !/eingeschränkt|limited/i.test(await knopf.textContent())) return;
+    await knopf.click();
+    const dialog = seite.locator('[role="dialog"]');
+    await dialog.locator('input[type="password"]').fill(passwort);
+    await dialog.locator('button.pf-m-primary, button[type="submit"]').first().click();
+    await seite.waitForTimeout(3000);
+}
+
 async function bild(name) {
     await seite.screenshot({ path: `${bilder}/${name}.png`, fullPage: true });
 }
 
 try {
     await seite.goto(basis + "/");
+    // Administratorzugriff gleich bei der Anmeldung (wie „Administratorzugriff“ einschalten);
+    // eine frische Browser-Sitzung startet sonst eingeschränkt
+    await seite.evaluate(u => localStorage.setItem("superuser:" + u, "any"), benutzer);
     await seite.fill("#login-user-input", benutzer);
     await seite.fill("#login-password-input", passwort);
     await seite.click("#login-button");
     await seite.waitForURL(/\/system|\/cockpit|\/$/, { timeout: 30000 });
     await seite.waitForTimeout(3000);   // Shell und Administratorzugriff starten
+    await adminZugriff();
 
     // die Seite direkt, ohne Cockpit-Rahmen (cockpit.js verbindet sich selbst)
     await seite.goto(basis + "/cockpit/@localhost/aunserver/index.html");
