@@ -16,6 +16,14 @@ sudo dd if=aunserver-<version>.iso of=/dev/sdX bs=4M status=progress conv=fsync
 
 Unter Windows mit Rufus im **DD-Modus** schreiben; Ventoy ist nicht getestet. Vom Stick booten (UEFI oder BIOS) und „aunserver installieren“ wählen. Gefragt werden der Name des NAS, das Netz (DHCP oder feste Adresse), optional ein GitHub-Name für die SSH-Schlüssel, Benutzername und Passwort; die Systemplatte wird erkannt und mit Modell, Größe und Seriennummer zur Bestätigung angezeigt, vor dem Partitionieren kommt immer noch eine Rückfrage. Platten mit Label `AUNDATA` und USB-Geräte werden nie angeboten.
 
+**Persönliches ISO:** Wer schon weiß, wie das NAS aussehen soll (oder eines neu aufsetzt), legt die Konfiguration gleich mit aufs ISO:
+
+```bash
+installer/build-iso.sh --config meine.yml --datenplatte <Seriennummer> [--backup-passwort-datei pw.txt]
+```
+
+Name und Benutzer kommen dann aus `meine.yml` (Aufbau wie `/etc/aunserver/config.yml`, siehe [docs/KONFIGURATION.md](docs/KONFIGURATION.md)). Der Installer fragt nur noch das Passwort und die Systemplatte, beim ersten Start richtet sich das NAS selbst ein (`journalctl -fu aunserver-erststart` oder Cockpit → aunserver). Formatiert wird nur die Platte mit dieser Seriennummer (`lsblk -o NAME,SERIAL`), eine Platte mit Label `AUNDATA` wird nur eingehängt. Mit `--backup-passwort-datei` spielt es danach das letzte Backup vom Ziel in `meine.yml` zurück. Das ISO enthält dann Passwörter: nicht weitergeben, den Stick danach neu beschreiben.
+
 ## Einrichtung nach der Installation
 
 **Im Browser:** `https://<IP>:9090` öffnen (die Adresse zeigt die Anmeldung am Gerät), mit dem Benutzer aus der Installation anmelden und links **aunserver** wählen. Der Assistent fragt Datenplatte, Name, SSH-Schlüssel, Apps, PS2-Freigabe, Backup-Ziel und Passwörter, formatiert erst nach Eintippen des Gerätenamens und zeigt das Protokoll des Setups. Das Fenster darf dabei zu, die Einrichtung läuft weiter.

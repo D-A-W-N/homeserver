@@ -11,7 +11,7 @@ const CLI = "/opt/aunserver/bin/aunserver-config";
 const SETUP = "/opt/aunserver/bin/aunserver-setup";
 const UPDATE = "/opt/aunserver/bin/aunserver-update";
 const KONFIG = "/etc/aunserver/config.yml";
-const EINHEIT = { setup: "aunserver-apply", update: "aunserver-update-run" };
+const EINHEIT = { setup: "aunserver-apply", update: "aunserver-update-run", erststart: "aunserver-erststart" };
 
 const zustand = {
     schema: null,         // aunserver-config schema
@@ -425,9 +425,10 @@ async function starteLauf(art, zusatz = [], admin = null) {
 
 function verfolge(art, invocation) {
     const einheit = EINHEIT[art];
-    const ziel = art === "setup" ? $("#ae-protokoll") : $("#ue-update");
+    const setup = art !== "update";   // setup oder erststart: Protokoll unter „Übernehmen“
+    const ziel = setup ? $("#ae-protokoll") : $("#ue-update");
     const marke = $("#ae-status");
-    if (art === "setup") {
+    if (setup) {
         $("#ae-protokoll-karte").hidden = false;
         marke.className = "marke warn";
         marke.textContent = "läuft …";
@@ -470,7 +471,7 @@ function verfolge(art, invocation) {
         window.setTimeout(() => leser.close(), 1500);   // letzte Zeilen noch lesen
         zustand.lauf = null;
         const ok = w.ActiveState !== "failed" && /== (Fertig|Update fertig)/.test(ziel.textContent);
-        if (art === "setup") {
+        if (setup) {
             marke.className = "marke " + (ok ? "gut" : "fehler");
             marke.textContent = ok ? "fertig" : "fehlgeschlagen";
             $("#uebernehmen").disabled = false;
@@ -783,7 +784,15 @@ function start() {
     cockpit.file(KONFIG, { superuser: "require" }).read()
         .then(inhalt => {
             if (inhalt !== null) {
-                return ladeEinstellungen().then(() => zeigeReiter(document.getElementById(ziel) && ziel !== "einrichten" ? ziel : "uebersicht"));
+                return ladeEinstellungen()
+                    .then(() => zeigeReiter(document.getElementById(ziel) && ziel !== "einrichten" ? ziel : "uebersicht"))
+                    // persönliches ISO: die Ersteinrichtung läuft als eigene Unit
+                    .then(() => laufStatus(EINHEIT.erststart))
+                    .then(st => {
+                        if (!st.aktiv) return;
+                        zeigeReiter("aenderungen");
+                        verfolge("erststart", st.invocation);
+                    });
             }
             // noch nicht eingerichtet: nur der Assistent (und sein Protokoll)
             zustand.ersteinrichtung = true;
