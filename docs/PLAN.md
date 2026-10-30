@@ -216,7 +216,7 @@ Danach schreibst du das ISO mit `dd`, GNOME Disks, balenaEtcher oder Rufus (DD-M
 ### 7.2 Installation (am Gerät, Monitor und Tastatur einmalig nötig)
 
 1. Vom Stick booten, „aunserver installieren“ wählen.
-2. Abgefragt werden nur: **Benutzername** (Vorschlag `nasadmin`, `admin` ist in Debian reserviert) und **Passwort**. Den Hostnamen setzt `aunserver-setup`.
+2. Abgefragt werden (`installer/fragen.sh`, D24): **Name des NAS** (Vorschlag `nas`), **Netz** (DHCP oder feste Adresse mit Präfix, Gateway, DNS), optional ein **GitHub-Name**, dessen SSH-Schlüssel der Admin bekommt; dann **Benutzername** (Vorschlag `nasadmin`, `admin` ist in Debian reserviert) und **Passwort**. Sprache und Tastatur bleiben Deutsch (nur für die Konsole wichtig). Partitionsrezept `aunserver`: eine Partition für `/` (dazu EFI bzw. BIOS-Boot auf GPT), keine Swap-Partition, denn zram kommt mit dem Setup.
 3. `select-disk.sh` sucht die Systemplatte. Ausgeschlossen werden USB-Geräte, Wechselmedien und Platten mit Label `AUNDATA`. Gibt es genau eine SSD/NVMe, fragt das Skript mit Modell, Größe und Seriennummer nach. Sonst (oder bei „Nein“) fragt der Installer und zeigt Modell und Größe.
 4. **Die Bestätigung vor dem Partitionieren bleibt immer manuell.**
 5. `late_command` kopiert das Repo nach `/opt/aunserver`, installiert Cockpit mit der aunserver-Seite (`installer/erststart.sh`, D24) und richtet den Hinweis für den ersten Login ein.
@@ -262,6 +262,7 @@ aunserver/
 │   ├── build-iso.sh
 │   ├── preseed.cfg.in
 │   ├── select-disk.sh
+│   ├── fragen.sh                # eigene Fragen: Name, Netz (DHCP/fest), SSH-Schlüssel von GitHub
 │   ├── erststart.sh             # im neuen System: Cockpit + aunserver-Seite für den Assistenten
 │   └── aunserver-login.sh       # Login-Hinweis aufs Setup
 ├── bin/
@@ -425,7 +426,7 @@ Je Phase ein PR mit VM-Test; jede neue Einstellung hat als Standard das bisherig
 - [x] **P2b Passwörter ändern:** `aunserver-config passwd samba|ps2|web`, das Web-Passwort wirksam in Caddy, AdGuard, Beszel und den Servarr-Apps
 - [x] **P3 Cockpit-Plugin:** Übersicht, Formular aus dem Schema (Basis/Erweitert), Diff, Anwenden als `aunserver-apply.service` mit Live-Log, Verlauf, Passwörter, Update, Zugänge
 - [x] **P4 Erststart im Browser:** Der Installer bringt Cockpit (Backports) und die aunserver-Seite mit; ohne `config.yml` zeigt sie den Assistenten (Datenplatte aus `aunserver-setup --disks`, Formatieren nur nach Eintippen des Gerätenamens, Restore mit vorhandenem Backup-Passwort). Er schreibt per `aunserver-config import` und startet das Setup als Unit. Läuft das Setup aus Cockpit (Assistent, „Übernehmen“), startet es Cockpit nicht neu (`AUNSERVER_AUS_COCKPIT`), sonst endete die Sitzung; cockpit-ws liest die Datei beim nächsten Start. Der VM-Test richtet BIOS mit dem Assistenten ein, UEFI über die Kommandozeile. whiptail bleibt, seine Fragen entsprechen den Basiswerten des Schemas
-- [ ] **P5 Installer:** Hostname, DHCP/feste IP, Sprache/Tastatur, Benutzer, SSH-Schlüssel; Partitionsrezept ohne Swap; Testmatrix erweitert. Feste IP später nur mit automatischem Rückfall ohne Bestätigung
+- [x] **P5 Installer:** Name, Netz (DHCP oder feste Adresse), SSH-Schlüssel von GitHub (`installer/fragen.sh`, eigene Fragen mit Priorität critical, belegen netcfg vor); Partitionsrezept ohne Swap; VM-Test prüft fstab. Abweichungen: Sprache und Tastatur bleiben Deutsch (nur Konsole, frühe Abfrage im Auto-Modus heikel); die feste Adresse ist im VM-Test nicht abgedeckt (dort DHCP); eine Adresse später ändern bleibt Handarbeit (`/etc/network/interfaces`), nicht im Editor (Gefahr, sich auszusperren)
 - [ ] **P6 Persönliches ISO:** `build-iso.sh --config`, automatischer Erststart, Restore aus Backup ohne Dialoge
 - [ ] **P7 Umfang:** Medien-Stack abschaltbar, Profile; weitere Schalter (Neustart, Update-Check, Backup-Zeitplan, Recyclarr-Größen, Backports-Kernel)
 
