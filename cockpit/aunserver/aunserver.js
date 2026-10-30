@@ -468,8 +468,10 @@ function verfolge(art, invocation) {
         }
         if (["active", "activating", "reloading"].includes(w.ActiveState)) return;
         window.clearInterval(takt);
-        window.setTimeout(() => leser.close(), 1500);   // letzte Zeilen noch lesen
         zustand.lauf = null;
+        // erst die letzten Zeilen lesen, dann urteilen: sie kommen manchmal nach dem Ende der Unit an
+        await new Promise(fertig => window.setTimeout(fertig, 2500));
+        leser.close();
         const ok = w.ActiveState !== "failed" && /== (Fertig|Update fertig)/.test(ziel.textContent);
         if (setup) {
             marke.className = "marke " + (ok ? "gut" : "fehler");
