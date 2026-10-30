@@ -41,8 +41,9 @@ Optionen (alle optional; was fehlt, wird gefragt bzw. bei --yes mit Standardwert
   --backup-disk-label LABEL USB-Platte mit diesem Label unter /mnt/backup einhängen
   --backup-password PW      Passwort eines vorhandenen Backups (sonst wird ein neues erzeugt)
   --restore                 nach der Einrichtung das letzte Backup zurückspielen (Neuinstallation)
-  --apps LISTE              kommagetrennt aus: adguard,emby,recommendarr,ps2gamemanager,uptime_kuma
-                            (Standard: adguard,emby,recommendarr,ps2gamemanager)
+  --apps LISTE              kommagetrennt aus: adguard,medien,emby,recommendarr,ps2gamemanager,uptime_kuma
+                            (Standard: adguard,medien,emby,recommendarr,ps2gamemanager)
+  --profil NAME             Vorauswahl der Apps: medien-nas (Standard) oder dateien (ohne Medien-Apps)
   --no-playbook             nur Konfiguration schreiben (und ggf. formatieren)
   --disks                   nur die möglichen Datenplatten zeigen (für den Assistenten in Cockpit)
   --reconfigure             Grundeinstellungen neu abfragen (Vorschlag: bisherige Werte); alle
@@ -57,7 +58,7 @@ info() { echo "== $*"; }
 # --- Parameter -------------------------------------------------------------------
 COLLECTED=0 FORMAT_TARGET="" YES=0 CONFIG_IN="" DATA_DISK="" FORMAT=0 CONFIRM_DISK="" SINGLE=0 HOST="" DOMAIN="" TZONE=""
 SSH_KEYS=() SAMBA_PW="" PS2_PW="" PS2=-1 APPS="" RUN_PLAYBOOK=1 RECONFIGURE=0
-TAILSCALE=-1 TS_AUTHKEY="" BACKUP_REPO="" BACKUP_LABEL="" BACKUP_ASKED=0 BACKUP_PW="" RESTORE=0 DISKS=0
+TAILSCALE=-1 TS_AUTHKEY="" BACKUP_REPO="" BACKUP_LABEL="" BACKUP_ASKED=0 BACKUP_PW="" RESTORE=0 DISKS=0 PROFIL=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --yes) YES=1 ;;
@@ -84,6 +85,7 @@ while [ $# -gt 0 ]; do
     --no-playbook) RUN_PLAYBOOK=0 ;;
     --reconfigure) RECONFIGURE=1 ;;
     --disks) DISKS=1 ;;
+    --profil) PROFIL=${2:?}; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "Unbekannte Option: $1 (siehe --help)" ;;
   esac
@@ -255,7 +257,7 @@ prefill() {
   HOST=${HOST:-$(cfg hostname)}
   DOMAIN=${DOMAIN:-$(cfg domain)}
   TZONE=${TZONE:-$(cfg timezone)}
-  for a in adguard emby recommendarr ps2gamemanager uptime_kuma; do
+  for a in adguard medien emby recommendarr ps2gamemanager uptime_kuma; do
     [ "$(cfg "apps.$a")" = true ] && list+="${list:+,}$a"
   done
   APPS_CURRENT=${list:-,}
@@ -298,11 +300,24 @@ collect() {
   fi
 
   if [ -z "$APPS" ]; then
-    apps_default=${APPS_CURRENT:-adguard,emby,recommendarr,ps2gamemanager}
+    # Vorauswahl: bisherige Apps, sonst das Profil (D25; Liste aus dem Schema)
+    local profile=() name text liste menu=()
+    mapfile -t profile < <("$REPO/bin/aunserver-config" profile)
+    if [ -z "$APPS_CURRENT" ] && [ -z "$PROFIL" ] && interactive; then
+      for z in "${profile[@]}"; do IFS=$'\t' read -r name text liste <<<"$z"; menu+=("$name" "$text"); done
+      PROFIL=$(whiptail --title "$TITLE" --notags --menu "Wofür ist das NAS? (Die Apps lassen sich danach einzeln wählen.)" 14 78 4 "${menu[@]}" 3>&1 1>&2 2>&3) || die "Abgebrochen."
+    fi
+    apps_default=$APPS_CURRENT
+    for z in "${profile[@]}"; do
+      IFS=$'\t' read -r name text liste <<<"$z"
+      [ "$name" = "${PROFIL:-medien-nas}" ] && [ -z "$apps_default" ] && apps_default=$liste
+    done
+    [ -n "$apps_default" ] || die "Unbekanntes Profil: $PROFIL ($("$REPO/bin/aunserver-config" profile | cut -f1 | paste -sd,))"
     APPS=$apps_default
     if interactive; then
-      APPS=$(whiptail --title "$TITLE" --separate-output --checklist "Welche Apps sollen laufen? (Leertaste = an/aus)" 16 78 6 \
+      APPS=$(whiptail --title "$TITLE" --separate-output --checklist "Welche Apps sollen laufen? (Leertaste = an/aus)" 17 78 7 \
         adguard "AdGuard Home: DNS und Werbeblocker fürs Heimnetz" "$(onoff adguard "$apps_default")" \
+        medien "Medien über Usenet: Prowlarr, SABnzbd, Sonarr, Radarr …" "$(onoff medien "$apps_default")" \
         emby "Emby: Media-Server" "$(onoff emby "$apps_default")" \
         recommendarr "Recommendarr (eigene App)" "$(onoff recommendarr "$apps_default")" \
         ps2gamemanager "PS2GameManager (eigene App)" "$(onoff ps2gamemanager "$apps_default")" \
@@ -376,6 +391,7 @@ write_config() {
     echo "  disk_label: $(yq "$BACKUP_LABEL")"
     echo "apps:"
     echo "  adguard: $(app_on adguard)"
+    echo "  medien: $(app_on medien)"
     echo "  tailscale: $([ "$TAILSCALE" = 1 ] && echo true || echo false)"
     echo "  uptime_kuma: $(app_on uptime_kuma)"
     echo "  emby: $(app_on emby)"

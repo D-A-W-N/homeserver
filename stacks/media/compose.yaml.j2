@@ -1,6 +1,6 @@
 # {{ ansible_managed }}
 # Servarr-Stack nach TRaSH Guides: ein Dateisystem unter /data, damit Hardlinks und
-# sofortige Verschiebungen funktionieren (Plan, Abschnitt 5).
+# sofortige Verschiebungen funktionieren (Plan, Abschnitt 5). Servarr nur mit apps.medien (D25).
 name: media
 
 x-arr-env: &arr-env
@@ -10,6 +10,7 @@ x-arr-env: &arr-env
   TZ: {{ timezone }}
 
 services:
+{% if apps.medien | bool %}
   prowlarr:
     image: {{ stacks_images.prowlarr }}
     container_name: prowlarr
@@ -102,6 +103,7 @@ services:
       CRON_SCHEDULE: "@daily"
     volumes:
       - {{ appdata_dir }}/recyclarr:/config
+{% endif %}
 {% if apps.emby | bool %}
 
   # Host-Netzwerk: Fernseher/Apps verbinden sich direkt per http://<NAS>:8096 und finden
@@ -126,11 +128,13 @@ services:
     image: {{ stacks_images.recommendarr }}
     container_name: recommendarr
     restart: unless-stopped
+{% if apps.medien | bool %}
     depends_on:
       radarr:
         condition: service_healthy
       sonarr:
         condition: service_healthy
+{% endif %}
     volumes:
       - {{ appdata_dir }}/recommendarr:/data
     ports:

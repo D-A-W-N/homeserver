@@ -58,7 +58,7 @@
         server: lokal
         container: emby
 {% endif %}
-{% for app, text in [('sonarr', 'Serien'), ('radarr', 'Filme'), ('lidarr', 'Musik'), ('prowlarr', 'Indexer'), ('sabnzbd', 'Usenet-Downloads'), ('bazarr', 'Untertitel')] %}
+{% for app, text in [('sonarr', 'Serien'), ('radarr', 'Filme'), ('lidarr', 'Musik'), ('prowlarr', 'Indexer'), ('sabnzbd', 'Usenet-Downloads'), ('bazarr', 'Untertitel')] if apps.medien | bool %}
     - {{ app | capitalize if app != 'sabnzbd' else 'SABnzbd' }}:
         href: https://{{ stacks_hosts[app] }}.{{ domain }}
         description: {{ text }}

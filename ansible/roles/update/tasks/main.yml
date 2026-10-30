@@ -23,8 +23,8 @@
 - name: Units sofort bekannt machen
   ansible.builtin.meta: flush_handlers
 
-- name: Tägliche Update-Prüfung
+- name: Tägliche Update-Prüfung (update_check)
   ansible.builtin.systemd_service:
     name: aunserver-update-check.timer
-    enabled: true
-    state: started
+    enabled: "{{ update_check | bool }}"
+    state: "{{ 'started' if update_check | bool else 'stopped' }}"

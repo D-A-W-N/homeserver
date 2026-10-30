@@ -133,6 +133,8 @@ Woher neue Versionen kommen: Renovate prüft das Repo und legt montags früh fü
 
 ## Konfiguration ändern
 
+**Apps an und aus:** Jede App unter `apps:` lässt sich abschalten, auch die Medien-Apps als Ganzes (`apps.medien`: Prowlarr, SABnzbd, Sonarr, Radarr, Lidarr, Bazarr, Recyclarr). Abschalten entfernt die Container, ihre Einstellungen unter `/srv/appdata` bleiben, Einschalten holt sie mit diesen Einstellungen zurück. Bei der Ersteinrichtung gibt es dafür zwei Profile als Vorauswahl: **Medien-NAS** (wie bisher) und **Nur Dateien** (ohne Medien-Apps und Emby).
+
 **Im Browser:** Cockpit (`https://cockpit.nas.home.arpa` oder `https://<IP>:9090`) → **aunserver**. Dort stehen alle Einstellungen nach Bereichen mit Erklärung (erweiterte auf Wunsch), **Übernehmen** zeigt, was sich seit dem letzten Lauf geändert hat, und startet das Setup mit Protokoll (es läuft weiter, auch wenn das Fenster zu ist). Dazu der **Verlauf** mit Zurückholen, **Passwörter** ändern, **Zugänge** und die Suche nach Updates. Nötig ist der Administratorzugriff in Cockpit (oben rechts). Die Seite schreibt nichts selbst, sondern ruft `aunserver-config` auf: dieselben Prüfungen wie auf der Kommandozeile.
 
 **Auf der Kommandozeile:**

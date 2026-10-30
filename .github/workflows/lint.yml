@@ -40,6 +40,29 @@ jobs:
         run: npx --yes --package renovate@44 renovate-config-validator renovate.json
       - name: ansible-lint
         run: cd ansible && ansible-lint
+      - name: Vorlagen mit und ohne Medien-Apps (Compose, Caddy, D25)
+        run: |
+          caddy=$(awk '$1 == "caddy:" {print $2}' ansible/roles/stacks/defaults/main.yml)
+          pruefe() { # pruefe NAME KONFIG STACKS...
+            local name=$1 konfig=$2 ziel="$RUNNER_TEMP/vorlagen/$1" c
+            shift 2
+            mkdir -p "$ziel"
+            printf '%s\n' "$konfig" > "$ziel.yml"
+            bin/aunserver-config effective "$ziel.yml" --out "$ziel-eff.yml"
+            ANSIBLE_PYTHON_INTERPRETER=auto_silent ansible-playbook -i localhost, -c local dev/vorlagen-test.yml \
+              -e "@$ziel-eff.yml" -e "ziel=$ziel" > /dev/null
+            for c in "$@"; do docker compose -f "$ziel/$c/compose.yaml" config -q; done
+            docker run --rm -v "$ziel/proxy:/etc/caddy:ro" "$caddy" caddy adapt --config /etc/caddy/Caddyfile > /dev/null
+            echo "$name: in Ordnung ($*)"
+          }
+          pruefe standard '{}' media ps2
+          pruefe ohne-medien 'apps: {medien: false, recommendarr: false}' media ps2
+          # ohne jede Medien-App entfernt Ansible den Stack media, statt ihn auszurollen
+          pruefe nur-dateien 'apps: {medien: false, emby: false, recommendarr: false, ps2gamemanager: false}'
+          for f in proxy/Caddyfile dashboard/services.yaml zugaenge.txt; do
+            grep -q sonarr "$RUNNER_TEMP/vorlagen/standard/$f"
+            if grep sonarr "$RUNNER_TEMP/vorlagen/ohne-medien/$f"; then exit 1; fi
+          done
       - name: Syntaxprüfung
         run: cd ansible && ansible-playbook -i localhost, site.yml --syntax-check -e @../config.example.yml
   secrets:
