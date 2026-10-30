@@ -34,12 +34,18 @@
   loop: "{{ stack_files }}"
   register: stacks_templates
 
+# ghcr.io drosselt beim Laden manchmal ("retry-after … allowed: 44000/minute"); ohne Wiederholung
+# brach das ganze Setup ab (Befund VM-Test und echtes NAS, Verbesserungsplan Paket 3/7)
 - name: "Stack starten: {{ stack_name }}"
   community.docker.docker_compose_v2:
     project_src: "{{ stacks_dir }}/{{ stack_name }}"
     state: present
     pull: missing
     remove_orphans: true
+  register: stacks_compose_start
+  until: stacks_compose_start is succeeded
+  retries: 4
+  delay: 30
 
 - name: "Nach Konfigurationsänderung neu starten: {{ stack_name }}"
   community.docker.docker_compose_v2:
