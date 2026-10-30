@@ -17,3 +17,4 @@ fi
 
 SUDO_USER=$ADMIN /opt/aunserver/bin/aunserver-setup "${args[@]}"
 rm -f /etc/aunserver/erststart.env
+systemctl disable aunserver-erststart.service
